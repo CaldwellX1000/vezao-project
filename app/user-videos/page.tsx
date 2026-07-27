@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -32,7 +32,7 @@ type Comment = {
   } | null
 }
 
-export default function UserVideosPage() {
+function UserVideosContent() {
   const searchParams = useSearchParams()
   const userId = searchParams.get('userId')
 
@@ -625,5 +625,19 @@ export default function UserVideosPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function UserVideosPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <UserVideosContent />
+    </Suspense>
   )
 }
