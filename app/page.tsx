@@ -118,7 +118,20 @@ export default function FeedPage() {
       return true
     })
 
-    setAllVideos(filtered as any)
+// Ranking sederhana For You: skor likes + kebaruan
+const ranked = [...filtered].sort((a: any, b: any) => {
+  const score = (v: any) => {
+    const likes = v.likes_count || 0
+    const ageHours =
+      (Date.now() - new Date(v.created_at).getTime()) / (1000 * 60 * 60)
+    // likes lebih berat, video baru dapat boost
+    const recencyBoost = Math.max(0, 48 - ageHours) * 0.5
+    return likes * 2 + recencyBoost
+  }
+  return score(b) - score(a)
+})
+
+setAllVideos(ranked as any)
 
     const { count } = await supabase
       .from('messages')

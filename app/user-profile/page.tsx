@@ -29,6 +29,7 @@ function UserProfileContent() {
   const [followingCount, setFollowingCount] = useState(0)
   const [followersCount, setFollowersCount] = useState(0)
   const [isFollowing, setIsFollowing] = useState(false)
+  const [isRequested, setIsRequested] = useState(false)
   const [isBlocked, setIsBlocked] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -51,13 +52,11 @@ function UserProfileContent() {
       .order('created_at', { ascending: false })
 
     const filtered = (userVideos || []).filter((v: any) => {
-      // Pemilik selalu lihat semua (non-draft)
       if (v.user_id === viewerId) return true
-
       const vis = v.visibility || 'public'
       if (vis === 'private') return false
       if (vis === 'followers') return isFollower
-      return true // public
+      return true
     })
 
     setVideos(filtered)
@@ -124,6 +123,19 @@ function UserProfileContent() {
       const isFollower = !!followData
       setIsFollowing(isFollower)
 
+      if (!isFollower) {
+        const { data: req } = await supabase
+          .from('follow_requests')
+          .select('id')
+          .eq('requester_id', user.id)
+          .eq('target_id', targetUserId)
+          .eq('status', 'pending')
+          .maybeSingle()
+        setIsRequested(!!req)
+      } else {
+        setIsRequested(false)
+      }
+
       const isOwn = user.id === targetUserId
       const privateAcc = profile?.is_private || false
       const allow = isOwn || !privateAcc || isFollower
@@ -144,6 +156,7 @@ function UserProfileContent() {
   const toggleFollow = async () => {
     if (!currentUserId || !targetUserId || currentUserId === targetUserId) return
 
+    // Unfollow
     if (isFollowing) {
       await supabase
         .from('follows')
@@ -158,30 +171,64 @@ function UserProfileContent() {
         setCanViewVideos(false)
         setVideos([])
       } else {
-        // Reload agar video visibility=followers ikut hilang
         await loadVideos(targetUserId, currentUserId, false)
       }
-    } else {
-      const { error } = await supabase.from('follows').insert({
-        follower_id: currentUserId,
-        following_id: targetUserId,
+      return
+    }
+
+    // Cancel request
+    if (isRequested) {
+      await supabase
+        .from('follow_requests')
+        .delete()
+        .eq('requester_id', currentUserId)
+        .eq('target_id', targetUserId)
+        .eq('status', 'pending')
+      setIsRequested(false)
+      return
+    }
+
+    // Private → request
+    if (isPrivate) {
+      const { error } = await supabase.from('follow_requests').insert({
+        requester_id: currentUserId,
+        target_id: targetUserId,
+        status: 'pending',
       })
-
       if (!error) {
-        setIsFollowing(true)
-        setFollowersCount((prev) => prev + 1)
-        setCanViewVideos(true)
-        await loadVideos(targetUserId, currentUserId, true)
-
+        setIsRequested(true)
         await supabase.from('notifications').insert({
           user_id: targetUserId,
           actor_id: currentUserId,
-          type: 'follow',
+          type: 'follow_request',
           video_id: null,
           message: null,
           is_read: false,
         })
       }
+      return
+    }
+
+    // Public → follow langsung
+    const { error } = await supabase.from('follows').insert({
+      follower_id: currentUserId,
+      following_id: targetUserId,
+    })
+
+    if (!error) {
+      setIsFollowing(true)
+      setFollowersCount((prev) => prev + 1)
+      setCanViewVideos(true)
+      await loadVideos(targetUserId, currentUserId, true)
+
+      await supabase.from('notifications').insert({
+        user_id: targetUserId,
+        actor_id: currentUserId,
+        type: 'follow',
+        video_id: null,
+        message: null,
+        is_read: false,
+      })
     }
   }
 
@@ -194,7 +241,6 @@ function UserProfileContent() {
         .delete()
         .eq('blocker_id', currentUserId)
         .eq('blocked_id', targetUserId)
-
       setIsBlocked(false)
     } else {
       const confirmBlock = confirm(`Block @${username}? Mereka tidak bisa melihat profil dan video kamu.`)
@@ -219,10 +265,22 @@ function UserProfileContent() {
             setVideos([])
           }
         }
+        await supabase
+          .from('follow_requests')
+          .delete()
+          .eq('requester_id', currentUserId)
+          .eq('target_id', targetUserId)
+        setIsRequested(false)
         setIsBlocked(true)
       }
     }
   }
+
+  const followLabel = isFollowing
+    ? 'Following'
+    : isRequested
+    ? 'Requested'
+    : 'Follow'
 
   const totalLikes = videos.reduce((sum, v) => sum + (v.likes_count || 0), 0)
 
@@ -238,23 +296,6 @@ function UserProfileContent() {
               <div className="h-8 w-16 bg-zinc-700 rounded-full animate-pulse" />
             </div>
           </div>
-          <div className="mt-3 space-y-2">
-            <div className="h-5 w-32 bg-zinc-700 rounded animate-pulse" />
-            <div className="h-3 w-20 bg-zinc-700 rounded animate-pulse" />
-          </div>
-          <div className="flex gap-6 mt-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="text-center space-y-1">
-                <div className="h-4 w-8 bg-zinc-700 rounded animate-pulse mx-auto" />
-                <div className="h-3 w-12 bg-zinc-700 rounded animate-pulse mx-auto" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-[2px] mt-8 px-1">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="aspect-[9/16] bg-zinc-800 animate-pulse" />
-          ))}
         </div>
       </div>
     )
@@ -280,12 +321,12 @@ function UserProfileContent() {
                 onClick={toggleFollow}
                 disabled={isBlocked}
                 className={`px-5 py-1.5 text-sm font-semibold rounded-full ${
-                  isFollowing
+                  isFollowing || isRequested
                     ? 'bg-white/20 text-white'
                     : 'bg-vezao-gradient text-white'
                 } ${isBlocked ? 'opacity-50' : ''}`}
               >
-                {isFollowing ? 'Following' : 'Follow'}
+                {followLabel}
               </button>
 
               <button
@@ -335,11 +376,8 @@ function UserProfileContent() {
                             reason: reason || null,
                           })
 
-                          if (error) {
-                            alert('Gagal report: ' + error.message)
-                          } else {
-                            alert('Terima kasih. Laporan sudah dikirim.')
-                          }
+                          if (error) alert('Gagal report: ' + error.message)
+                          else alert('Terima kasih. Laporan sudah dikirim.')
                         }}
                         className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-white border-t border-white/5"
                       >
@@ -390,9 +428,7 @@ function UserProfileContent() {
           </div>
         </div>
 
-        {bio && (
-          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>
-        )}
+        {bio && <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>}
 
         {website && (
           <a
@@ -401,9 +437,6 @@ function UserProfileContent() {
             rel="noopener noreferrer"
             className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
             {website.replace(/^https?:\/\//, '')}
           </a>
         )}
@@ -423,13 +456,13 @@ function UserProfileContent() {
             <div className="text-4xl mb-3">🔒</div>
             <p className="font-semibold mb-1">This account is private</p>
             <p className="text-sm text-gray-400">
-              Follow @{username} untuk melihat video mereka
+              {isRequested
+                ? 'Request sudah dikirim. Tunggu persetujuan.'
+                : `Follow @${username} untuk melihat video mereka`}
             </p>
           </div>
         ) : videos.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            Belum ada video
-          </div>
+          <div className="text-center py-20 text-gray-400">Belum ada video</div>
         ) : (
           <div className="grid grid-cols-3 gap-[2px]">
             {videos.map((video) => (
@@ -439,11 +472,7 @@ function UserProfileContent() {
                 className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer active:opacity-80"
               >
                 {video.thumbnail_url ? (
-                  <img
-                    src={video.thumbnail_url}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={video.thumbnail_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <video
                     src={video.video_url}
