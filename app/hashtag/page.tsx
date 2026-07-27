@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -19,7 +19,7 @@ type Video = {
   } | null
 }
 
-export default function HashtagPage() {
+function HashtagContent() {
   const searchParams = useSearchParams()
   const tag = searchParams.get('tag') || ''
 
@@ -106,7 +106,6 @@ export default function HashtagPage() {
 
   return (
     <div className="h-screen bg-black overflow-y-scroll snap-y snap-mandatory pb-16">
-      {/* Header */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-12 bg-gradient-to-b from-black/80 to-transparent">
         <button onClick={() => router.back()} className="text-white text-lg font-bold">
           ←
@@ -169,28 +168,42 @@ export default function HashtagPage() {
               >
                 @{video.profiles?.username || 'user'}
               </p>
-<p className="text-sm opacity-90 line-clamp-3">
-  {(video.caption || '').split(/(#\w+)/g).map((part, i) =>
-    part.startsWith('#') ? (
-      <span
-        key={i}
-        onClick={(e) => {
-          e.stopPropagation()
-          router.push(`/hashtag?tag=${part.slice(1)}`)
-        }}
-        className="text-blue-400 font-medium cursor-pointer"
-      >
-        {part}
-      </span>
-    ) : (
-      <span key={i}>{part}</span>
-    )
-  )}
-</p>
+              <p className="text-sm opacity-90 line-clamp-3">
+                {(video.caption || '').split(/(#\w+)/g).map((part, i) =>
+                  part.startsWith('#') ? (
+                    <span
+                      key={i}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        router.push(`/hashtag?tag=${part.slice(1)}`)
+                      }}
+                      className="text-blue-400 font-medium cursor-pointer"
+                    >
+                      {part}
+                    </span>
+                  ) : (
+                    <span key={i}>{part}</span>
+                  )
+                )}
+              </p>
             </div>
           </div>
         ))
       )}
     </div>
+  )
+}
+
+export default function HashtagPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-screen bg-black flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <HashtagContent />
+    </Suspense>
   )
 }
