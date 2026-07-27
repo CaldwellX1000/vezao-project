@@ -38,7 +38,7 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-  const [isMuted, setIsMuted] = useState(true)
+  const [isMuted, setIsMuted] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
@@ -65,7 +65,6 @@ export default function FeedPage() {
       : allVideos.filter((v) => following.has(v.user_id) && !blockedUsers.has(v.user_id))
 
   const loadFeed = async (uid: string) => {
-    // 1. Blocks
     const { data: blocksData } = await supabase
       .from('blocks')
       .select('blocked_id')
@@ -74,7 +73,6 @@ export default function FeedPage() {
     const blockedSet = new Set(blocksData?.map((b) => b.blocked_id) || [])
     setBlockedUsers(blockedSet)
 
-    // 2. Following (harus dulu sebelum filter private)
     const { data: followData } = await supabase
       .from('follows')
       .select('following_id')
@@ -83,40 +81,36 @@ export default function FeedPage() {
     const followingSet = new Set(followData?.map((f) => f.following_id) || [])
     setFollowing(followingSet)
 
-    // 3. Videos + is_private
-const { data: videosData } = await supabase
-  .from('videos')
-  .select(`
-    id,
-    caption,
-    video_url,
-    likes_count,
-    comments_count,
-  comments_enabled,
-  visibility,
-    created_at,
-    user_id,
-    profiles (
-      username,
-      full_name,
-      avatar_url,
-      is_private
-    )
-  `)
-  .eq('is_draft', false)   // ← di sini
-  .order('created_at', { ascending: false })
+    const { data: videosData } = await supabase
+      .from('videos')
+      .select(`
+        id,
+        caption,
+        video_url,
+        likes_count,
+        comments_count,
+        comments_enabled,
+        visibility,
+        created_at,
+        user_id,
+        profiles (
+          username,
+          full_name,
+          avatar_url,
+          is_private
+        )
+      `)
+      .eq('is_draft', false)
+      .order('created_at', { ascending: false })
 
-      // 4. Filter: private account + visibility post
     const filtered = (videosData || []).filter((v: any) => {
       const isOwn = v.user_id === uid
       if (isOwn) return true
 
-      // Private account
       const isPrivateAccount = v.profiles?.is_private === true
       const isFollower = followingSet.has(v.user_id)
       if (isPrivateAccount && !isFollower) return false
 
-      // Visibility per post
       const vis = v.visibility || 'public'
       if (vis === 'private') return false
       if (vis === 'followers' && !isFollower) return false
@@ -126,7 +120,6 @@ const { data: videosData } = await supabase
 
     setAllVideos(filtered as any)
 
-    // 5. Inbox unread
     const { count } = await supabase
       .from('messages')
       .select('*', { count: 'exact', head: true })
@@ -135,7 +128,6 @@ const { data: videosData } = await supabase
 
     setInboxUnread(count || 0)
 
-    // 6. Likes
     const { data: likesData } = await supabase
       .from('likes')
       .select('video_id')
@@ -407,51 +399,44 @@ const { data: videosData } = await supabase
     await openComments(activeVideoId)
   }
 
-  const handleShare = async (videoId: string) => {
-    const url = `${window.location.origin}/?v=${videoId}`
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'VEZAO',
-          text: 'Lihat video ini di VEZAO!',
-          url,
-        })
-      } catch {}
-    } else {
-      await navigator.clipboard.writeText(url)
-      alert('Link video berhasil disalin!')
-    }
+const handleShare = async (videoId: string) => {
+  const url = `${window.location.origin}/v/${videoId}`
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'VEZAO',
+        text: 'Lihat video ini di VEZAO!',
+        url,
+      })
+    } catch {}
+  } else {
+    await navigator.clipboard.writeText(url)
+    alert('Link video berhasil disalin!')
   }
-
- if (loading) {
-  return (
-    <div className="h-screen bg-black relative overflow-hidden">
-      {/* Fake video skeleton */}
-      <div className="absolute inset-0 bg-zinc-900 animate-pulse" />
-
-      {/* Fake bottom info */}
-      <div className="absolute bottom-28 left-4 right-20 space-y-3 z-10">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-zinc-700 animate-pulse" />
-          <div className="h-3 w-24 bg-zinc-700 rounded animate-pulse" />
-          <div className="h-5 w-16 bg-zinc-700 rounded-full animate-pulse" />
-        </div>
-        <div className="h-3 w-48 bg-zinc-700 rounded animate-pulse" />
-        <div className="h-3 w-32 bg-zinc-700 rounded animate-pulse" />
-      </div>
-
-      {/* Fake action buttons */}
-      <div className="absolute right-3 bottom-32 flex flex-col items-center gap-5 z-10">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="w-11 h-11 rounded-full bg-zinc-700 animate-pulse" />
-        ))}
-      </div>
-
-      {/* Fake bottom nav */}
-      <div className="absolute bottom-0 left-0 right-0 h-16 bg-zinc-950 border-t border-white/5" />
-    </div>
-  )
 }
+
+  if (loading) {
+    return (
+      <div className="h-screen bg-black relative overflow-hidden">
+        <div className="absolute inset-0 bg-zinc-900 animate-pulse" />
+        <div className="absolute bottom-28 left-4 right-20 space-y-3 z-10">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-zinc-700 animate-pulse" />
+            <div className="h-3 w-24 bg-zinc-700 rounded animate-pulse" />
+            <div className="h-5 w-16 bg-zinc-700 rounded-full animate-pulse" />
+          </div>
+          <div className="h-3 w-48 bg-zinc-700 rounded animate-pulse" />
+          <div className="h-3 w-32 bg-zinc-700 rounded animate-pulse" />
+        </div>
+        <div className="absolute right-3 bottom-32 flex flex-col items-center gap-5 z-10">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="w-11 h-11 rounded-full bg-zinc-700 animate-pulse" />
+          ))}
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 h-16 bg-zinc-950 border-t border-white/5" />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -461,7 +446,6 @@ const { data: videosData } = await supabase
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      {/* Pull indicator */}
       {(pullDistance > 0 || refreshing) && (
         <div
           className="fixed top-14 left-0 right-0 z-[45] flex justify-center pointer-events-none"
@@ -486,22 +470,28 @@ const { data: videosData } = await supabase
       )}
 
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-12 bg-gradient-to-b from-black/70 to-transparent">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-5">
           <button
             onClick={() => setFeedTab('following')}
-            className={`text-sm font-semibold ${
+            className={`relative text-[15px] font-semibold pb-1 ${
               feedTab === 'following' ? 'text-white' : 'text-white/50'
             }`}
           >
             Following
+            {feedTab === 'following' && (
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-white rounded-full" />
+            )}
           </button>
           <button
             onClick={() => setFeedTab('foryou')}
-            className={`text-sm font-semibold ${
+            className={`relative text-[15px] font-semibold pb-1 ${
               feedTab === 'foryou' ? 'text-white' : 'text-white/50'
             }`}
           >
             For You
+            {feedTab === 'foryou' && (
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-white rounded-full" />
+            )}
           </button>
         </div>
 
@@ -522,25 +512,33 @@ const { data: videosData } = await supabase
       </div>
 
       {videos.length === 0 ? (
-        <div className="h-screen flex flex-col items-center justify-center text-gray-500 gap-3 px-6 text-center">
-          <p>
-            {feedTab === 'following'
-              ? 'Belum ada video dari yang kamu follow'
-              : 'Belum ada video'}
-          </p>
+        <div className="h-screen flex flex-col items-center justify-center text-gray-400 gap-4 px-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center text-3xl">
+            {feedTab === 'following' ? '👥' : '🎬'}
+          </div>
+          <div>
+            <p className="text-white font-semibold mb-1">
+              {feedTab === 'following' ? 'Belum ada konten' : 'Belum ada video'}
+            </p>
+            <p className="text-sm text-gray-500">
+              {feedTab === 'following'
+                ? 'Follow creator biar videonya muncul di sini'
+                : 'Jadi yang pertama upload di Vezao'}
+            </p>
+          </div>
           {feedTab === 'following' ? (
             <button
               onClick={() => setFeedTab('foryou')}
-              className="bg-vezao-gradient text-white px-6 py-2 rounded-full text-sm font-medium"
+              className="bg-vezao-gradient text-white px-6 py-2.5 rounded-full text-sm font-medium"
             >
               Lihat For You
             </button>
           ) : (
             <button
               onClick={() => router.push('/upload')}
-              className="bg-vezao-gradient text-white px-6 py-2 rounded-full text-sm font-medium"
+              className="bg-vezao-gradient text-white px-6 py-2.5 rounded-full text-sm font-medium"
             >
-              Upload Video Pertama
+              Upload Video
             </button>
           )}
         </div>
@@ -617,29 +615,33 @@ const { data: videosData } = await supabase
                     </button>
                   )}
                 </div>
-<p className="text-sm opacity-90 line-clamp-3">
-  {(video.caption || '').split(/(#\w+)/g).map((part, i) =>
-    part.startsWith('#') ? (
-      <span
-        key={i}
-        onClick={(e) => {
-          e.stopPropagation()
-          router.push(`/hashtag?tag=${part.slice(1)}`)
-        }}
-        className="text-blue-400 font-medium cursor-pointer"
-      >
-        {part}
-      </span>
-    ) : (
-      <span key={i}>{part}</span>
-    )
-  )}
-</p>                
+                <p className="text-sm opacity-90 line-clamp-3">
+                  {(video.caption || '').split(/(#\w+)/g).map((part, i) =>
+                    part.startsWith('#') ? (
+                      <span
+                        key={i}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          router.push(`/hashtag?tag=${part.slice(1)}`)
+                        }}
+                        className="text-blue-400 font-medium cursor-pointer"
+                      >
+                        {part}
+                      </span>
+                    ) : (
+                      <span key={i}>{part}</span>
+                    )
+                  )}
+                </p>
               </div>
 
-              <div className="absolute right-3 bottom-32 flex flex-col items-center gap-4 z-10">
+              <div className="absolute right-3 bottom-32 flex flex-col items-center gap-5 z-10">
                 <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
-                  <div className={`w-11 h-11 rounded-full flex items-center justify-center border border-white/10 ${isLiked ? 'bg-red-500' : 'bg-black/40 backdrop-blur-md'}`}>
+                  <div
+                    className={`w-11 h-11 rounded-full flex items-center justify-center border border-white/10 ${
+                      isLiked ? 'bg-red-500' : 'bg-black/40 backdrop-blur-md'
+                    }`}
+                  >
                     {isLiked ? (
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
@@ -653,16 +655,16 @@ const { data: videosData } = await supabase
                   <span className="text-xs mt-1 text-white font-medium">{video.likes_count}</span>
                 </button>
 
-<button
-  onClick={() => {
-    if (video.comments_enabled === false) {
-      alert('Komentar dimatikan untuk video ini')
-      return
-    }
-    openComments(video.id)
-  }}
-  className="flex flex-col items-center"
->
+                <button
+                  onClick={() => {
+                    if (video.comments_enabled === false) {
+                      alert('Komentar dimatikan untuk video ini')
+                      return
+                    }
+                    openComments(video.id)
+                  }}
+                  className="flex flex-col items-center"
+                >
                   <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -673,10 +675,11 @@ const { data: videosData } = await supabase
 
                 <button onClick={() => handleShare(video.id)} className="flex flex-col items-center">
                   <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" />
                     </svg>
                   </div>
+                  <span className="text-xs mt-1 text-white font-medium">Share</span>
                 </button>
 
                 <button onClick={() => setShowMore(video.id)} className="flex flex-col items-center">
