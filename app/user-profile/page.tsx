@@ -8,6 +8,7 @@ type Video = {
   id: string
   caption: string | null
   video_url: string
+  views_count?: number | null
   thumbnail_url: string | null
   likes_count: number
   created_at: string
@@ -39,29 +40,34 @@ function UserProfileContent() {
   const router = useRouter()
   const supabase = createClient()
 
-  const loadVideos = async (
+const loadVideos = async (
     userId: string,
     viewerId: string,
     isFollower: boolean
   ) => {
-    const { data: userVideos } = await supabase
+   const { data: userVideos, error } = await supabase
       .from('videos')
-      .select('id, caption, video_url, thumbnail_url, likes_count, created_at, visibility, user_id')
+.select(
+  'id, caption, video_url, thumbnail_url, likes_count, views_count, created_at, visibility, user_id, is_draft'
+)
       .eq('user_id', userId)
-      .eq('is_draft', false)
       .order('created_at', { ascending: false })
 
-    const filtered = (userVideos || []).filter((v: any) => {
-      if (v.user_id === viewerId) return true
-      const vis = v.visibility || 'public'
-      if (vis === 'private') return false
-      if (vis === 'followers') return isFollower
-      return true
-    })
+    console.log('loadVideos:', { count: userVideos?.length, error })
+
+    if (error) {
+      console.error('loadVideos error:', error)
+      setVideos([])
+      return
+    }
+
+    // sementara: tampilkan semua kecuali draft eksplisit true
+    const filtered = (userVideos || []).filter((v: any) => v.is_draft !== true)
+    console.log('loadVideos filtered:', filtered.length, 'isFollower:', isFollower)
 
     setVideos(filtered)
   }
-
+  
   useEffect(() => {
     const load = async () => {
       if (!targetUserId) {
@@ -482,9 +488,9 @@ function UserProfileContent() {
                     preload="metadata"
                   />
                 )}
-                <div className="absolute bottom-1 left-1 flex items-center gap-1 text-xs font-medium drop-shadow">
-                  <span>♥</span>
-                  <span>{video.likes_count}</span>
+  <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between text-[10px] font-medium drop-shadow px-1">
+                  <span>♥ {video.likes_count}</span>
+                  <span>👁 {video.views_count || 0}</span>
                 </div>
               </div>
             ))}

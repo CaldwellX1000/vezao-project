@@ -8,6 +8,7 @@ type Video = {
   id: string
   caption: string | null
   video_url: string
+  views_count?: number | null
   thumbnail_url: string | null
   likes_count: number
   created_at: string
@@ -49,7 +50,7 @@ export default function ProfilePage() {
   const loadVideos = async (uid: string) => {
     const { data: published } = await supabase
       .from('videos')
-      .select('id, caption, video_url, thumbnail_url, likes_count, created_at, is_draft')
+      .select('id, caption, video_url, thumbnail_url, likes_count, views_count, created_at, is_draft')
       .eq('user_id', uid)
       .eq('is_draft', false)
       .order('created_at', { ascending: false })
@@ -58,7 +59,7 @@ export default function ProfilePage() {
 
     const { data: draftData } = await supabase
       .from('videos')
-      .select('id, caption, video_url, thumbnail_url, likes_count, created_at, is_draft')
+      .select('id, caption, video_url, thumbnail_url, likes_count, views_count, created_at, is_draft')
       .eq('user_id', uid)
       .eq('is_draft', true)
       .order('created_at', { ascending: false })
@@ -543,10 +544,10 @@ export default function ProfilePage() {
                     onClick={() => router.push(`/user-videos?userId=${userId}`)}
                     className="absolute inset-0 cursor-pointer"
                   >
-                    <div className="absolute bottom-1 left-1 flex items-center gap-1 text-xs font-medium drop-shadow">
-                      <span>♥</span>
-                      <span>{video.likes_count}</span>
-                    </div>
+<div className="absolute bottom-1 left-1 right-1 flex items-center justify-between text-[10px] font-medium drop-shadow">
+  <span>♥ {video.likes_count}</span>
+  <span>👁 {video.views_count || 0}</span>
+</div>
                   </div>
                 )}
               </div>

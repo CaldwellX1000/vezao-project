@@ -34,6 +34,7 @@ export default function SearchPage() {
   const [videos, setVideos] = useState<VideoResult[]>([])
   const [hashtags, setHashtags] = useState<string[]>([])
   const [suggested, setSuggested] = useState<Profile[]>([])
+  const [suggestedVideos, setSuggestedVideos] = useState<VideoResult[]>([])
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
@@ -79,7 +80,27 @@ export default function SearchPage() {
         .filter((p) => !blockedSet.has(p.id) && !followSet.has(p.id))
         .slice(0, 12)
 
-      setSuggested(list)
+setSuggested(list)
+
+      const { data: popular } = await supabase
+        .from('videos')
+        .select(`
+          id,
+          caption,
+          video_url,
+          thumbnail_url,
+          likes_count,
+          user_id,
+          profiles ( username, avatar_url )
+        `)
+        .eq('is_draft', false)
+        .order('likes_count', { ascending: false })
+        .limit(18)
+
+      const filteredVids = (popular || []).filter(
+        (v: any) => !blockedSet.has(v.user_id)
+      )
+      setSuggestedVideos(filteredVids as any)
     }
     checkAuth()
   }, [])
@@ -265,12 +286,40 @@ export default function SearchPage() {
           <div className="flex justify-center py-12">
             <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
           </div>
-        ) : !searched ? (
+) : !searched ? (
           tab === 'users' && suggested.length > 0 ? (
             <div>
               <p className="text-sm font-semibold text-gray-400 mb-2 px-2">Suggested accounts</p>
               <div className="space-y-1">
                 {suggested.map((u) => renderUserRow(u, true))}
+              </div>
+            </div>
+          ) : tab === 'videos' && suggestedVideos.length > 0 ? (
+            <div>
+              <p className="text-sm font-semibold text-gray-400 mb-2 px-2">Popular videos</p>
+              <div className="grid grid-cols-3 gap-[2px]">
+                {suggestedVideos.map((v) => (
+                  <div
+                    key={v.id}
+                    onClick={() => router.push(`/v/${v.id}`)}
+                    className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer"
+                  >
+                    {v.thumbnail_url ? (
+                      <img src={v.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <video
+                        src={v.video_url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                    )}
+                    <div className="absolute bottom-1 left-1 text-[10px] text-white font-medium drop-shadow">
+                      ♥ {v.likes_count}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ) : (

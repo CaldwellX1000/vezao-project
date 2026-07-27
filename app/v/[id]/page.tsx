@@ -10,6 +10,7 @@ type Video = {
   video_url: string
   likes_count: number
   comments_count: number
+  views_count?: number | null
   comments_enabled?: boolean | null
   user_id: string
   profiles: {
@@ -28,6 +29,7 @@ export default function SingleVideoPage() {
   const [isMuted, setIsMuted] = useState(false)
   const [liked, setLiked] = useState(false)
   const [likesCount, setLikesCount] = useState(0)
+  const [viewsCount, setViewsCount] = useState(0)
   const [userId, setUserId] = useState<string | null>(null)
 
   const router = useRouter()
@@ -48,7 +50,7 @@ export default function SingleVideoPage() {
       }
       setUserId(user.id)
 
-      const { data, error } = await supabase
+const { data, error } = await supabase
         .from('videos')
         .select(`
           id,
@@ -210,6 +212,7 @@ export default function SingleVideoPage() {
           <p className="font-semibold text-sm">@{video.profiles?.username || 'user'}</p>
         </div>
         <p className="text-sm opacity-90 line-clamp-3">{video.caption}</p>
+        <p className="text-xs text-white/60 mt-1">👁 {viewsCount.toLocaleString('id-ID')} views</p>
       </div>
 
       <div className="absolute right-3 bottom-24 flex flex-col items-center gap-5 z-10">
