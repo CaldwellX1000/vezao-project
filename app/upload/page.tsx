@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { Suspense, useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 type Mode = 'choose' | 'gallery' | 'camera' | 'preview'
 
-export default function UploadPage() {
+function UploadContent() {
   const searchParams = useSearchParams()
   const draftId = searchParams.get('draft')
 
@@ -690,10 +690,24 @@ export default function UploadPage() {
           </button>
         </div>
 
-        <button type="button" onClick={resetAll} className="w-full text-sm text-gray-400 py-2">
+         <button type="button" onClick={resetAll} className="w-full text-sm text-gray-400 py-2">
           {editingDraftId ? 'Batal' : 'Buat ulang'}
         </button>
       </div>
     </div>
+  )
+}
+
+export default function UploadPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <UploadContent />
+    </Suspense>
   )
 }
