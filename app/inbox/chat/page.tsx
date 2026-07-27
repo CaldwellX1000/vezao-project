@@ -10,6 +10,7 @@ type Message = {
   receiver_id: string
   content: string
   created_at: string
+  is_read?: boolean
 }
 
 export default function ChatPage() {
@@ -28,8 +29,23 @@ export default function ChatPage() {
   const supabase = createClient()
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  const loadMessages = async (userId: string, partner: string) => {
+    const { data: msgs } = await supabase
+      .from('messages')
+      .select('*')
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .order('created_at', { ascending: true })
+
+    const filtered = (msgs || []).filter(
+      (m) =>
+        (m.sender_id === userId && m.receiver_id === partner) ||
+        (m.sender_id === partner && m.receiver_id === userId)
+    )
+    setMessages(filtered)
+  }
+
   useEffect(() => {
-    const load = async () => {
+    const init = async () => {
       if (!partnerId) {
         router.replace('/inbox')
         return
@@ -42,7 +58,6 @@ export default function ChatPage() {
       }
       setCurrentUserId(user.id)
 
-      // Ambil profil lawan bicara
       const { data: profile } = await supabase
         .from('profiles')
         .select('username, full_name, avatar_url')
@@ -54,23 +69,70 @@ export default function ChatPage() {
         setPartnerAvatar(profile.avatar_url)
       }
 
-      // Ambil pesan
-      const { data: msgs } = await supabase
-        .from('messages')
-        .select('*')
-        .or(
-          `and(sender_id.eq.${user.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${user.id})`
-        )
-        .order('created_at', { ascending: true })
+      await loadMessages(user.id, partnerId)
 
-      if (msgs) setMessages(msgs)
+      // Tandai pesan dari partner sebagai sudah dibaca
+      await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('sender_id', partnerId)
+        .eq('receiver_id', user.id)
+        .eq('is_read', false)
+
       setLoading(false)
     }
 
-    load()
+    init()
   }, [partnerId])
 
-  // Auto scroll ke bawah
+  useEffect(() => {
+    if (!currentUserId || !partnerId) return
+
+    const channel = supabase
+      .channel(`chat-${currentUserId}-${partnerId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          const newMsg = payload.new as Message
+          const isRelevant =
+            (newMsg.sender_id === currentUserId && newMsg.receiver_id === partnerId) ||
+            (newMsg.sender_id === partnerId && newMsg.receiver_id === currentUserId)
+
+          if (isRelevant) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev
+              const withoutTemp = prev.filter((m) => !m.id.startsWith('temp-'))
+              return [...withoutTemp, newMsg]
+            })
+
+            // Kalau pesan dari partner, langsung tandai dibaca
+            if (newMsg.sender_id === partnerId) {
+              supabase
+                .from('messages')
+                .update({ is_read: true })
+                .eq('id', newMsg.id)
+                .then()
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    const interval = setInterval(() => {
+      loadMessages(currentUserId, partnerId)
+    }, 2000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(interval)
+    }
+  }, [currentUserId, partnerId])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -78,9 +140,20 @@ export default function ChatPage() {
   const sendMessage = async () => {
     if (!newMessage.trim() || !currentUserId || !partnerId || sending) return
 
-    setSending(true)
     const content = newMessage.trim()
     setNewMessage('')
+    setSending(true)
+
+    const tempId = `temp-${Date.now()}`
+    const tempMsg: Message = {
+      id: tempId,
+      sender_id: currentUserId,
+      receiver_id: partnerId,
+      content,
+      created_at: new Date().toISOString(),
+      is_read: false,
+    }
+    setMessages((prev) => [...prev, tempMsg])
 
     const { data, error } = await supabase
       .from('messages')
@@ -88,16 +161,21 @@ export default function ChatPage() {
         sender_id: currentUserId,
         receiver_id: partnerId,
         content,
+        is_read: false,
       })
       .select()
       .single()
 
-    if (!error && data) {
-      setMessages((prev) => [...prev, data])
-    } else {
-      alert('Gagal mengirim pesan')
+    if (error) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId))
       setNewMessage(content)
+      alert('Gagal mengirim pesan')
+    } else if (data) {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? data : m))
+      )
     }
+
     setSending(false)
   }
 
@@ -111,7 +189,6 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
-      {/* Header */}
       <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10 px-4 h-14 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-white text-lg font-bold">
           ←
@@ -128,7 +205,6 @@ export default function ChatPage() {
         <p className="font-semibold text-sm">{partnerName}</p>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 text-sm pt-20">
@@ -138,10 +214,7 @@ export default function ChatPage() {
           messages.map((msg) => {
             const isMe = msg.sender_id === currentUserId
             return (
-              <div
-                key={msg.id}
-                className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-              >
+              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
                     isMe
@@ -158,14 +231,13 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div className="sticky bottom-0 bg-black border-t border-white/10 px-3 py-3 flex items-center gap-2">
         <input
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
           placeholder="Tulis pesan..."
-          className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
         />
         <button
           onClick={sendMessage}

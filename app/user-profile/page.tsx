@@ -8,8 +8,11 @@ type Video = {
   id: string
   caption: string | null
   video_url: string
+  thumbnail_url: string | null
   likes_count: number
   created_at: string
+  visibility?: string | null
+  user_id?: string
 }
 
 export default function UserProfilePage() {
@@ -26,10 +29,39 @@ export default function UserProfilePage() {
   const [followingCount, setFollowingCount] = useState(0)
   const [followersCount, setFollowersCount] = useState(0)
   const [isFollowing, setIsFollowing] = useState(false)
+  const [isBlocked, setIsBlocked] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [isPrivate, setIsPrivate] = useState(false)
+  const [canViewVideos, setCanViewVideos] = useState(true)
 
   const router = useRouter()
   const supabase = createClient()
+
+  const loadVideos = async (
+    userId: string,
+    viewerId: string,
+    isFollower: boolean
+  ) => {
+    const { data: userVideos } = await supabase
+      .from('videos')
+      .select('id, caption, video_url, thumbnail_url, likes_count, created_at, visibility, user_id')
+      .eq('user_id', userId)
+      .eq('is_draft', false)
+      .order('created_at', { ascending: false })
+
+    const filtered = (userVideos || []).filter((v: any) => {
+      // Pemilik selalu lihat semua (non-draft)
+      if (v.user_id === viewerId) return true
+
+      const vis = v.visibility || 'public'
+      if (vis === 'private') return false
+      if (vis === 'followers') return isFollower
+      return true // public
+    })
+
+    setVideos(filtered)
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -45,9 +77,18 @@ export default function UserProfilePage() {
       }
       setCurrentUserId(user.id)
 
+      const { data: blockData } = await supabase
+        .from('blocks')
+        .select('id')
+        .eq('blocker_id', user.id)
+        .eq('blocked_id', targetUserId)
+        .maybeSingle()
+
+      setIsBlocked(!!blockData)
+
       const { data: profile } = await supabase
         .from('profiles')
-        .select('username, full_name, bio, avatar_url, website')
+        .select('username, full_name, bio, avatar_url, website, is_private')
         .eq('id', targetUserId)
         .single()
 
@@ -57,15 +98,8 @@ export default function UserProfilePage() {
         setBio(profile.bio || '')
         setWebsite(profile.website || '')
         setAvatarUrl(profile.avatar_url || null)
+        setIsPrivate(profile.is_private || false)
       }
-
-      const { data: userVideos } = await supabase
-        .from('videos')
-        .select('id, caption, video_url, likes_count, created_at')
-        .eq('user_id', targetUserId)
-        .order('created_at', { ascending: false })
-
-      if (userVideos) setVideos(userVideos)
 
       const { count: following } = await supabase
         .from('follows')
@@ -87,7 +121,20 @@ export default function UserProfilePage() {
         .eq('following_id', targetUserId)
         .maybeSingle()
 
-      setIsFollowing(!!followData)
+      const isFollower = !!followData
+      setIsFollowing(isFollower)
+
+      const isOwn = user.id === targetUserId
+      const privateAcc = profile?.is_private || false
+      const allow = isOwn || !privateAcc || isFollower
+      setCanViewVideos(allow)
+
+      if (allow) {
+        await loadVideos(targetUserId, user.id, isFollower)
+      } else {
+        setVideos([])
+      }
+
       setLoading(false)
     }
 
@@ -106,6 +153,14 @@ export default function UserProfilePage() {
 
       setIsFollowing(false)
       setFollowersCount((prev) => Math.max(0, prev - 1))
+
+      if (isPrivate) {
+        setCanViewVideos(false)
+        setVideos([])
+      } else {
+        // Reload agar video visibility=followers ikut hilang
+        await loadVideos(targetUserId, currentUserId, false)
+      }
     } else {
       const { error } = await supabase.from('follows').insert({
         follower_id: currentUserId,
@@ -115,6 +170,56 @@ export default function UserProfilePage() {
       if (!error) {
         setIsFollowing(true)
         setFollowersCount((prev) => prev + 1)
+        setCanViewVideos(true)
+        await loadVideos(targetUserId, currentUserId, true)
+
+        await supabase.from('notifications').insert({
+          user_id: targetUserId,
+          actor_id: currentUserId,
+          type: 'follow',
+          video_id: null,
+          message: null,
+          is_read: false,
+        })
+      }
+    }
+  }
+
+  const toggleBlock = async () => {
+    if (!currentUserId || !targetUserId || currentUserId === targetUserId) return
+
+    if (isBlocked) {
+      await supabase
+        .from('blocks')
+        .delete()
+        .eq('blocker_id', currentUserId)
+        .eq('blocked_id', targetUserId)
+
+      setIsBlocked(false)
+    } else {
+      const confirmBlock = confirm(`Block @${username}? Mereka tidak bisa melihat profil dan video kamu.`)
+      if (!confirmBlock) return
+
+      const { error } = await supabase.from('blocks').insert({
+        blocker_id: currentUserId,
+        blocked_id: targetUserId,
+      })
+
+      if (!error) {
+        if (isFollowing) {
+          await supabase
+            .from('follows')
+            .delete()
+            .eq('follower_id', currentUserId)
+            .eq('following_id', targetUserId)
+          setIsFollowing(false)
+          setFollowersCount((prev) => Math.max(0, prev - 1))
+          if (isPrivate) {
+            setCanViewVideos(false)
+            setVideos([])
+          }
+        }
+        setIsBlocked(true)
       }
     }
   }
@@ -123,15 +228,40 @@ export default function UserProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+      <div className="min-h-screen bg-black text-white pb-20">
+        <div className="h-28 bg-zinc-800 animate-pulse" />
+        <div className="px-4 -mt-12">
+          <div className="flex justify-between items-end">
+            <div className="w-24 h-24 rounded-full bg-zinc-700 border-[3px] border-black animate-pulse" />
+            <div className="flex gap-2 mb-1">
+              <div className="h-8 w-20 bg-zinc-700 rounded-full animate-pulse" />
+              <div className="h-8 w-16 bg-zinc-700 rounded-full animate-pulse" />
+            </div>
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="h-5 w-32 bg-zinc-700 rounded animate-pulse" />
+            <div className="h-3 w-20 bg-zinc-700 rounded animate-pulse" />
+          </div>
+          <div className="flex gap-6 mt-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="text-center space-y-1">
+                <div className="h-4 w-8 bg-zinc-700 rounded animate-pulse mx-auto" />
+                <div className="h-3 w-12 bg-zinc-700 rounded animate-pulse mx-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-[2px] mt-8 px-1">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="aspect-[9/16] bg-zinc-800 animate-pulse" />
+          ))}
+        </div>
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-black text-white pb-20">
-      {/* Cover */}
       <div className="h-28 bg-vezao-gradient" />
 
       <div className="px-4 -mt-12">
@@ -145,48 +275,117 @@ export default function UserProfilePage() {
           </div>
 
           {currentUserId !== targetUserId && (
-            <div className="flex gap-2 mb-1">
+            <div className="flex gap-2 mb-1 items-center">
               <button
                 onClick={toggleFollow}
+                disabled={isBlocked}
                 className={`px-5 py-1.5 text-sm font-semibold rounded-full ${
                   isFollowing
                     ? 'bg-white/20 text-white'
                     : 'bg-vezao-gradient text-white'
-                }`}
+                } ${isBlocked ? 'opacity-50' : ''}`}
               >
                 {isFollowing ? 'Following' : 'Follow'}
               </button>
 
               <button
                 onClick={() => router.push(`/inbox/chat?userId=${targetUserId}`)}
-                className="px-4 py-1.5 bg-zinc-800 text-white text-sm font-semibold rounded-full border border-white/10"
+                disabled={isBlocked}
+                className={`px-4 py-1.5 bg-zinc-800 text-white text-sm font-semibold rounded-full border border-white/10 ${isBlocked ? 'opacity-50' : ''}`}
               >
                 Message
               </button>
+
+              <div className="relative">
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="w-9 h-9 bg-zinc-800 text-white rounded-full border border-white/10 flex items-center justify-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="6" r="1.5" />
+                    <circle cx="12" cy="12" r="1.5" />
+                    <circle cx="12" cy="18" r="1.5" />
+                  </svg>
+                </button>
+
+                {showMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                    <div className="absolute right-0 top-11 z-50 w-44 bg-zinc-900 border border-white/10 rounded-xl overflow-hidden shadow-xl">
+                      <button
+                        onClick={() => {
+                          setShowMenu(false)
+                          toggleBlock()
+                        }}
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-red-400"
+                      >
+                        {isBlocked ? 'Unblock' : 'Block'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setShowMenu(false)
+                          if (!currentUserId || !targetUserId) return
+                          const reason = prompt('Alasan report (opsional):')
+                          if (reason === null) return
+
+                          const { error } = await supabase.from('reports').insert({
+                            reporter_id: currentUserId,
+                            reported_user_id: targetUserId,
+                            video_id: null,
+                            reason: reason || null,
+                          })
+
+                          if (error) {
+                            alert('Gagal report: ' + error.message)
+                          } else {
+                            alert('Terima kasih. Laporan sudah dikirim.')
+                          }
+                        }}
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-white border-t border-white/5"
+                      >
+                        Report
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
 
         <div className="mt-3">
-          <h1 className="text-xl font-bold">{fullName || username}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">{fullName || username}</h1>
+            {isPrivate && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-gray-300 border border-white/10">
+                🔒 Private
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-400">@{username}</p>
         </div>
 
         <div className="flex gap-6 mt-4">
           <div className="text-center">
-            <p className="font-bold text-base">{videos.length}</p>
+            <p className="font-bold text-base">{canViewVideos ? videos.length : '—'}</p>
             <p className="text-xs text-gray-400">Videos</p>
           </div>
-          <div className="text-center">
+          <div
+            className="text-center cursor-pointer"
+            onClick={() => router.push(`/follow-list?userId=${targetUserId}&type=following`)}
+          >
             <p className="font-bold text-base">{followingCount}</p>
             <p className="text-xs text-gray-400">Following</p>
           </div>
-          <div className="text-center">
+          <div
+            className="text-center cursor-pointer"
+            onClick={() => router.push(`/follow-list?userId=${targetUserId}&type=followers`)}
+          >
             <p className="font-bold text-base">{followersCount}</p>
             <p className="text-xs text-gray-400">Followers</p>
           </div>
           <div className="text-center">
-            <p className="font-bold text-base">{totalLikes}</p>
+            <p className="font-bold text-base">{canViewVideos ? totalLikes : '—'}</p>
             <p className="text-xs text-gray-400">Likes</p>
           </div>
         </div>
@@ -210,7 +409,6 @@ export default function UserProfilePage() {
         )}
       </div>
 
-      {/* Tabs */}
       <div className="flex border-b border-white/10 mt-5">
         <button className="flex-1 py-3 flex justify-center border-b-2 border-white">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -219,9 +417,16 @@ export default function UserProfilePage() {
         </button>
       </div>
 
-      {/* Video Grid */}
       <div className="px-1 pt-1">
-        {videos.length === 0 ? (
+        {!canViewVideos ? (
+          <div className="text-center py-16 px-6">
+            <div className="text-4xl mb-3">🔒</div>
+            <p className="font-semibold mb-1">This account is private</p>
+            <p className="text-sm text-gray-400">
+              Follow @{username} untuk melihat video mereka
+            </p>
+          </div>
+        ) : videos.length === 0 ? (
           <div className="text-center py-20 text-gray-400">
             Belum ada video
           </div>
@@ -233,14 +438,22 @@ export default function UserProfilePage() {
                 onClick={() => router.push(`/user-videos?userId=${targetUserId}`)}
                 className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer active:opacity-80"
               >
-                <video
-                  src={video.video_url}
-                  className="w-full h-full object-cover"
-                  muted
-                  playsInline
-                  preload="metadata"
-                />
-                <div className="absolute bottom-1 left-1 flex items-center gap-1 text-xs font-medium">
+                {video.thumbnail_url ? (
+                  <img
+                    src={video.thumbnail_url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <video
+                    src={video.video_url}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                )}
+                <div className="absolute bottom-1 left-1 flex items-center gap-1 text-xs font-medium drop-shadow">
                   <span>♥</span>
                   <span>{video.likes_count}</span>
                 </div>
@@ -250,7 +463,6 @@ export default function UserProfilePage() {
         )}
       </div>
 
-      {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t border-white/10 h-16 flex items-center justify-around z-50 backdrop-blur-md">
         <button onClick={() => router.push('/')} className="flex flex-col items-center gap-0.5">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -259,11 +471,25 @@ export default function UserProfilePage() {
           <span className="text-[11px] text-gray-400">Home</span>
         </button>
 
+        <button onClick={() => router.push('/search')} className="flex flex-col items-center gap-0.5">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <span className="text-[11px] text-gray-400">Search</span>
+        </button>
+
         <button onClick={() => router.push('/upload')} className="flex flex-col items-center gap-0.5">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
           <span className="text-[11px] text-gray-400">Upload</span>
+        </button>
+
+        <button onClick={() => router.push('/inbox')} className="flex flex-col items-center gap-0.5">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
+          <span className="text-[11px] text-gray-400">Inbox</span>
         </button>
 
         <button onClick={() => router.push('/profile')} className="flex flex-col items-center gap-0.5">
