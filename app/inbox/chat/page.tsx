@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -13,7 +13,7 @@ type Message = {
   is_read?: boolean
 }
 
-export default function ChatPage() {
+function ChatContent() {
   const searchParams = useSearchParams()
   const partnerId = searchParams.get('userId')
 
@@ -71,7 +71,6 @@ export default function ChatPage() {
 
       await loadMessages(user.id, partnerId)
 
-      // Tandai pesan dari partner sebagai sudah dibaca
       await supabase
         .from('messages')
         .update({ is_read: true })
@@ -110,7 +109,6 @@ export default function ChatPage() {
               return [...withoutTemp, newMsg]
             })
 
-            // Kalau pesan dari partner, langsung tandai dibaca
             if (newMsg.sender_id === partnerId) {
               supabase
                 .from('messages')
@@ -250,5 +248,19 @@ export default function ChatPage() {
         </button>
       </div>
     </div>
+  )
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <ChatContent />
+    </Suspense>
   )
 }
