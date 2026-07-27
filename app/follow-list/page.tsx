@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -11,7 +11,7 @@ type Profile = {
   avatar_url: string | null
 }
 
-export default function FollowListPage() {
+function FollowListContent() {
   const searchParams = useSearchParams()
   const targetUserId = searchParams.get('userId')
   const type = searchParams.get('type') // 'following' | 'followers'
@@ -39,7 +39,6 @@ export default function FollowListPage() {
       setTitle(type === 'following' ? 'Following' : 'Followers')
 
       if (type === 'following') {
-        // Orang yang di-follow oleh targetUserId
         const { data: follows } = await supabase
           .from('follows')
           .select('following_id')
@@ -55,7 +54,6 @@ export default function FollowListPage() {
           setList(profiles || [])
         }
       } else {
-        // Orang yang follow targetUserId
         const { data: follows } = await supabase
           .from('follows')
           .select('follower_id')
@@ -118,7 +116,7 @@ export default function FollowListPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm truncate">
-                  {user.full_name || user.username || 'user'}
+                  {user.full_name || user.username || 'User'}
                 </p>
                 <p className="text-sm text-gray-400 truncate">
                   @{user.username || 'user'}
@@ -129,5 +127,19 @@ export default function FollowListPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function FollowListPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <FollowListContent />
+    </Suspense>
   )
 }
