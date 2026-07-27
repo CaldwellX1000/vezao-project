@@ -195,18 +195,18 @@ export default function NotificationsPage() {
 
   const handleClick = (n: Notification) => {
     if (n.type === 'follow_request') {
-      router.push(`/user-profile?userId=${n.actor_id}`)
+      router.push(`/@${n.actor?.username || n.actor_id}`)
       return
     }
     if (n.type === 'follow') {
-      router.push(`/user-profile?userId=${n.actor_id}`)
+      router.push(`/@${n.actor?.username || n.actor_id}`)
       return
     }
     if (n.video_id) {
       router.push(`/v/${n.video_id}`)
       return
     }
-    router.push(`/user-profile?userId=${n.actor_id}`)
+    router.push(`/@${n.actor?.username || n.actor_id}`)
   }
 
   if (loading) {

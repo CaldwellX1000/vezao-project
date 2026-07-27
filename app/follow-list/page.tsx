@@ -102,7 +102,7 @@ function FollowListContent() {
           {list.map((user) => (
             <div
               key={user.id}
-              onClick={() => router.push(`/user-profile?userId=${user.id}`)}
+              onClick={() => router.push(`/@${user.username || user.id}`)}
               className="flex items-center gap-3 px-4 py-3 active:bg-white/5 cursor-pointer"
             >
               <div className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden shrink-0">

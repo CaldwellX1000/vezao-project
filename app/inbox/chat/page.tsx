@@ -23,6 +23,7 @@ function ChatContent() {
   const [sending, setSending] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [partnerName, setPartnerName] = useState('')
+  const [partnerUsername, setPartnerUsername] = useState('')
   const [partnerAvatar, setPartnerAvatar] = useState<string | null>(null)
 
   const router = useRouter()
@@ -66,6 +67,7 @@ function ChatContent() {
 
       if (profile) {
         setPartnerName(profile.full_name || profile.username || 'user')
+        setPartnerUsername(profile.username || '')
         setPartnerAvatar(profile.avatar_url)
       }
 
@@ -191,16 +193,21 @@ function ChatContent() {
         <button onClick={() => router.back()} className="text-white text-lg font-bold">
           ←
         </button>
-        <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden">
-          {partnerAvatar ? (
-            <img src={partnerAvatar} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
-              {partnerName[0]?.toUpperCase()}
-            </div>
-          )}
+        <div
+          className="flex items-center gap-3 cursor-pointer min-w-0"
+          onClick={() => router.push(`/@${partnerUsername || partnerId}`)}
+        >
+          <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden shrink-0">
+            {partnerAvatar ? (
+              <img src={partnerAvatar} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
+                {partnerName[0]?.toUpperCase()}
+              </div>
+            )}
+          </div>
+          <p className="font-semibold text-sm truncate">{partnerName}</p>
         </div>
-        <p className="font-semibold text-sm">{partnerName}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">

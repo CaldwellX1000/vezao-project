@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
+import BottomNav from '@/components/BottomNav'
 
 type Video = {
   id: string
@@ -11,6 +12,7 @@ type Video = {
   views_count?: number | null
   thumbnail_url: string | null
   likes_count: number
+  is_pinned?: boolean | null
   created_at: string
   visibility?: string | null
   user_id?: string
@@ -18,8 +20,10 @@ type Video = {
 
 function UserProfileContent() {
   const searchParams = useSearchParams()
-  const targetUserId = searchParams.get('userId')
+  const targetUserIdParam = searchParams.get('userId')
+  const usernameParam = searchParams.get('username')
 
+  const [targetUserId, setTargetUserId] = useState<string | null>(null)
   const [username, setUsername] = useState('')
   const [fullName, setFullName] = useState('')
   const [bio, setBio] = useState('')
@@ -40,20 +44,18 @@ function UserProfileContent() {
   const router = useRouter()
   const supabase = createClient()
 
-const loadVideos = async (
+  const loadVideos = async (
     userId: string,
     viewerId: string,
     isFollower: boolean
   ) => {
-   const { data: userVideos, error } = await supabase
+    const { data: userVideos, error } = await supabase
       .from('videos')
-.select(
-  'id, caption, video_url, thumbnail_url, likes_count, views_count, created_at, visibility, user_id, is_draft'
-)
+      .select(
+        'id, caption, video_url, thumbnail_url, likes_count, views_count, is_pinned, created_at, visibility, user_id, is_draft'
+      )
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-
-    console.log('loadVideos:', { count: userVideos?.length, error })
 
     if (error) {
       console.error('loadVideos error:', error)
@@ -61,32 +63,70 @@ const loadVideos = async (
       return
     }
 
-    // sementara: tampilkan semua kecuali draft eksplisit true
-    const filtered = (userVideos || []).filter((v: any) => v.is_draft !== true)
-    console.log('loadVideos filtered:', filtered.length, 'isFollower:', isFollower)
+    const filtered = (userVideos || []).filter((v: any) => {
+      if (v.is_draft === true) return false
+      if (viewerId === userId) return true
 
-    setVideos(filtered)
+      const vis = String(v.visibility || 'public')
+        .toLowerCase()
+        .replace(/'/g, '')
+        .trim()
+
+      if (vis === 'private') return false
+      if (vis === 'followers') return isFollower
+      return true
+    })
+
+    const sorted = [...filtered].sort((a: any, b: any) => {
+      if (a.is_pinned && !b.is_pinned) return -1
+      if (!a.is_pinned && b.is_pinned) return 1
+      return 0
+    })
+    setVideos(sorted)
   }
-  
+
   useEffect(() => {
     const load = async () => {
-      if (!targetUserId) {
-        router.replace('/')
-        return
-      }
+      setLoading(true)
 
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user) {
         router.replace('/login')
         return
       }
       setCurrentUserId(user.id)
 
+      // Resolve target id: userId atau username
+      let resolvedId = targetUserIdParam
+
+      if (!resolvedId && usernameParam) {
+        const { data: byName } = await supabase
+          .from('profiles')
+          .select('id')
+          .ilike('username', usernameParam)
+          .maybeSingle()
+
+        if (!byName) {
+          router.replace('/')
+          return
+        }
+        resolvedId = byName.id
+      }
+
+      if (!resolvedId) {
+        router.replace('/')
+        return
+      }
+
+      setTargetUserId(resolvedId)
+
       const { data: blockData } = await supabase
         .from('blocks')
         .select('id')
         .eq('blocker_id', user.id)
-        .eq('blocked_id', targetUserId)
+        .eq('blocked_id', resolvedId)
         .maybeSingle()
 
       setIsBlocked(!!blockData)
@@ -94,7 +134,7 @@ const loadVideos = async (
       const { data: profile } = await supabase
         .from('profiles')
         .select('username, full_name, bio, avatar_url, website, is_private')
-        .eq('id', targetUserId)
+        .eq('id', resolvedId)
         .single()
 
       if (profile) {
@@ -109,12 +149,12 @@ const loadVideos = async (
       const { count: following } = await supabase
         .from('follows')
         .select('*', { count: 'exact', head: true })
-        .eq('follower_id', targetUserId)
+        .eq('follower_id', resolvedId)
 
       const { count: followers } = await supabase
         .from('follows')
         .select('*', { count: 'exact', head: true })
-        .eq('following_id', targetUserId)
+        .eq('following_id', resolvedId)
 
       setFollowingCount(following || 0)
       setFollowersCount(followers || 0)
@@ -123,7 +163,7 @@ const loadVideos = async (
         .from('follows')
         .select('id')
         .eq('follower_id', user.id)
-        .eq('following_id', targetUserId)
+        .eq('following_id', resolvedId)
         .maybeSingle()
 
       const isFollower = !!followData
@@ -134,7 +174,7 @@ const loadVideos = async (
           .from('follow_requests')
           .select('id')
           .eq('requester_id', user.id)
-          .eq('target_id', targetUserId)
+          .eq('target_id', resolvedId)
           .eq('status', 'pending')
           .maybeSingle()
         setIsRequested(!!req)
@@ -142,13 +182,13 @@ const loadVideos = async (
         setIsRequested(false)
       }
 
-      const isOwn = user.id === targetUserId
+      const isOwn = user.id === resolvedId
       const privateAcc = profile?.is_private || false
       const allow = isOwn || !privateAcc || isFollower
       setCanViewVideos(allow)
 
       if (allow) {
-        await loadVideos(targetUserId, user.id, isFollower)
+        await loadVideos(resolvedId, user.id, isFollower)
       } else {
         setVideos([])
       }
@@ -157,12 +197,11 @@ const loadVideos = async (
     }
 
     load()
-  }, [targetUserId])
+  }, [targetUserIdParam, usernameParam])
 
   const toggleFollow = async () => {
     if (!currentUserId || !targetUserId || currentUserId === targetUserId) return
 
-    // Unfollow
     if (isFollowing) {
       await supabase
         .from('follows')
@@ -182,7 +221,6 @@ const loadVideos = async (
       return
     }
 
-    // Cancel request
     if (isRequested) {
       await supabase
         .from('follow_requests')
@@ -194,7 +232,6 @@ const loadVideos = async (
       return
     }
 
-    // Private → request
     if (isPrivate) {
       const { error } = await supabase.from('follow_requests').insert({
         requester_id: currentUserId,
@@ -215,7 +252,6 @@ const loadVideos = async (
       return
     }
 
-    // Public → follow langsung
     const { error } = await supabase.from('follows').insert({
       follower_id: currentUserId,
       following_id: targetUserId,
@@ -249,7 +285,9 @@ const loadVideos = async (
         .eq('blocked_id', targetUserId)
       setIsBlocked(false)
     } else {
-      const confirmBlock = confirm(`Block @${username}? Mereka tidak bisa melihat profil dan video kamu.`)
+      const confirmBlock = confirm(
+        `Block @${username}? Mereka tidak bisa melihat profil dan video kamu.`
+      )
       if (!confirmBlock) return
 
       const { error } = await supabase.from('blocks').insert({
@@ -338,7 +376,9 @@ const loadVideos = async (
               <button
                 onClick={() => router.push(`/inbox/chat?userId=${targetUserId}`)}
                 disabled={isBlocked}
-                className={`px-4 py-1.5 bg-zinc-800 text-white text-sm font-semibold rounded-full border border-white/10 ${isBlocked ? 'opacity-50' : ''}`}
+                className={`px-4 py-1.5 bg-zinc-800 text-white text-sm font-semibold rounded-full border border-white/10 ${
+                  isBlocked ? 'opacity-50' : ''
+                }`}
               >
                 Message
               </button>
@@ -348,7 +388,12 @@ const loadVideos = async (
                   onClick={() => setShowMenu(!showMenu)}
                   className="w-9 h-9 bg-zinc-800 text-white rounded-full border border-white/10 flex items-center justify-center"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <circle cx="12" cy="6" r="1.5" />
                     <circle cx="12" cy="12" r="1.5" />
                     <circle cx="12" cy="18" r="1.5" />
@@ -362,9 +407,20 @@ const loadVideos = async (
                       <button
                         onClick={() => {
                           setShowMenu(false)
+                          const link = `${window.location.origin}/@${username}`
+                          navigator.clipboard.writeText(link)
+                          alert('Link profil disalin!')
+                        }}
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-white"
+                      >
+                        Copy link
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowMenu(false)
                           toggleBlock()
                         }}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-red-400"
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-red-400 border-t border-white/5"
                       >
                         {isBlocked ? 'Unblock' : 'Block'}
                       </button>
@@ -416,14 +472,18 @@ const loadVideos = async (
           </div>
           <div
             className="text-center cursor-pointer"
-            onClick={() => router.push(`/follow-list?userId=${targetUserId}&type=following`)}
+            onClick={() =>
+              router.push(`/follow-list?userId=${targetUserId}&type=following`)
+            }
           >
             <p className="font-bold text-base">{followingCount}</p>
             <p className="text-xs text-gray-400">Following</p>
           </div>
           <div
             className="text-center cursor-pointer"
-            onClick={() => router.push(`/follow-list?userId=${targetUserId}&type=followers`)}
+            onClick={() =>
+              router.push(`/follow-list?userId=${targetUserId}&type=followers`)
+            }
           >
             <p className="font-bold text-base">{followersCount}</p>
             <p className="text-xs text-gray-400">Followers</p>
@@ -450,8 +510,19 @@ const loadVideos = async (
 
       <div className="flex border-b border-white/10 mt-5">
         <button className="flex-1 py-3 flex justify-center border-b-2 border-white">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-5 h-5 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+            />
           </svg>
         </button>
       </div>
@@ -478,7 +549,11 @@ const loadVideos = async (
                 className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer active:opacity-80"
               >
                 {video.thumbnail_url ? (
-                  <img src={video.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                  <img
+                    src={video.thumbnail_url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <video
                     src={video.video_url}
@@ -488,7 +563,10 @@ const loadVideos = async (
                     preload="metadata"
                   />
                 )}
-  <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between text-[10px] font-medium drop-shadow px-1">
+                {video.is_pinned && (
+                  <span className="absolute top-1 left-1 text-xs z-10 drop-shadow">📌</span>
+                )}
+                <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between text-[10px] font-medium drop-shadow px-1">
                   <span>♥ {video.likes_count}</span>
                   <span>👁 {video.views_count || 0}</span>
                 </div>
@@ -498,42 +576,7 @@ const loadVideos = async (
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t border-white/10 h-16 flex items-center justify-around z-50 backdrop-blur-md">
-        <button onClick={() => router.push('/')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Home</span>
-        </button>
-
-        <button onClick={() => router.push('/search')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Search</span>
-        </button>
-
-        <button onClick={() => router.push('/upload')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Upload</span>
-        </button>
-
-        <button onClick={() => router.push('/inbox')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Inbox</span>
-        </button>
-
-        <button onClick={() => router.push('/profile')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Profile</span>
-        </button>
-      </div>
+      <BottomNav />
     </div>
   )
 }

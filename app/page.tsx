@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import BottomNav from '@/components/BottomNav'
 
 type Video = {
   id: string
@@ -49,6 +50,7 @@ export default function FeedPage() {
   const [heartAnim, setHeartAnim] = useState<string | null>(null)
   const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set())
   const [showMore, setShowMore] = useState<string | null>(null)
+  const [reportVideoId, setReportVideoId] = useState<string | null>(null)
   const [pullDistance, setPullDistance] = useState(0)
 
   const router = useRouter()
@@ -63,6 +65,15 @@ export default function FeedPage() {
     feedTab === 'foryou'
       ? allVideos.filter((v) => !blockedUsers.has(v.user_id))
       : allVideos.filter((v) => following.has(v.user_id) && !blockedUsers.has(v.user_id))
+
+  const REPORT_REASONS = [
+    'Spam',
+    'Konten tidak pantas',
+    'Kekerasan atau berbahaya',
+    'Pelecehan atau bullying',
+    'Informasi palsu',
+    'Lainnya',
+  ]
 
   const loadFeed = async (uid: string) => {
     const { data: blocksData } = await supabase
@@ -104,34 +115,36 @@ export default function FeedPage() {
       .order('created_at', { ascending: false })
 
     const filtered = (videosData || []).filter((v: any) => {
+      const vis = String(v.visibility ?? 'public')
+        .toLowerCase()
+        .replace(/['"]/g, '')
+        .trim()
+
+      if (vis === 'private') return false
+
       const isOwn = v.user_id === uid
       if (isOwn) return true
 
       const isPrivateAccount = v.profiles?.is_private === true
       const isFollower = followingSet.has(v.user_id)
       if (isPrivateAccount && !isFollower) return false
-
-      const vis = v.visibility || 'public'
-      if (vis === 'private') return false
       if (vis === 'followers' && !isFollower) return false
 
       return true
     })
 
-// Ranking sederhana For You: skor likes + kebaruan
-const ranked = [...filtered].sort((a: any, b: any) => {
-  const score = (v: any) => {
-    const likes = v.likes_count || 0
-    const ageHours =
-      (Date.now() - new Date(v.created_at).getTime()) / (1000 * 60 * 60)
-    // likes lebih berat, video baru dapat boost
-    const recencyBoost = Math.max(0, 48 - ageHours) * 0.5
-    return likes * 2 + recencyBoost
-  }
-  return score(b) - score(a)
-})
+    const ranked = [...filtered].sort((a: any, b: any) => {
+      const score = (v: any) => {
+        const likes = v.likes_count || 0
+        const ageHours =
+          (Date.now() - new Date(v.created_at).getTime()) / (1000 * 60 * 60)
+        const recencyBoost = Math.max(0, 48 - ageHours) * 0.5
+        return likes * 2 + recencyBoost
+      }
+      return score(b) - score(a)
+    })
 
-setAllVideos(ranked as any)
+    setAllVideos(ranked as any)
 
     const { count } = await supabase
       .from('messages')
@@ -153,7 +166,9 @@ setAllVideos(ranked as any)
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user) {
         router.replace('/login')
         return
@@ -162,7 +177,6 @@ setAllVideos(ranked as any)
       await loadFeed(user.id)
       setLoading(false)
     }
-
     init()
   }, [])
 
@@ -197,7 +211,6 @@ setAllVideos(ranked as any)
 
   useEffect(() => {
     if (videos.length === 0) return
-
     const timer = setTimeout(() => {
       const firstVideo = videoRefs.current[0]
       if (firstVideo) {
@@ -205,7 +218,6 @@ setAllVideos(ranked as any)
         firstVideo.play().catch(() => {})
       }
     }, 300)
-
     return () => clearTimeout(timer)
   }, [videos, feedTab])
 
@@ -232,22 +244,15 @@ setAllVideos(ranked as any)
       setPullDistance(0)
       return
     }
-
     const diff = e.touches[0].clientY - startYRef.current
-    if (diff > 0) {
-      setPullDistance(Math.min(diff * 0.5, 80))
-    }
+    if (diff > 0) setPullDistance(Math.min(diff * 0.5, 80))
   }
 
   const onTouchEnd = () => {
     if (!isPullingRef.current) return
     isPullingRef.current = false
-
-    if (pullDistance > 50) {
-      handleRefresh()
-    } else {
-      setPullDistance(0)
-    }
+    if (pullDistance > 50) handleRefresh()
+    else setPullDistance(0)
   }
 
   const toggleLike = async (videoId: string) => {
@@ -298,18 +303,13 @@ setAllVideos(ranked as any)
 
     if (last && last.videoId === videoId && now - last.time < 300) {
       lastTapRef.current = null
-      if (!likedVideos.has(videoId)) {
-        toggleLike(videoId)
-      }
+      if (!likedVideos.has(videoId)) toggleLike(videoId)
       setHeartAnim(videoId)
       setTimeout(() => setHeartAnim(null), 800)
     } else {
       lastTapRef.current = { time: now, videoId }
-      if (videoEl.paused) {
-        videoEl.play().catch(() => {})
-      } else {
-        videoEl.pause()
-      }
+      if (videoEl.paused) videoEl.play().catch(() => {})
+      else videoEl.pause()
     }
   }
 
@@ -335,7 +335,6 @@ setAllVideos(ranked as any)
       })
       if (error) return
       setFollowing((prev) => new Set(prev).add(targetUserId))
-
       await supabase.from('notifications').insert({
         user_id: targetUserId,
         actor_id: userId,
@@ -359,10 +358,7 @@ setAllVideos(ranked as any)
         content,
         created_at,
         user_id,
-        profiles (
-          username,
-          avatar_url
-        )
+        profiles ( username, avatar_url )
       `)
       .eq('video_id', videoId)
       .order('created_at', { ascending: false })
@@ -373,7 +369,6 @@ setAllVideos(ranked as any)
 
   const submitComment = async () => {
     if (!newComment.trim() || !userId || !activeVideoId) return
-
     const content = newComment.trim()
 
     const { error } = await supabase.from('comments').insert({
@@ -412,21 +407,39 @@ setAllVideos(ranked as any)
     await openComments(activeVideoId)
   }
 
-const handleShare = async (videoId: string) => {
-  const url = `${window.location.origin}/v/${videoId}`
-  if (navigator.share) {
-    try {
-      await navigator.share({
-        title: 'VEZAO',
-        text: 'Lihat video ini di VEZAO!',
-        url,
-      })
-    } catch {}
-  } else {
-    await navigator.clipboard.writeText(url)
-    alert('Link video berhasil disalin!')
+  const submitReport = async (reason: string) => {
+    if (!userId || !reportVideoId) return
+    const video = allVideos.find((v) => v.id === reportVideoId)
+
+    const { error } = await supabase.from('reports').insert({
+      reporter_id: userId,
+      reported_user_id: video?.user_id || null,
+      video_id: reportVideoId,
+      reason,
+    })
+
+    if (error) alert('Gagal report: ' + error.message)
+    else alert('Terima kasih. Laporan sudah dikirim.')
+
+    setReportVideoId(null)
+    setShowMore(null)
   }
-}
+
+  const handleShare = async (videoId: string) => {
+    const url = `${window.location.origin}/v/${videoId}`
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'VEZAO',
+          text: 'Lihat video ini di VEZAO!',
+          url,
+        })
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(url)
+      alert('Link video berhasil disalin!')
+    }
+  }
 
   if (loading) {
     return (
@@ -598,7 +611,7 @@ const handleShare = async (videoId: string) => {
               <div className="absolute bottom-24 left-4 right-20 text-white z-10">
                 <div className="flex items-center gap-2 mb-1.5">
                   <div
-                    onClick={() => router.push(`/user-profile?userId=${video.user_id}`)}
+                    onClick={() => router.push(`/@${video.profiles?.username || video.user_id}`)}
                     className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 shrink-0 border border-white/20 cursor-pointer"
                   >
                     {video.profiles?.avatar_url ? (
@@ -611,7 +624,7 @@ const handleShare = async (videoId: string) => {
                   </div>
 
                   <p
-                    onClick={() => router.push(`/user-profile?userId=${video.user_id}`)}
+                    onClick={() => router.push(`/@${video.profiles?.username || video.user_id}`)}
                     className="font-semibold text-sm cursor-pointer"
                   >
                     @{video.profiles?.username || 'user'}
@@ -710,49 +723,7 @@ const handleShare = async (videoId: string) => {
         })
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t border-white/10 h-16 flex items-center justify-around z-50 backdrop-blur-md">
-        <button onClick={() => router.push('/')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
-          </svg>
-          <span className="text-[11px] text-white">Home</span>
-        </button>
-
-        <button onClick={() => router.push('/search')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Search</span>
-        </button>
-
-        <button onClick={() => router.push('/upload')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Upload</span>
-        </button>
-
-        <button onClick={() => router.push('/inbox')} className="flex flex-col items-center gap-0.5 relative">
-          <div className="relative">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            {inboxUnread > 0 && (
-              <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-vezao-gradient text-[10px] font-bold flex items-center justify-center text-white">
-                {inboxUnread > 99 ? '99+' : inboxUnread}
-              </span>
-            )}
-          </div>
-          <span className="text-[11px] text-gray-400">Inbox</span>
-        </button>
-
-        <button onClick={() => router.push('/profile')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Profile</span>
-        </button>
-      </div>
+      <BottomNav />
 
       {showComments && (
         <div className="fixed inset-0 z-[60] flex items-end">
@@ -760,7 +731,9 @@ const handleShare = async (videoId: string) => {
           <div className="relative w-full bg-zinc-900 rounded-t-2xl max-h-[70vh] flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <h3 className="font-semibold">Comments</h3>
-              <button onClick={() => setShowComments(false)} className="text-gray-400 text-lg">✕</button>
+              <button onClick={() => setShowComments(false)} className="text-gray-400 text-lg">
+                ✕
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
@@ -822,19 +795,8 @@ const handleShare = async (videoId: string) => {
                   <>
                     {!isOwn && (
                       <button
-                        onClick={async () => {
-                          const reason = prompt('Alasan report (opsional):')
-                          if (reason === null) return
-
-                          const { error } = await supabase.from('reports').insert({
-                            reporter_id: userId,
-                            reported_user_id: video?.user_id,
-                            video_id: showMore,
-                            reason: reason || null,
-                          })
-
-                          if (error) alert('Gagal report: ' + error.message)
-                          else alert('Terima kasih. Laporan sudah dikirim.')
+                        onClick={() => {
+                          setReportVideoId(showMore)
                           setShowMore(null)
                         }}
                         className="flex flex-col items-center gap-1"
@@ -860,6 +822,33 @@ const handleShare = async (videoId: string) => {
                 )
               })()}
             </div>
+          </div>
+        </div>
+      )}
+
+      {reportVideoId && (
+        <div className="fixed inset-0 z-[80] flex items-end">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setReportVideoId(null)} />
+          <div className="relative w-full bg-zinc-900 rounded-t-2xl p-4 pb-8">
+            <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-4" />
+            <h3 className="text-center font-semibold mb-4">Laporkan video</h3>
+            <div className="space-y-1">
+              {REPORT_REASONS.map((reason) => (
+                <button
+                  key={reason}
+                  onClick={() => submitReport(reason)}
+                  className="w-full text-left px-4 py-3 rounded-xl text-sm hover:bg-white/5 active:bg-white/10"
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setReportVideoId(null)}
+              className="w-full mt-3 py-3 text-sm text-gray-400"
+            >
+              Batal
+            </button>
           </div>
         </div>
       )}

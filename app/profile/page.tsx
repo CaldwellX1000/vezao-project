@@ -3,16 +3,19 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import BottomNav from '@/components/BottomNav'
 
 type Video = {
   id: string
   caption: string | null
   video_url: string
+  is_pinned?: boolean | null
   views_count?: number | null
   thumbnail_url: string | null
   likes_count: number
   created_at: string
   is_draft?: boolean
+  visibility?: string | null
 }
 
 export default function ProfilePage() {
@@ -29,7 +32,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'videos' | 'liked' | 'drafts'>('videos')
+  const [activeTab, setActiveTab] = useState<'videos' | 'private' | 'liked' | 'drafts'>('videos')
+const [privateVideos, setPrivateVideos] = useState<Video[]>([])
   const [followingCount, setFollowingCount] = useState(0)
   const [followersCount, setFollowersCount] = useState(0)
   const [unreadCount, setUnreadCount] = useState(0)
@@ -50,16 +54,41 @@ export default function ProfilePage() {
   const loadVideos = async (uid: string) => {
     const { data: published } = await supabase
       .from('videos')
-      .select('id, caption, video_url, thumbnail_url, likes_count, views_count, created_at, is_draft')
+      .select(
+        'id, caption, video_url, thumbnail_url, likes_count, is_pinned, views_count, created_at, is_draft, visibility'
+      )
       .eq('user_id', uid)
       .eq('is_draft', false)
       .order('created_at', { ascending: false })
 
-    setVideos(published || [])
+const list = published || []
+
+    const isPriv = (v: any) => {
+      const vis = String(v.visibility ?? 'public')
+        .toLowerCase()
+        .replace(/['"]/g, '')
+        .trim()
+      return vis === 'private'
+    }
+
+    const priv = list.filter(isPriv)
+    const pub = list.filter((v: any) => !isPriv(v))
+
+    const sortPin = (arr: Video[]) =>
+      [...arr].sort((a: any, b: any) => {
+        if (a.is_pinned && !b.is_pinned) return -1
+        if (!a.is_pinned && b.is_pinned) return 1
+        return 0
+      })
+
+    setVideos(sortPin(pub))
+    setPrivateVideos(sortPin(priv))
 
     const { data: draftData } = await supabase
       .from('videos')
-      .select('id, caption, video_url, thumbnail_url, likes_count, views_count, created_at, is_draft')
+      .select(
+        'id, caption, video_url, thumbnail_url, likes_count, views_count, created_at, is_draft'
+      )
       .eq('user_id', uid)
       .eq('is_draft', true)
       .order('created_at', { ascending: false })
@@ -69,7 +98,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user) {
         router.replace('/login')
         return
@@ -118,6 +149,11 @@ export default function ProfilePage() {
       setEditWebsite(userWebsite)
       setEditIsPrivate(privateAcc)
 
+      // URL di browser jadi /@username
+      if (uname && uname !== 'user') {
+        window.history.replaceState(null, '', `/@${uname}`)
+      }
+
       await loadVideos(user.id)
 
       const { data: likes } = await supabase
@@ -156,7 +192,9 @@ export default function ProfilePage() {
     load()
 
     const interval = setInterval(async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user) return
 
       const { count } = await supabase
@@ -196,6 +234,40 @@ export default function ProfilePage() {
     }
   }
 
+  const togglePin = async (videoId: string, currentlyPinned: boolean) => {
+    if (!userId) return
+
+    if (!currentlyPinned) {
+      const pinnedCount = videos.filter((v) => v.is_pinned).length
+      if (pinnedCount >= 3) {
+        alert('Maksimal 3 video yang bisa di-pin')
+        return
+      }
+    }
+
+    const { error } = await supabase
+      .from('videos')
+      .update({ is_pinned: !currentlyPinned })
+      .eq('id', videoId)
+      .eq('user_id', userId)
+
+    if (error) {
+      alert('Gagal: ' + error.message)
+      return
+    }
+
+    setVideos((prev) => {
+      const next = prev.map((v) =>
+        v.id === videoId ? { ...v, is_pinned: !currentlyPinned } : v
+      )
+      return next.sort((a, b) => {
+        if (a.is_pinned && !b.is_pinned) return -1
+        if (!a.is_pinned && b.is_pinned) return 1
+        return 0
+      })
+    })
+  }
+
   const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !userId) return
@@ -223,9 +295,9 @@ export default function ProfilePage() {
       return
     }
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(fileName)
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('avatars').getPublicUrl(fileName)
 
     const { error: updateError } = await supabase
       .from('profiles')
@@ -266,7 +338,7 @@ export default function ProfilePage() {
 
   const handleShareProfile = async () => {
     setShowMenu(false)
-    const url = `${window.location.origin}/user-profile?userId=${userId}`
+    const url = `${window.location.origin}/@${username}`
 
     if (navigator.share) {
       try {
@@ -285,7 +357,13 @@ export default function ProfilePage() {
   const totalLikes = videos.reduce((sum, v) => sum + (v.likes_count || 0), 0)
 
   const displayVideos =
-    activeTab === 'videos' ? videos : activeTab === 'liked' ? likedVideos : drafts
+    activeTab === 'videos'
+      ? videos
+      : activeTab === 'private'
+      ? privateVideos
+      : activeTab === 'liked'
+      ? likedVideos
+      : drafts
 
   if (loading) {
     return (
@@ -296,15 +374,6 @@ export default function ProfilePage() {
             <div className="w-24 h-24 rounded-full bg-zinc-700 border-[3px] border-black animate-pulse" />
             <div className="h-8 w-20 bg-zinc-700 rounded-full animate-pulse mb-1" />
           </div>
-          <div className="mt-3 space-y-2">
-            <div className="h-5 w-32 bg-zinc-700 rounded animate-pulse" />
-            <div className="h-3 w-20 bg-zinc-700 rounded animate-pulse" />
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-[2px] mt-8 px-1">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="aspect-[9/16] bg-zinc-800 animate-pulse" />
-          ))}
         </div>
       </div>
     )
@@ -317,8 +386,19 @@ export default function ProfilePage() {
           onClick={() => router.push('/notifications')}
           className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-5 h-5 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+            />
           </svg>
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-vezao-gradient border border-black" />
@@ -365,8 +445,19 @@ export default function ProfilePage() {
                 onClick={() => setShowMenu(!showMenu)}
                 className="w-9 h-9 bg-zinc-800 text-white rounded-full border border-white/10 flex items-center justify-center"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                  />
                 </svg>
               </button>
 
@@ -379,6 +470,15 @@ export default function ProfilePage() {
                       className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
                     >
                       Share profil
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMenu(false)
+                        router.push('/settings')
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
+                    >
+                      Settings
                     </button>
                     <button
                       onClick={handleLogout}
@@ -430,9 +530,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {bio && (
-          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>
-        )}
+        {bio && <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>}
 
         {website && (
           <a
@@ -441,9 +539,6 @@ export default function ProfilePage() {
             rel="noopener noreferrer"
             className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
             {website.replace(/^https?:\/\//, '')}
           </a>
         )}
@@ -452,28 +547,89 @@ export default function ProfilePage() {
       <div className="flex border-b border-white/10 mt-5">
         <button
           onClick={() => setActiveTab('videos')}
-          className={`flex-1 py-3 flex justify-center ${activeTab === 'videos' ? 'border-b-2 border-white' : ''}`}
+          className={`flex-1 py-3 flex justify-center ${
+            activeTab === 'videos' ? 'border-b-2 border-white' : ''
+          }`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 ${activeTab === 'videos' ? 'text-white' : 'text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${activeTab === 'videos' ? 'text-white' : 'text-gray-500'}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+            />
+          </svg>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('private')}
+          className={`flex-1 py-3 flex justify-center ${
+            activeTab === 'private' ? 'border-b-2 border-white' : ''
+          }`}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${activeTab === 'private' ? 'text-white' : 'text-gray-500'}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+            />
           </svg>
         </button>
 
         <button
           onClick={() => setActiveTab('liked')}
-          className={`flex-1 py-3 flex justify-center ${activeTab === 'liked' ? 'border-b-2 border-white' : ''}`}
+          className={`flex-1 py-3 flex justify-center ${
+            activeTab === 'liked' ? 'border-b-2 border-white' : ''
+          }`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 ${activeTab === 'liked' ? 'text-white' : 'text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${activeTab === 'liked' ? 'text-white' : 'text-gray-500'}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+            />
           </svg>
         </button>
 
         <button
           onClick={() => setActiveTab('drafts')}
-          className={`flex-1 py-3 flex justify-center relative ${activeTab === 'drafts' ? 'border-b-2 border-white' : ''}`}
+          className={`flex-1 py-3 flex justify-center relative ${
+            activeTab === 'drafts' ? 'border-b-2 border-white' : ''
+          }`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 ${activeTab === 'drafts' ? 'text-white' : 'text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${activeTab === 'drafts' ? 'text-white' : 'text-gray-500'}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
           </svg>
           {drafts.length > 0 && (
             <span className="absolute top-2 right-[28%] min-w-[16px] h-4 px-1 rounded-full bg-vezao-gradient text-[10px] font-bold flex items-center justify-center">
@@ -489,6 +645,8 @@ export default function ProfilePage() {
             <p className="text-gray-400 mb-3">
               {activeTab === 'videos'
                 ? 'Belum ada video'
+                : activeTab === 'private'
+                ? 'Belum ada video privat'
                 : activeTab === 'liked'
                 ? 'Belum ada video yang disukai'
                 : 'Belum ada draft'}
@@ -510,7 +668,11 @@ export default function ProfilePage() {
                 className="aspect-[9/16] bg-zinc-900 relative overflow-hidden"
               >
                 {video.thumbnail_url ? (
-                  <img src={video.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                  <img
+                    src={video.thumbnail_url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <video
                     src={video.video_url}
@@ -540,14 +702,18 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 ) : (
-                  <div
-                    onClick={() => router.push(`/user-videos?userId=${userId}`)}
-                    className="absolute inset-0 cursor-pointer"
-                  >
-<div className="absolute bottom-1 left-1 right-1 flex items-center justify-between text-[10px] font-medium drop-shadow">
-  <span>♥ {video.likes_count}</span>
-  <span>👁 {video.views_count || 0}</span>
-</div>
+                  <div className="absolute inset-0">
+                    <div
+                      onClick={() => router.push(`/user-videos?userId=${userId}`)}
+                      className="absolute inset-0 cursor-pointer"
+                    />
+{activeTab === 'videos' && video.is_pinned && (
+                      <span className="absolute top-1 left-1 text-xs z-10 drop-shadow">📌</span>
+                    )}
+                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between text-[10px] font-medium drop-shadow px-1 pointer-events-none">
+                      <span>♥ {video.likes_count}</span>
+                      <span>👁 {video.views_count || 0}</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -561,7 +727,9 @@ export default function ProfilePage() {
           <div className="w-full max-w-md bg-zinc-900 rounded-t-2xl sm:rounded-2xl p-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold">Edit Profile</h2>
-              <button onClick={() => setEditing(false)} className="text-gray-400 text-xl">✕</button>
+              <button onClick={() => setEditing(false)} className="text-gray-400 text-xl">
+                ✕
+              </button>
             </div>
 
             <div className="space-y-4">
@@ -637,49 +805,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t border-white/10 h-16 flex items-center justify-around z-50 backdrop-blur-md">
-        <button onClick={() => router.push('/')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Home</span>
-        </button>
-
-        <button onClick={() => router.push('/search')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Search</span>
-        </button>
-
-        <button onClick={() => router.push('/upload')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Upload</span>
-        </button>
-
-        <button onClick={() => router.push('/inbox')} className="flex flex-col items-center gap-0.5 relative">
-          <div className="relative">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            {inboxUnread > 0 && (
-              <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-vezao-gradient text-[10px] font-bold flex items-center justify-center text-white">
-                {inboxUnread > 99 ? '99+' : inboxUnread}
-              </span>
-            )}
-          </div>
-          <span className="text-[11px] text-gray-400">Inbox</span>
-        </button>
-
-        <button onClick={() => router.push('/profile')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          <span className="text-[11px] text-white">Profile</span>
-        </button>
-      </div>
+      <BottomNav />
     </div>
   )
 }

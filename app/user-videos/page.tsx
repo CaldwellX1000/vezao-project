@@ -12,6 +12,7 @@ type Video = {
   comments_count: number
   comments_enabled?: boolean | null
   visibility?: string | null
+  is_pinned?: boolean | null
   created_at: string
   user_id: string
   profiles: {
@@ -87,6 +88,7 @@ function UserVideosContent() {
           comments_count,
           comments_enabled,
           visibility,
+          is_pinned,
           created_at,
           user_id,
           profiles (
@@ -327,7 +329,43 @@ function UserVideosContent() {
       return
     }
 
-    setVideos((prev) => prev.filter((v) => v.id !== videoId))
+setVideos((prev) => prev.filter((v) => v.id !== videoId))
+    setShowMore(null)
+    router.replace('/profile')
+  }
+
+  const togglePin = async (videoId: string) => {
+    if (!currentUserId || currentUserId !== userId) return
+
+    const video = videos.find((v) => v.id === videoId)
+    if (!video) return
+
+    const currentlyPinned = !!video.is_pinned
+
+    if (!currentlyPinned) {
+      const pinnedCount = videos.filter((v) => v.is_pinned).length
+      if (pinnedCount >= 3) {
+        alert('Maksimal 3 video yang bisa di-pin')
+        return
+      }
+    }
+
+    const { error } = await supabase
+      .from('videos')
+      .update({ is_pinned: !currentlyPinned })
+      .eq('id', videoId)
+      .eq('user_id', currentUserId)
+
+    if (error) {
+      alert('Gagal: ' + error.message)
+      return
+    }
+
+    setVideos((prev) =>
+      prev.map((v) =>
+        v.id === videoId ? { ...v, is_pinned: !currentlyPinned } : v
+      )
+    )
     setShowMore(null)
   }
 
@@ -518,14 +556,41 @@ function UserVideosContent() {
             <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-6" />
             <div className="grid grid-cols-4 gap-4 text-center">
               {currentUserId === userId && (
-                <button onClick={() => handleDelete(showMore)} className="flex flex-col items-center gap-1">
-                  <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </div>
-                  <span className="text-xs text-red-500">Hapus</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => {
+                      setShowMore(null)
+                      router.push(`/upload?draft=${showMore}`)
+                    }}
+                    className="flex flex-col items-center gap-1"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </div>
+                    <span className="text-xs">Edit</span>
+                  </button>
+                  <button
+                    onClick={() => togglePin(showMore)}
+                    className="flex flex-col items-center gap-1"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-xl">
+                      📌
+                    </div>
+                    <span className="text-xs">
+                      {videos.find((v) => v.id === showMore)?.is_pinned ? 'Unpin' : 'Pin'}
+                    </span>
+                  </button>
+                  <button onClick={() => handleDelete(showMore)} className="flex flex-col items-center gap-1">
+                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </div>
+                    <span className="text-xs text-red-500">Hapus</span>
+                  </button>
+                </>
               )}
 
               {currentUserId !== userId && (

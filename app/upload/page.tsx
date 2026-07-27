@@ -58,7 +58,6 @@ function UploadContent() {
           .from('videos')
           .select('id, caption, video_url, thumbnail_url, is_draft, user_id, comments_enabled, visibility')
           .eq('id', draftId)
-          .eq('is_draft', true)
           .single()
 
         if (draft && draft.user_id === session.user.id) {
@@ -278,12 +277,16 @@ function UploadContent() {
             visibility: visibility,
           })
           .eq('id', editingDraftId)
+          .eq('user_id', user.id)
 
         if (error) throw error
 
         setProgress(100)
         setMessage(asDraft ? 'Draft tersimpan!' : 'Upload berhasil!')
-        setTimeout(() => router.push(asDraft ? '/profile' : '/'), 1000)
+        setTimeout(() => {
+          router.push('/profile')
+          router.refresh()
+        }, 800)
       } catch (err: any) {
         setMessage(err.message || 'Gagal')
         setProgress(0)
@@ -532,7 +535,7 @@ function UploadContent() {
           ←
         </button>
         <h1 className="font-semibold text-sm">
-          {editingDraftId ? 'Edit Draft' : 'Preview'}
+          {editingDraftId ? 'Edit Video' : 'Preview'}
         </h1>
         <div className="w-6" />
       </div>
