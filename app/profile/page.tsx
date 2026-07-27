@@ -35,6 +35,7 @@ export default function ProfilePage() {
   const [inboxUnread, setInboxUnread] = useState(0)
   const [isPrivate, setIsPrivate] = useState(false)
   const [editIsPrivate, setEditIsPrivate] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
 
   const [editFullName, setEditFullName] = useState('')
   const [editUsername, setEditUsername] = useState('')
@@ -177,18 +178,10 @@ export default function ProfilePage() {
     return () => clearInterval(interval)
   }, [])
 
-  const publishDraft = async (videoId: string) => {
-    const { error } = await supabase
-      .from('videos')
-      .update({ is_draft: false })
-      .eq('id', videoId)
-
-    if (!error && userId) {
-      await loadVideos(userId)
-      setActiveTab('videos')
-    } else if (error) {
-      alert('Gagal posting: ' + error.message)
-    }
+  const handleLogout = async () => {
+    setShowMenu(false)
+    await supabase.auth.signOut()
+    router.replace('/login')
   }
 
   const deleteDraft = async (videoId: string) => {
@@ -271,6 +264,7 @@ export default function ProfilePage() {
   }
 
   const handleShareProfile = async () => {
+    setShowMenu(false)
     const url = `${window.location.origin}/user-profile?userId=${userId}`
 
     if (navigator.share) {
@@ -357,21 +351,44 @@ export default function ProfilePage() {
             />
           </div>
 
-          <div className="flex gap-2 mb-1">
+          <div className="flex gap-2 mb-1 items-center">
             <button
               onClick={() => setEditing(true)}
               className="px-5 py-1.5 bg-white text-black text-sm font-semibold rounded-full"
             >
               Edit
             </button>
-            <button
-              onClick={handleShareProfile}
-              className="w-9 h-9 bg-zinc-800 text-white rounded-full border border-white/10 flex items-center justify-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
+
+            <div className="relative">
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="w-9 h-9 bg-zinc-800 text-white rounded-full border border-white/10 flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                </svg>
+              </button>
+
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                  <div className="absolute right-0 top-11 z-50 w-44 bg-zinc-900 border border-white/10 rounded-xl overflow-hidden shadow-xl">
+                    <button
+                      onClick={handleShareProfile}
+                      className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
+                    >
+                      Share profil
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-white/5"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -431,7 +448,6 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* Tabs */}
       <div className="flex border-b border-white/10 mt-5">
         <button
           onClick={() => setActiveTab('videos')}
@@ -504,25 +520,25 @@ export default function ProfilePage() {
                   />
                 )}
 
-{activeTab === 'drafts' ? (
-  <div
-    onClick={() => router.push(`/upload?draft=${video.id}`)}
-    className="absolute inset-0 bg-black/40 flex flex-col items-end justify-between p-1.5 cursor-pointer"
-  >
-    <span className="text-[9px] bg-yellow-500 text-black px-1.5 py-0.5 rounded font-bold">
-      DRAFT
-    </span>
-    <button
-      onClick={(e) => {
-        e.stopPropagation()
-        deleteDraft(video.id)
-      }}
-      className="text-[10px] bg-black/70 text-red-400 px-2 py-1 rounded-full"
-    >
-      Hapus
-    </button>
-  </div>
-) : (
+                {activeTab === 'drafts' ? (
+                  <div
+                    onClick={() => router.push(`/upload?draft=${video.id}`)}
+                    className="absolute inset-0 bg-black/40 flex flex-col items-end justify-between p-1.5 cursor-pointer"
+                  >
+                    <span className="text-[9px] bg-yellow-500 text-black px-1.5 py-0.5 rounded font-bold">
+                      DRAFT
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteDraft(video.id)
+                      }}
+                      className="text-[10px] bg-black/70 text-red-400 px-2 py-1 rounded-full"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                ) : (
                   <div
                     onClick={() => router.push(`/user-videos?userId=${userId}`)}
                     className="absolute inset-0 cursor-pointer"
