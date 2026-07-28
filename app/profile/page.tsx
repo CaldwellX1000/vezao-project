@@ -481,6 +481,15 @@ const list = published || []
                       Settings
                     </button>
                     <button
+                      onClick={() => {
+                        setShowMenu(false)
+                        router.push('/blocked')
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
+                    >
+                      Daftar diblokir
+                    </button>
+                    <button
                       onClick={handleLogout}
                       className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-white/5"
                     >

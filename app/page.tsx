@@ -118,12 +118,17 @@ export default function FeedPage() {
   ]
 
   const loadFeed = async (uid: string) => {
+    // Blokir 2 arah
     const { data: blocksData } = await supabase
       .from('blocks')
-      .select('blocked_id')
-      .eq('blocker_id', uid)
+      .select('blocker_id, blocked_id')
+      .or(`blocker_id.eq.${uid},blocked_id.eq.${uid}`)
 
-    const blockedSet = new Set(blocksData?.map((b) => b.blocked_id) || [])
+    const blockedSet = new Set<string>()
+    ;(blocksData || []).forEach((b) => {
+      if (b.blocker_id === uid) blockedSet.add(b.blocked_id)
+      if (b.blocked_id === uid) blockedSet.add(b.blocker_id)
+    })
     setBlockedUsers(blockedSet)
 
     const { data: followData } = await supabase
@@ -157,6 +162,9 @@ export default function FeedPage() {
       .order('created_at', { ascending: false })
 
     const filtered = (videosData || []).filter((v: any) => {
+      // Sembunyikan konten user yang diblokir (2 arah)
+      if (blockedSet.has(v.user_id)) return false
+
       const vis = String(v.visibility ?? 'public')
         .toLowerCase()
         .replace(/['"]/g, '')

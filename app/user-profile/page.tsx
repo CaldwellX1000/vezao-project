@@ -122,14 +122,28 @@ function UserProfileContent() {
 
       setTargetUserId(resolvedId)
 
-      const { data: blockData } = await supabase
+      // Blokir 2 arah
+      const { data: iBlocked } = await supabase
         .from('blocks')
         .select('id')
         .eq('blocker_id', user.id)
         .eq('blocked_id', resolvedId)
         .maybeSingle()
 
-      setIsBlocked(!!blockData)
+      const { data: theyBlocked } = await supabase
+        .from('blocks')
+        .select('id')
+        .eq('blocker_id', resolvedId)
+        .eq('blocked_id', user.id)
+        .maybeSingle()
+
+      const blocked = !!(iBlocked || theyBlocked)
+      setIsBlocked(blocked)
+
+      if (blocked) {
+        setLoading(false)
+        return
+      }
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -328,6 +342,23 @@ function UserProfileContent() {
 
   const totalLikes = videos.reduce((sum, v) => sum + (v.likes_count || 0), 0)
 
+  if (!loading && isBlocked) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-6">
+        <p className="text-lg font-semibold mb-2">Akun tidak tersedia</p>
+        <p className="text-sm text-gray-400 text-center mb-6">
+          Pengguna ini tidak tersedia karena pengaturan privasi atau blokir.
+        </p>
+        <button
+          onClick={() => router.back()}
+          className="px-6 py-2.5 rounded-full bg-vezao-gradient text-sm font-medium"
+        >
+          Kembali
+        </button>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white pb-20">
@@ -374,10 +405,16 @@ function UserProfileContent() {
               </button>
 
               <button
-                onClick={() => router.push(`/inbox/chat?userId=${targetUserId}`)}
+                onClick={() => {
+                  if (isBlocked) {
+                    alert('Tidak bisa chat. Akun ini diblokir.')
+                    return
+                  }
+                  router.push(`/inbox/chat?userId=${targetUserId}`)
+                }}
                 disabled={isBlocked}
                 className={`px-4 py-1.5 bg-zinc-800 text-white text-sm font-semibold rounded-full border border-white/10 ${
-                  isBlocked ? 'opacity-50' : ''
+                  isBlocked ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 Message

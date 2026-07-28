@@ -32,6 +32,30 @@ function parseVideoId(content: string): string | null {
   return null
 }
 
+function MessageStatus({
+  msgId,
+  isRead,
+}: {
+  msgId: string
+  isRead?: boolean
+}) {
+  if (msgId.startsWith('temp-') || msgId.startsWith('fail-')) {
+    return <span className="text-[10px] text-gray-500 ml-1 inline-flex">✓</span>
+  }
+  if (isRead) {
+    return (
+      <span className="text-[10px] text-purple-400 ml-1 inline-flex tracking-tighter">
+        ✓✓
+      </span>
+    )
+  }
+  return (
+    <span className="text-[10px] text-gray-500 ml-1 inline-flex tracking-tighter">
+      ✓✓
+    </span>
+  )
+}
+
 function formatMsgTime(dateStr: string) {
   const d = new Date(dateStr)
   const now = new Date()
@@ -74,14 +98,31 @@ function ChatContent() {
   const canEditMessage = (msg: Message) => {
     if (parseVideoId(msg.content)) return false
     const ageMs = Date.now() - new Date(msg.created_at).getTime()
-    return ageMs <= 30 * 60 * 1000 // 30 menit
+    return ageMs <= 30 * 60 * 1000
   }
 
-  // Hapus untuk semua: hanya pengirim + dalam 30 menit
   const canDeleteForEveryone = (msg: Message) => {
     if (!currentUserId || msg.sender_id !== currentUserId) return false
     const ageMs = Date.now() - new Date(msg.created_at).getTime()
     return ageMs <= 30 * 60 * 1000
+  }
+
+  const checkBlocked = async (uid: string, partner: string) => {
+    const { data: a } = await supabase
+      .from('blocks')
+      .select('id')
+      .eq('blocker_id', uid)
+      .eq('blocked_id', partner)
+      .maybeSingle()
+
+    const { data: b } = await supabase
+      .from('blocks')
+      .select('id')
+      .eq('blocker_id', partner)
+      .eq('blocked_id', uid)
+      .maybeSingle()
+
+    return !!(a || b)
   }
 
   const loadSharedVideos = async (msgs: Message[]) => {
@@ -97,13 +138,15 @@ function ChatContent() {
 
     const { data } = await supabase
       .from('videos')
-      .select(`
+      .select(
+        `
         id,
         video_url,
         thumbnail_url,
         caption,
         profiles ( username, avatar_url )
-      `)
+      `
+      )
       .in('id', missing)
 
     setVideoCache((prev) => {
@@ -154,6 +197,13 @@ function ChatContent() {
       }
       setCurrentUserId(user.id)
 
+      const blocked = await checkBlocked(user.id, partnerId)
+      if (blocked) {
+        alert('Tidak bisa chat. Akun ini diblokir.')
+        router.replace('/inbox')
+        return
+      }
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('username, full_name, avatar_url')
@@ -196,8 +246,10 @@ function ChatContent() {
         (payload) => {
           const newMsg = payload.new as Message
           const isRelevant =
-            (newMsg.sender_id === currentUserId && newMsg.receiver_id === partnerId) ||
-            (newMsg.sender_id === partnerId && newMsg.receiver_id === currentUserId)
+            (newMsg.sender_id === currentUserId &&
+              newMsg.receiver_id === partnerId) ||
+            (newMsg.sender_id === partnerId &&
+              newMsg.receiver_id === currentUserId)
 
           if (isRelevant) {
             setMessages((prev) => {
@@ -215,6 +267,22 @@ function ChatContent() {
                 .then()
             }
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          const updated = payload.new as Message
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === updated.id ? { ...m, is_read: updated.is_read } : m
+            )
+          )
         }
       )
       .subscribe()
@@ -236,10 +304,28 @@ function ChatContent() {
   const sendMessage = async () => {
     if (!newMessage.trim() || !currentUserId || !partnerId || sending) return
 
+    const blocked = await checkBlocked(currentUserId, partnerId)
+    if (blocked) {
+      const failId = `fail-${Date.now()}`
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: failId,
+          sender_id: currentUserId,
+          receiver_id: partnerId,
+          content: newMessage.trim(),
+          created_at: new Date().toISOString(),
+          is_read: false,
+        },
+      ])
+      setNewMessage('')
+      alert('Tidak bisa kirim pesan. Akun ini diblokir.')
+      return
+    }
+
     const content = newMessage.trim()
     setSending(true)
 
-    // Mode edit
     if (editingMsgId) {
       const target = messages.find((m) => m.id === editingMsgId)
       if (!target || !canEditMessage(target)) {
@@ -263,7 +349,9 @@ function ChatContent() {
         console.error('Edit error:', error)
       } else {
         setMessages((prev) =>
-          prev.map((m) => (m.id === editingMsgId ? { ...m, content: data.content } : m))
+          prev.map((m) =>
+            m.id === editingMsgId ? { ...m, content: data.content } : m
+          )
         )
         setEditingMsgId(null)
         setNewMessage('')
@@ -272,7 +360,6 @@ function ChatContent() {
       return
     }
 
-    // Mode kirim baru
     setNewMessage('')
     const tempId = `temp-${Date.now()}`
     const tempMsg: Message = {
@@ -421,7 +508,10 @@ function ChatContent() {
             const shared = videoId ? videoCache[videoId] : undefined
 
             return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+              <div
+                key={msg.id}
+                className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+              >
                 {videoId ? (
                   <div
                     className={`max-w-[70%] flex flex-col gap-1 relative ${
@@ -429,11 +519,14 @@ function ChatContent() {
                     }`}
                   >
                     <p
-                      className={`text-[10px] text-gray-500 px-1 ${
-                        isMe ? 'text-right' : 'text-left'
+                      className={`text-[10px] text-gray-500 px-1 flex items-center gap-0.5 ${
+                        isMe ? 'text-right justify-end' : 'text-left'
                       }`}
                     >
                       {formatMsgTime(msg.created_at)}
+                      {isMe && (
+                        <MessageStatus msgId={msg.id} isRead={msg.is_read} />
+                      )}
                     </p>
                     <div className="relative">
                       {isMe && (
@@ -473,9 +566,7 @@ function ChatContent() {
                               Video
                             </div>
                           )}
-
                           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
-
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-md">
                               <svg
@@ -488,7 +579,6 @@ function ChatContent() {
                               </svg>
                             </div>
                           </div>
-
                           <div className="absolute bottom-0 left-0 right-0 p-2.5">
                             <p className="text-white text-xs font-semibold drop-shadow truncate">
                               @{shared?.profiles?.username || 'user'}
@@ -523,17 +613,22 @@ function ChatContent() {
                     }`}
                   >
                     <p
-                      className={`text-[10px] text-gray-500 px-1 ${
-                        isMe ? 'text-right' : 'text-left'
+                      className={`text-[10px] text-gray-500 px-1 flex items-center gap-0.5 ${
+                        isMe ? 'text-right justify-end' : 'text-left'
                       }`}
                     >
                       {formatMsgTime(msg.created_at)}
+                      {isMe && (
+                        <MessageStatus msgId={msg.id} isRead={msg.is_read} />
+                      )}
                     </p>
                     <div className="relative">
                       {isMe && (
                         <button
                           type="button"
-                          onClick={() => setMenuMsgId(menuMsgId === msg.id ? null : msg.id)}
+                          onClick={() =>
+                            setMenuMsgId(menuMsgId === msg.id ? null : msg.id)
+                          }
                           className="absolute -top-1 -right-1 z-10 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center text-white/80 text-[10px]"
                         >
                           ⋯
@@ -624,48 +719,49 @@ function ChatContent() {
             </svg>
           </button>
         </div>
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => setDeleteConfirmId(null)}
-          />
-          <div className="relative w-full max-w-sm mx-4 mb-6 sm:mb-0 bg-zinc-900 rounded-2xl p-4 border border-white/10">
-            <h3 className="text-center font-semibold mb-1">Hapus pesan?</h3>
-            <p className="text-center text-xs text-gray-400 mb-4">
-              Pilih cara menghapus pesan ini
-            </p>
-            <div className="space-y-2">
-              <button
-                onClick={() => deleteForMe(deleteConfirmId)}
-                className="w-full py-3 rounded-xl bg-zinc-800 text-sm font-medium hover:bg-zinc-700"
-              >
-                Hapus untuk saya
-              </button>
-              {(() => {
-                const m = messages.find((x) => x.id === deleteConfirmId)
-                if (m && canDeleteForEveryone(m)) {
-                  return (
-                    <button
-                      onClick={() => deleteForEveryone(deleteConfirmId)}
-                      className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/30"
-                    >
-                      Hapus untuk semua
-                    </button>
-                  )
-                }
-                return null
-              })()}
-              <button
-                onClick={() => setDeleteConfirmId(null)}
-                className="w-full py-3 text-sm text-gray-400"
-              >
-                Batal
-              </button>
+
+        {deleteConfirmId && (
+          <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setDeleteConfirmId(null)}
+            />
+            <div className="relative w-full max-w-sm mx-4 mb-6 sm:mb-0 bg-zinc-900 rounded-2xl p-4 border border-white/10">
+              <h3 className="text-center font-semibold mb-1">Hapus pesan?</h3>
+              <p className="text-center text-xs text-gray-400 mb-4">
+                Pilih cara menghapus pesan ini
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => deleteForMe(deleteConfirmId)}
+                  className="w-full py-3 rounded-xl bg-zinc-800 text-sm font-medium hover:bg-zinc-700"
+                >
+                  Hapus untuk saya
+                </button>
+                {(() => {
+                  const m = messages.find((x) => x.id === deleteConfirmId)
+                  if (m && canDeleteForEveryone(m)) {
+                    return (
+                      <button
+                        onClick={() => deleteForEveryone(deleteConfirmId)}
+                        className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/30"
+                      >
+                        Hapus untuk semua
+                      </button>
+                    )
+                  }
+                  return null
+                })()}
+                <button
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="w-full py-3 text-sm text-gray-400"
+                >
+                  Batal
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
     </div>
   )

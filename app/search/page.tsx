@@ -54,12 +54,17 @@ export default function SearchPage() {
       }
       setCurrentUserId(user.id)
 
+      // Blokir 2 arah
       const { data: blocks } = await supabase
         .from('blocks')
-        .select('blocked_id')
-        .eq('blocker_id', user.id)
+        .select('blocker_id, blocked_id')
+        .or(`blocker_id.eq.${user.id},blocked_id.eq.${user.id}`)
 
-      const blockedSet = new Set(blocks?.map((b) => b.blocked_id) || [])
+      const blockedSet = new Set<string>()
+      ;(blocks || []).forEach((b) => {
+        if (b.blocker_id === user.id) blockedSet.add(b.blocked_id)
+        if (b.blocked_id === user.id) blockedSet.add(b.blocker_id)
+      })
       setBlockedUsers(blockedSet)
 
       const { data: follows } = await supabase

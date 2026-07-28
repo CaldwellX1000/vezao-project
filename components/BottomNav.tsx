@@ -17,13 +17,29 @@ export default function BottomNav() {
       } = await supabase.auth.getUser()
       if (!user) return
 
-      const { count } = await supabase
+      // Ambil daftar yang diblokir (2 arah)
+      const { data: myBlocks } = await supabase
+        .from('blocks')
+        .select('blocker_id, blocked_id')
+        .or(`blocker_id.eq.${user.id},blocked_id.eq.${user.id}`)
+
+      const blockedSet = new Set<string>()
+      ;(myBlocks || []).forEach((b) => {
+        if (b.blocker_id === user.id) blockedSet.add(b.blocked_id)
+        if (b.blocked_id === user.id) blockedSet.add(b.blocker_id)
+      })
+
+      // Ambil pesan unread, lalu exclude yang dari akun diblokir
+      const { data: unreadMsgs } = await supabase
         .from('messages')
-        .select('*', { count: 'exact', head: true })
+        .select('id, sender_id')
         .eq('receiver_id', user.id)
         .eq('is_read', false)
 
-      setInboxUnread(count || 0)
+      const filtered = (unreadMsgs || []).filter(
+        (m) => !blockedSet.has(m.sender_id)
+      )
+      setInboxUnread(filtered.length)
     }
 
     load()
