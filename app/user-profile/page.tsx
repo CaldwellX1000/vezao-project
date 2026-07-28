@@ -378,9 +378,6 @@ function UserProfileContent() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-20">
-      <div className="fixed top-0 left-0 right-0 z-[999] bg-red-600 text-white text-center text-xs py-1 font-bold">
-        FILE: user-profile
-      </div>
       <div className="h-28 bg-vezao-gradient" />
 
       <div className="px-4 -mt-12">
@@ -498,7 +495,7 @@ function UserProfileContent() {
             <h1 className="text-xl font-bold">{fullName || username}</h1>
             {isPrivate && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-gray-300 border border-white/10">
-                🔒 Private
+                Private
               </span>
             )}
           </div>
@@ -585,7 +582,10 @@ function UserProfileContent() {
             {videos.map((video) => (
               <div
                 key={video.id}
-                onClick={() => router.push(`/user-videos?userId=${targetUserId}`)}
+                onClick={() => {
+                  if (!video.id) return
+                  window.location.href = `/v/${video.id}`
+                }}
                 className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer active:opacity-80"
               >
                 {video.thumbnail_url ? (

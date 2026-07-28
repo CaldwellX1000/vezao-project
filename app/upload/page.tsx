@@ -83,6 +83,9 @@ function UploadContent() {
     const url = URL.createObjectURL(file)
     setPreview(url)
     setExistingVideoUrl(null)
+    setCoverPreview(null)
+    setCoverTime(0)
+    setDuration(0)
     return () => URL.revokeObjectURL(url)
   }, [file])
 
@@ -189,45 +192,78 @@ function UploadContent() {
     setMode('preview')
   }
 
-  const onPreviewLoaded = () => {
-    const v = previewVideoRef.current
-    if (!v) return
-    setDuration(v.duration || 0)
-    setCoverTime(0)
-    if (!coverPreview) captureFrameAt(0)
-  }
+  const captureFrameAt = (time: number): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const v = previewVideoRef.current
+      if (!v) {
+        resolve(null)
+        return
+      }
 
-  const captureFrameAt = (time: number) => {
-    const v = previewVideoRef.current
-    if (!v) return
+      const doCapture = () => {
+        try {
+          const w = v.videoWidth
+          const h = v.videoHeight
+          if (!w || !h) {
+            resolve(null)
+            return
+          }
+          const canvas = document.createElement('canvas')
+          canvas.width = w
+          canvas.height = h
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            resolve(null)
+            return
+          }
+          ctx.drawImage(v, 0, 0, w, h)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+          setCoverPreview(dataUrl)
+          resolve(dataUrl)
+        } catch {
+          resolve(null)
+        }
+      }
 
-    const doCapture = () => {
-      try {
-        const canvas = document.createElement('canvas')
-        canvas.width = v.videoWidth || 720
-        canvas.height = v.videoHeight || 1280
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
-        ctx.drawImage(v, 0, 0, canvas.width, canvas.height)
-        setCoverPreview(canvas.toDataURL('image/jpeg', 0.8))
-      } catch {}
-    }
+      const target = Math.min(Math.max(time, 0.05), Math.max((v.duration || 1) - 0.05, 0.05))
 
-    if (Math.abs(v.currentTime - time) < 0.05) {
-      doCapture()
-    } else {
       const onSeeked = () => {
+        v.removeEventListener('seeked', onSeeked)
+        // tunggu 1 frame biar gambar ready
+        requestAnimationFrame(() => {
+          requestAnimationFrame(doCapture)
+        })
+      }
+
+      v.addEventListener('seeked', onSeeked)
+      try {
+        v.currentTime = target
+      } catch {
         v.removeEventListener('seeked', onSeeked)
         doCapture()
       }
-      v.addEventListener('seeked', onSeeked)
-      v.currentTime = time
+    })
+  }
+
+  const onPreviewLoaded = async () => {
+    const v = previewVideoRef.current
+    if (!v) return
+    const d = v.duration || 0
+    setDuration(d)
+
+    // Ambil frame di 1s (atau tengah video pendek) — hindari frame hitam di 0s
+    const autoTime = d > 1 ? 1 : Math.max(0.15, d * 0.3)
+    setCoverTime(autoTime)
+
+    // Auto cover kalau belum ada / masih data lokal
+    if (!coverPreview || coverPreview.startsWith('data:')) {
+      await captureFrameAt(autoTime)
     }
   }
 
   const onCoverChange = (value: number) => {
     setCoverTime(value)
-    captureFrameAt(value)
+    void captureFrameAt(value)
   }
 
   const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
@@ -250,8 +286,18 @@ function UploadContent() {
 
         let thumbnailUrl = existingThumbUrl
 
-        if (coverPreview && coverPreview.startsWith('data:')) {
-          const thumbBlob = await dataUrlToBlob(coverPreview)
+        let coverData = coverPreview
+        if (!coverData || coverData === existingThumbUrl) {
+          // coba generate dari video preview kalau user geser / belum ada
+          if (previewVideoRef.current) {
+            const t = coverTime || 1
+            const generated = await captureFrameAt(t)
+            if (generated) coverData = generated
+          }
+        }
+
+        if (coverData && coverData.startsWith('data:')) {
+          const thumbBlob = await dataUrlToBlob(coverData)
           const thumbName = `${user.id}/${Date.now()}.jpg`
           const { error: thumbError } = await supabase.storage
             .from('thumbnails')
@@ -329,18 +375,25 @@ function UploadContent() {
         .from('videos')
         .getPublicUrl(fileName)
 
+      // Pastikan ada cover (otomatis kalau user tidak geser slider)
+      let coverData = coverPreview
+      if (!coverData || !coverData.startsWith('data:')) {
+        const t = coverTime || (duration > 1 ? 1 : 0.15)
+        coverData = await captureFrameAt(t)
+      }
+
       let thumbnailUrl: string | null = null
-      if (coverPreview) {
-        const thumbBlob = await dataUrlToBlob(coverPreview)
+        if (coverData && coverData.startsWith('data:')) {
+        const thumbBlob = await dataUrlToBlob(coverData)
         const thumbName = `${user.id}/${Date.now()}.jpg`
         const { error: thumbError } = await supabase.storage
           .from('thumbnails')
           .upload(thumbName, thumbBlob, { contentType: 'image/jpeg' })
 
         if (!thumbError) {
-          const { data: { publicUrl: tUrl } } = supabase.storage
-            .from('thumbnails')
-            .getPublicUrl(thumbName)
+          const {
+            data: { publicUrl: tUrl },
+          } = supabase.storage.from('thumbnails').getPublicUrl(thumbName)
           thumbnailUrl = tUrl
         }
       }
@@ -562,13 +615,19 @@ function UploadContent() {
               <p className="text-xs text-gray-500">{coverTime.toFixed(1)}s</p>
             </div>
             <div className="flex items-center gap-3">
-              {coverPreview && (
-                <img
-                  src={coverPreview}
-                  alt="Cover"
-                  className="w-14 h-20 rounded-lg object-cover border border-white/20 shrink-0"
-                />
-              )}
+              <div className="w-14 h-20 rounded-lg overflow-hidden border border-white/20 shrink-0 bg-zinc-800 flex items-center justify-center">
+                {coverPreview ? (
+                  <img
+                    src={coverPreview}
+                    alt="Cover"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[10px] text-gray-500 text-center px-1">
+                    Auto...
+                  </span>
+                )}
+              </div>
               <input
                 type="range"
                 min={0}

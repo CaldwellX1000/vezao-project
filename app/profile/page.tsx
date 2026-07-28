@@ -4,6 +4,12 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
+import {
+  getAccounts,
+  persistCurrentSession,
+  removeAccount,
+  type StoredAccount,
+} from '@/lib/accounts'
 
 type Video = {
   id: string
@@ -35,7 +41,7 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'videos' | 'private' | 'liked' | 'saved' | 'drafts'>('videos')
-const [privateVideos, setPrivateVideos] = useState<Video[]>([])
+  const [privateVideos, setPrivateVideos] = useState<Video[]>([])
   const [followingCount, setFollowingCount] = useState(0)
   const [followersCount, setFollowersCount] = useState(0)
   const [unreadCount, setUnreadCount] = useState(0)
@@ -43,6 +49,8 @@ const [privateVideos, setPrivateVideos] = useState<Video[]>([])
   const [isPrivate, setIsPrivate] = useState(false)
   const [editIsPrivate, setEditIsPrivate] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [showAccountSheet, setShowAccountSheet] = useState(false)
+  const [accounts, setAccounts] = useState<StoredAccount[]>([])
 
   const [editFullName, setEditFullName] = useState('')
   const [editUsername, setEditUsername] = useState('')
@@ -220,6 +228,9 @@ const list = published || []
       setFollowingCount(following || 0)
       setFollowersCount(followers || 0)
 
+      await persistCurrentSession(supabase)
+      setAccounts(getAccounts())
+
       setLoading(false)
     }
 
@@ -255,6 +266,31 @@ const list = published || []
     setShowMenu(false)
     await supabase.auth.signOut()
     router.replace('/login')
+  }
+
+  const switchAccount = async (account: StoredAccount) => {
+    if (account.id === userId) {
+      setShowAccountSheet(false)
+      return
+    }
+    const { error } = await supabase.auth.setSession({
+      access_token: account.access_token,
+      refresh_token: account.refresh_token,
+    })
+    if (error) {
+      alert('Gagal ganti akun. Silakan login ulang akun ini.')
+      removeAccount(account.id)
+      setAccounts(getAccounts())
+      return
+    }
+    await persistCurrentSession(supabase)
+    setShowAccountSheet(false)
+    window.location.href = '/profile'
+  }
+
+  const handleAddAccount = async () => {
+    setShowAccountSheet(false)
+    router.push('/login?add=1')
   }
 
   const deleteDraft = async (videoId: string) => {
@@ -416,7 +452,8 @@ const list = published || []
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
+    <div className="min-h-screen bg-black text-white pb-20 md:bg-zinc-950">
+      <div className="w-full md:max-w-[480px] md:mx-auto md:min-h-screen md:bg-black md:border-x md:border-white/10">
       <div className="h-28 bg-vezao-gradient relative">
         <button
           onClick={() => router.push('/notifications')}
@@ -539,14 +576,30 @@ const list = published || []
         </div>
 
         <div className="mt-3">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold">{fullName || username}</h1>
+          <button
+            type="button"
+            onClick={() => setShowAccountSheet(true)}
+            className="flex items-center gap-1 max-w-full"
+          >
+            <h1 className="text-xl font-bold truncate">
+              {fullName || username}
+            </h1>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-5 h-5 text-white shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
             {isPrivate && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-gray-300 border border-white/10">
-                🔒 Private
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-gray-300 border border-white/10 ml-1">
+                Private
               </span>
             )}
-          </div>
+          </button>
           <p className="text-sm text-gray-400">@{username}</p>
         </div>
 
@@ -774,11 +827,8 @@ const list = published || []
                   <div className="absolute inset-0">
                     <div
                       onClick={() => {
-                        const ownerId =
-                          activeTab === 'saved' || activeTab === 'liked'
-                            ? video.user_id || userId
-                            : userId
-                        router.push(`/user-videos?userId=${ownerId}`)
+                        if (!video.id) return
+                        window.location.href = `/v/${video.id}`
                       }}
                       className="absolute inset-0 cursor-pointer"
                     />
@@ -884,7 +934,91 @@ const list = published || []
         </div>
       )}
 
+      {showAccountSheet && (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowAccountSheet(false)}
+          />
+          <div className="relative w-full max-w-[480px] bg-zinc-900 rounded-t-2xl pb-8 pt-3 px-4 max-h-[80vh] overflow-y-auto">
+            <div className="w-10 h-1 bg-white/25 rounded-full mx-auto mb-4" />
+            <div className="flex items-center justify-between mb-4 px-1">
+              <h3 className="text-base font-semibold">Beralih akun</h3>
+              <button
+                onClick={() => setShowAccountSheet(false)}
+                className="w-8 h-8 flex items-center justify-center text-gray-400 text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {accounts.map((acc) => {
+              const active = acc.id === userId
+              return (
+                <button
+                  key={acc.id}
+                  type="button"
+                  onClick={() => switchAccount(acc)}
+                  className="w-full flex items-center gap-3 py-3 px-1 active:bg-white/5 rounded-xl"
+                >
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-700 shrink-0 border border-white/10">
+                    {acc.avatar_url ? (
+                      <img
+                        src={acc.avatar_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-lg font-bold bg-vezao-gradient">
+                        {(acc.full_name || acc.username)?.[0]?.toUpperCase() || 'U'}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-sm font-semibold truncate">
+                      {acc.full_name || acc.username}
+                    </p>
+                    <p className="text-xs text-gray-400 truncate">@{acc.username}</p>
+                  </div>
+                  {active && (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-5 h-5 text-purple-400 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                    </svg>
+                  )}
+                </button>
+              )
+            })}
+
+            <button
+              type="button"
+              onClick={handleAddAccount}
+              className="w-full flex items-center gap-3 py-3 px-1 mt-1 active:bg-white/5 rounded-xl"
+            >
+              <div className="w-12 h-12 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-6 h-6 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium">Tambah akun</p>
+            </button>
+          </div>
+        </div>
+      )}
+
       <BottomNav />
+      </div>
     </div>
   )
 }

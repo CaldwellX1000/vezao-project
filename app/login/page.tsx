@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import { persistCurrentSession } from '@/lib/accounts'
 import { useRouter } from 'next/navigation'
 
 const COUNTRIES = [
@@ -92,6 +93,7 @@ export default function LoginPage() {
         type: 'signup',
       })
       if (error) throw error
+      await persistCurrentSession(supabase)
       setMessage('Verifikasi berhasil! Mengalihkan...')
       setTimeout(() => router.push('/'), 800)
     } catch (error: any) {
@@ -151,6 +153,7 @@ export default function LoginPage() {
       } else if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
+        await persistCurrentSession(supabase)
         router.push('/')
       } else {
         if (!email.trim()) {

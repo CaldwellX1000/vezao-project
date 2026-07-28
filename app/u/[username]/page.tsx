@@ -271,7 +271,8 @@ function ProfileByUsername() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
+    <div className="min-h-screen bg-black text-white pb-20 md:bg-zinc-950">
+      <div className="w-full md:max-w-[480px] md:mx-auto md:min-h-screen md:bg-black md:border-x md:border-white/10">
       <div className="h-28 bg-vezao-gradient" />
       <div className="px-4 -mt-12">
         <div className="flex justify-between items-end">
@@ -311,7 +312,7 @@ function ProfileByUsername() {
             <h1 className="text-xl font-bold">{fullName || username}</h1>
             {isPrivate && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 border border-white/10">
-                🔒 Private
+                 Private
               </span>
             )}
           </div>
@@ -351,7 +352,10 @@ function ProfileByUsername() {
             {videos.map((video) => (
               <div
                 key={video.id}
-                onClick={() => router.push(`/user-videos?userId=${targetUserId}`)}
+                onClick={() => {
+                  if (!video.id) return
+                  window.location.href = `/v/${video.id}`
+                }}
                 className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer"
               >
                 {video.thumbnail_url ? (
@@ -377,6 +381,7 @@ function ProfileByUsername() {
       </div>
 
       <BottomNav />
+      </div>
     </div>
   )
 }
