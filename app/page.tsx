@@ -543,7 +543,7 @@ export default function FeedPage() {
 
   if (loading) {
     return (
-      <div className="h-screen bg-black relative overflow-hidden">
+      <div className="h-[100dvh] bg-black relative overflow-hidden">
         <div className="absolute inset-0 bg-zinc-900 animate-pulse" />
         <div className="absolute bottom-28 left-4 right-20 space-y-3 z-10">
           <div className="flex items-center gap-2">
@@ -567,7 +567,7 @@ export default function FeedPage() {
   return (
     <div
       ref={containerRef}
-      className="h-screen bg-black overflow-y-scroll snap-y snap-mandatory pb-16 md:bg-zinc-950"
+      className="h-[100dvh] bg-black overflow-y-scroll snap-y snap-mandatory pb-16 md:bg-zinc-950"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -679,7 +679,7 @@ export default function FeedPage() {
           return (
             <div
               key={video.id}
-              className="h-screen w-full snap-start relative flex items-center justify-center md:bg-zinc-950"
+              className="h-[100dvh] w-full snap-start relative flex items-center justify-center md:bg-zinc-950"
             >
               {/* Kolom video (mobile full, desktop portrait di tengah) */}
               <div className="relative h-full w-full md:w-[420px] md:max-w-[420px] md:h-[100dvh] md:rounded-none md:shadow-2xl md:overflow-hidden bg-black">
@@ -712,7 +712,7 @@ export default function FeedPage() {
 
               <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
 
-              <div className="absolute bottom-24 left-4 right-20 text-white z-10">
+              <div className="absolute bottom-28 left-4 right-20 text-white z-10 pb-safe">
                 <div className="flex items-center gap-2 mb-1.5">
                   <div
                     onClick={() => router.push(`/@${video.profiles?.username || video.user_id}`)}
@@ -768,7 +768,7 @@ export default function FeedPage() {
                 </p>
               </div>
 
-              <div className="absolute right-3 bottom-32 flex flex-col items-center gap-5 z-10">
+              <div className="absolute right-3 bottom-36 flex flex-col items-center gap-5 z-10">
                 <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
                   <div
                     className={`w-11 h-11 rounded-full flex items-center justify-center border border-white/10 ${
