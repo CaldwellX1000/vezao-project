@@ -75,6 +75,7 @@ function UserVideosContent() {
 
   const [videos, setVideos] = useState<Video[]>([])
   const [likedVideos, setLikedVideos] = useState<Set<string>>(new Set())
+  const [savedVideos, setSavedVideos] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [isMuted, setIsMuted] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -167,6 +168,15 @@ function UserVideosContent() {
         setLikedVideos(new Set(likesData.map((l) => l.video_id)))
       }
 
+      const { data: savesData } = await supabase
+        .from('saves')
+        .select('video_id')
+        .eq('user_id', user.id)
+
+      if (savesData) {
+        setSavedVideos(new Set(savesData.map((s) => s.video_id)))
+      }
+
       setLoading(false)
     }
 
@@ -248,6 +258,46 @@ function UserVideosContent() {
           user_id: video.user_id,
           actor_id: currentUserId,
           type: 'like',
+          video_id: videoId,
+          message: null,
+          is_read: false,
+        })
+      }
+    }
+  }
+
+  const toggleSave = async (videoId: string) => {
+    if (!currentUserId) return
+    const isSaved = savedVideos.has(videoId)
+
+    if (isSaved) {
+      await supabase
+        .from('saves')
+        .delete()
+        .eq('user_id', currentUserId)
+        .eq('video_id', videoId)
+      setSavedVideos((prev) => {
+        const next = new Set(prev)
+        next.delete(videoId)
+        return next
+      })
+    } else {
+      const { error } = await supabase.from('saves').insert({
+        user_id: currentUserId,
+        video_id: videoId,
+      })
+      if (error) {
+        alert('Gagal simpan: ' + error.message)
+        return
+      }
+      setSavedVideos((prev) => new Set(prev).add(videoId))
+
+      const video = videos.find((v) => v.id === videoId)
+      if (video && video.user_id !== currentUserId) {
+        await supabase.from('notifications').insert({
+          user_id: video.user_id,
+          actor_id: currentUserId,
+          type: 'save',
           video_id: videoId,
           message: null,
           is_read: false,
@@ -580,12 +630,37 @@ setVideos((prev) => prev.filter((v) => v.id !== videoId))
                 <span className="text-xs mt-1 text-white font-medium">{video.comments_count || 0}</span>
               </button>
 
+              <button
+                onClick={() => toggleSave(video.id)}
+                className="flex flex-col items-center"
+              >
+                <div
+                  className={`w-11 h-11 rounded-full flex items-center justify-center border border-white/10 ${
+                    savedVideos.has(video.id)
+                      ? 'bg-yellow-500'
+                      : 'bg-black/40 backdrop-blur-md'
+                  }`}
+                >
+                  {savedVideos.has(video.id) ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                  )}
+                </div>
+                <span className="text-xs mt-1 text-white font-medium">Save</span>
+              </button>
+
               <button onClick={handleShare} className="flex flex-col items-center">
                 <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" />
                   </svg>
                 </div>
+                <span className="text-xs mt-1 text-white font-medium">Share</span>
               </button>
 
               <button onClick={() => setShowMore(video.id)} className="flex flex-col items-center">
@@ -608,6 +683,28 @@ setVideos((prev) => prev.filter((v) => v.id !== videoId))
           <div className="relative w-full bg-zinc-900 rounded-t-2xl p-4 pb-10">
             <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-6" />
             <div className="grid grid-cols-4 gap-4 text-center">
+              <button
+                onClick={async () => {
+                  if (!showMore) return
+                  const url = `${window.location.origin}/v/${showMore}`
+                  try {
+                    await navigator.clipboard.writeText(url)
+                    alert('Tautan disalin!')
+                  } catch {
+                    prompt('Salin tautan:', url)
+                  }
+                  setShowMore(null)
+                }}
+                className="flex flex-col items-center gap-1"
+              >
+                <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <span className="text-xs">Salin tautan</span>
+              </button>
+
               {currentUserId === userId && (
                 <>
                   <button

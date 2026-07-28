@@ -161,12 +161,20 @@ export default function NotificationsPage() {
           <span className="text-gray-400">{n.message || '...'}</span>
         </>
       )
+    if (n.type === 'save')
+      return (
+        <>
+          <span className="font-semibold text-white">@{name}</span>
+          {' menyimpan videomu'}
+        </>
+      )
     return n.message || 'Notifikasi baru'
   }
 
   const typeIcon = (type: string) => {
     if (type === 'like') return '♥'
     if (type === 'comment') return '💬'
+    if (type === 'save') return '🔖'
     if (type === 'follow' || type === 'follow_request') return '👤'
     return '🔔'
   }

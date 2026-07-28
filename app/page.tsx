@@ -72,6 +72,7 @@ function formatDateTime(dateStr: string) {
 export default function FeedPage() {
   const [allVideos, setAllVideos] = useState<Video[]>([])
   const [likedVideos, setLikedVideos] = useState<Set<string>>(new Set())
+  const [savedVideos, setSavedVideos] = useState<Set<string>>(new Set())
   const [following, setFollowing] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -214,6 +215,15 @@ export default function FeedPage() {
 
     if (likesData) {
       setLikedVideos(new Set(likesData.map((l) => l.video_id)))
+    }
+
+    const { data: savesData } = await supabase
+      .from('saves')
+      .select('video_id')
+      .eq('user_id', uid)
+
+    if (savesData) {
+      setSavedVideos(new Set(savesData.map((s) => s.video_id)))
     }
   }
 
@@ -365,6 +375,46 @@ export default function FeedPage() {
           user_id: video.user_id,
           actor_id: userId,
           type: 'like',
+          video_id: videoId,
+          message: null,
+          is_read: false,
+        })
+      }
+    }
+  }
+
+  const toggleSave = async (videoId: string) => {
+    if (!userId) return
+    const isSaved = savedVideos.has(videoId)
+
+    if (isSaved) {
+      await supabase
+        .from('saves')
+        .delete()
+        .eq('user_id', userId)
+        .eq('video_id', videoId)
+      setSavedVideos((prev) => {
+        const next = new Set(prev)
+        next.delete(videoId)
+        return next
+      })
+    } else {
+      const { error } = await supabase.from('saves').insert({
+        user_id: userId,
+        video_id: videoId,
+      })
+      if (error) {
+        alert('Gagal simpan: ' + error.message)
+        return
+      }
+      setSavedVideos((prev) => new Set(prev).add(videoId))
+
+      const video = allVideos.find((v) => v.id === videoId)
+      if (video && video.user_id !== userId) {
+        await supabase.from('notifications').insert({
+          user_id: video.user_id,
+          actor_id: userId,
+          type: 'save',
           video_id: videoId,
           message: null,
           is_read: false,
@@ -831,6 +881,30 @@ export default function FeedPage() {
                     </svg>
                   </div>
                   <span className="text-xs mt-1 text-white font-medium">{video.comments_count || 0}</span>
+                </button>
+
+                <button
+                  onClick={() => toggleSave(video.id)}
+                  className="flex flex-col items-center"
+                >
+                  <div
+                    className={`w-11 h-11 rounded-full flex items-center justify-center border border-white/10 ${
+                      savedVideos.has(video.id)
+                        ? 'bg-yellow-500'
+                        : 'bg-black/40 backdrop-blur-md'
+                    }`}
+                  >
+                    {savedVideos.has(video.id) ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-xs mt-1 text-white font-medium">Save</span>
                 </button>
 
                 <button onClick={() => openShare(video.id)} className="flex flex-col items-center">

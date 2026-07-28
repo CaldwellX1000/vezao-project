@@ -16,6 +16,7 @@ type Video = {
   created_at: string
   is_draft?: boolean
   visibility?: string | null
+  user_id?: string
 }
 
 export default function ProfilePage() {
@@ -27,12 +28,13 @@ export default function ProfilePage() {
   const [videos, setVideos] = useState<Video[]>([])
   const [drafts, setDrafts] = useState<Video[]>([])
   const [likedVideos, setLikedVideos] = useState<Video[]>([])
+  const [savedVideos, setSavedVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'videos' | 'private' | 'liked' | 'drafts'>('videos')
+  const [activeTab, setActiveTab] = useState<'videos' | 'private' | 'liked' | 'saved' | 'drafts'>('videos')
 const [privateVideos, setPrivateVideos] = useState<Video[]>([])
   const [followingCount, setFollowingCount] = useState(0)
   const [followersCount, setFollowersCount] = useState(0)
@@ -165,13 +167,45 @@ const list = published || []
         const videoIds = likes.map((l) => l.video_id)
         const { data: liked } = await supabase
           .from('videos')
-          .select('id, caption, video_url, thumbnail_url, likes_count, created_at')
+          .select('id, caption, video_url, thumbnail_url, likes_count, views_count, created_at, user_id')
           .in('id', videoIds)
           .eq('is_draft', false)
           .order('created_at', { ascending: false })
 
         if (liked) setLikedVideos(liked)
       }
+
+      const { data: savesJoined, error: savesError } = await supabase
+        .from('saves')
+        .select(
+          `
+          video_id,
+          videos (
+            id,
+            caption,
+            video_url,
+            thumbnail_url,
+            likes_count,
+            views_count,
+            created_at,
+            user_id,
+            is_draft
+          )
+        `
+        )
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (savesError) {
+        console.error('saves error', savesError)
+      }
+
+      const savedList =
+        (savesJoined || [])
+          .map((row: any) => row.videos)
+          .filter((v: any) => v && v.is_draft !== true) || []
+
+      setSavedVideos(savedList)
 
       const { count: following } = await supabase
         .from('follows')
@@ -363,6 +397,8 @@ const list = published || []
       ? privateVideos
       : activeTab === 'liked'
       ? likedVideos
+      : activeTab === 'saved'
+      ? savedVideos
       : drafts
 
   if (loading) {
@@ -621,6 +657,28 @@ const list = published || []
         </button>
 
         <button
+          onClick={() => setActiveTab('saved')}
+          className={`flex-1 py-3 flex justify-center ${
+            activeTab === 'saved' ? 'border-b-2 border-white' : ''
+          }`}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${activeTab === 'saved' ? 'text-white' : 'text-gray-500'}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+            />
+          </svg>
+        </button>
+
+        <button
           onClick={() => setActiveTab('drafts')}
           className={`flex-1 py-3 flex justify-center relative ${
             activeTab === 'drafts' ? 'border-b-2 border-white' : ''
@@ -658,6 +716,8 @@ const list = published || []
                 ? 'Belum ada video privat'
                 : activeTab === 'liked'
                 ? 'Belum ada video yang disukai'
+                : activeTab === 'saved'
+                ? 'Belum ada video tersimpan'
                 : 'Belum ada draft'}
             </p>
             {activeTab === 'videos' && (
@@ -713,7 +773,13 @@ const list = published || []
                 ) : (
                   <div className="absolute inset-0">
                     <div
-                      onClick={() => router.push(`/user-videos?userId=${userId}`)}
+                      onClick={() => {
+                        const ownerId =
+                          activeTab === 'saved' || activeTab === 'liked'
+                            ? video.user_id || userId
+                            : userId
+                        router.push(`/user-videos?userId=${ownerId}`)
+                      }}
                       className="absolute inset-0 cursor-pointer"
                     />
 {activeTab === 'videos' && video.is_pinned && (
