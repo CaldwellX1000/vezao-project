@@ -12,6 +12,7 @@ type Video = {
   video_url: string
   likes_count: number
   comments_count: number
+  views_count?: number | null
   created_at: string
   user_id: string
   profiles: {
@@ -102,6 +103,7 @@ export default function FeedPage() {
   const containerRef = useRef<HTMLDivElement>(null)
   const startYRef = useRef(0)
   const isPullingRef = useRef(false)
+    const viewedIdsRef = useRef<Set<string>>(new Set())
 
   const videos =
     feedTab === 'foryou'
@@ -149,6 +151,7 @@ export default function FeedPage() {
         comments_count,
         comments_enabled,
         visibility,
+        views_count,
         created_at,
         user_id,
         profiles (
@@ -214,6 +217,27 @@ export default function FeedPage() {
     }
   }
 
+  const registerView = async (videoId: string) => {
+    if (viewedIdsRef.current.has(videoId)) return
+    viewedIdsRef.current.add(videoId)
+
+    const { error } = await supabase.rpc('increment_views', { video_id: videoId })
+    if (error) {
+      // fallback kalau RPC belum ada
+      const video = allVideos.find((v) => v.id === videoId)
+      const next = (video?.views_count || 0) + 1
+      await supabase.from('videos').update({ views_count: next }).eq('id', videoId)
+    }
+
+    setAllVideos((prev) =>
+      prev.map((v) =>
+        v.id === videoId
+          ? { ...v, views_count: (v.views_count || 0) + 1 }
+          : v
+      )
+    )
+  }
+
   useEffect(() => {
     const init = async () => {
       const {
@@ -244,6 +268,8 @@ export default function FeedPage() {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
             video.muted = isMuted
             video.play().catch(() => {})
+            const vid = video.dataset.videoId
+            if (vid) registerView(vid)
           } else {
             video.pause()
           }
@@ -687,6 +713,7 @@ export default function FeedPage() {
                 ref={(el) => {
                   videoRefs.current[index] = el
                 }}
+                data-video-id={video.id}
                 src={video.video_url}
                 className="absolute inset-0 w-full h-full object-cover"
                 loop

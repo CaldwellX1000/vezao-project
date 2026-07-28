@@ -90,6 +90,17 @@ function UserVideosContent() {
   const supabase = createClient()
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const lastTapRef = useRef<{ time: number; videoId: string } | null>(null)
+  const viewedIdsRef = useRef<Set<string>>(new Set())
+
+  const registerView = async (videoId: string) => {
+    if (viewedIdsRef.current.has(videoId)) return
+    viewedIdsRef.current.add(videoId)
+    try {
+      await supabase.rpc('increment_views', { video_id: videoId })
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -172,6 +183,8 @@ function UserVideosContent() {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
             video.muted = isMuted
             video.play().catch(() => {})
+            const id = video.dataset.videoId
+            if (id) registerView(id)
           } else {
             video.pause()
           }
@@ -464,6 +477,7 @@ setVideos((prev) => prev.filter((v) => v.id !== videoId))
               ref={(el) => {
                 videoRefs.current[index] = el
               }}
+              data-video-id={video.id}
               src={video.video_url}
               className="absolute inset-0 w-full h-full object-cover"
               loop

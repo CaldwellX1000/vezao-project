@@ -719,9 +719,13 @@ const list = published || []
 {activeTab === 'videos' && video.is_pinned && (
                       <span className="absolute top-1 left-1 text-xs z-10 drop-shadow">📌</span>
                     )}
-                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between text-[10px] font-medium drop-shadow px-1 pointer-events-none">
-                      <span>♥ {video.likes_count}</span>
-                      <span>👁 {video.views_count || 0}</span>
+                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between gap-1 px-1 z-10 pointer-events-none">
+                      <span className="text-[10px] font-semibold text-white bg-black/50 rounded px-1 py-0.5">
+                        ♥ {video.likes_count}
+                      </span>
+                      <span className="text-[10px] font-semibold text-white bg-black/50 rounded px-1 py-0.5">
+                        ▶ {video.views_count || 0}
+                      </span>
                     </div>
                   </div>
                 )}
