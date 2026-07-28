@@ -11,6 +11,43 @@ type Message = {
   content: string
   created_at: string
   is_read?: boolean
+  deleted_for?: string[] | null
+}
+
+type SharedVideo = {
+  id: string
+  video_url: string
+  thumbnail_url: string | null
+  caption: string | null
+  profiles: {
+    username: string | null
+    avatar_url: string | null
+  } | null
+}
+
+function parseVideoId(content: string): string | null {
+  if (content.startsWith('__VIDEO__:')) {
+    return content.replace('__VIDEO__:', '').trim() || null
+  }
+  return null
+}
+
+function formatMsgTime(dateStr: string) {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear()
+  const time = d.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+  if (sameDay) return `Hari ini ${time}`
+  return (
+    d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) + ' ' + time
+  )
 }
 
 function ChatContent() {
@@ -25,10 +62,61 @@ function ChatContent() {
   const [partnerName, setPartnerName] = useState('')
   const [partnerUsername, setPartnerUsername] = useState('')
   const [partnerAvatar, setPartnerAvatar] = useState<string | null>(null)
+  const [videoCache, setVideoCache] = useState<Record<string, SharedVideo | null>>({})
+  const [menuMsgId, setMenuMsgId] = useState<string | null>(null)
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const router = useRouter()
   const supabase = createClient()
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  const canEditMessage = (msg: Message) => {
+    if (parseVideoId(msg.content)) return false
+    const ageMs = Date.now() - new Date(msg.created_at).getTime()
+    return ageMs <= 30 * 60 * 1000 // 30 menit
+  }
+
+  // Hapus untuk semua: hanya pengirim + dalam 30 menit
+  const canDeleteForEveryone = (msg: Message) => {
+    if (!currentUserId || msg.sender_id !== currentUserId) return false
+    const ageMs = Date.now() - new Date(msg.created_at).getTime()
+    return ageMs <= 30 * 60 * 1000
+  }
+
+  const loadSharedVideos = async (msgs: Message[]) => {
+    const ids = [
+      ...new Set(
+        msgs
+          .map((m) => parseVideoId(m.content))
+          .filter((id): id is string => !!id)
+      ),
+    ]
+    const missing = ids.filter((id) => !(id in videoCache))
+    if (missing.length === 0) return
+
+    const { data } = await supabase
+      .from('videos')
+      .select(`
+        id,
+        video_url,
+        thumbnail_url,
+        caption,
+        profiles ( username, avatar_url )
+      `)
+      .in('id', missing)
+
+    setVideoCache((prev) => {
+      const next = { ...prev }
+      missing.forEach((id) => {
+        next[id] = null
+      })
+      ;(data || []).forEach((v: any) => {
+        next[v.id] = v
+      })
+      return next
+    })
+  }
 
   const loadMessages = async (userId: string, partner: string) => {
     const { data: msgs } = await supabase
@@ -37,12 +125,17 @@ function ChatContent() {
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
       .order('created_at', { ascending: true })
 
-    const filtered = (msgs || []).filter(
-      (m) =>
+    const filtered = (msgs || []).filter((m) => {
+      const inChat =
         (m.sender_id === userId && m.receiver_id === partner) ||
         (m.sender_id === partner && m.receiver_id === userId)
-    )
+      if (!inChat) return false
+      const deletedFor: string[] = m.deleted_for || []
+      if (deletedFor.includes(userId)) return false
+      return true
+    })
     setMessages(filtered)
+    await loadSharedVideos(filtered)
   }
 
   useEffect(() => {
@@ -52,7 +145,9 @@ function ChatContent() {
         return
       }
 
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user) {
         router.replace('/login')
         return
@@ -110,6 +205,7 @@ function ChatContent() {
               const withoutTemp = prev.filter((m) => !m.id.startsWith('temp-'))
               return [...withoutTemp, newMsg]
             })
+            loadSharedVideos([newMsg])
 
             if (newMsg.sender_id === partnerId) {
               supabase
@@ -125,7 +221,7 @@ function ChatContent() {
 
     const interval = setInterval(() => {
       loadMessages(currentUserId, partnerId)
-    }, 2000)
+    }, 3000)
 
     return () => {
       supabase.removeChannel(channel)
@@ -141,9 +237,43 @@ function ChatContent() {
     if (!newMessage.trim() || !currentUserId || !partnerId || sending) return
 
     const content = newMessage.trim()
-    setNewMessage('')
     setSending(true)
 
+    // Mode edit
+    if (editingMsgId) {
+      const target = messages.find((m) => m.id === editingMsgId)
+      if (!target || !canEditMessage(target)) {
+        alert('Pesan hanya bisa diedit dalam 30 menit setelah dikirim')
+        setEditingMsgId(null)
+        setNewMessage('')
+        setSending(false)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('messages')
+        .update({ content })
+        .eq('id', editingMsgId)
+        .eq('sender_id', currentUserId)
+        .select()
+        .single()
+
+      if (error || !data) {
+        alert('Gagal edit pesan. Cek policy UPDATE di tabel messages.')
+        console.error('Edit error:', error)
+      } else {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === editingMsgId ? { ...m, content: data.content } : m))
+        )
+        setEditingMsgId(null)
+        setNewMessage('')
+      }
+      setSending(false)
+      return
+    }
+
+    // Mode kirim baru
+    setNewMessage('')
     const tempId = `temp-${Date.now()}`
     const tempMsg: Message = {
       id: tempId,
@@ -171,12 +301,81 @@ function ChatContent() {
       setNewMessage(content)
       alert('Gagal mengirim pesan')
     } else if (data) {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? data : m))
-      )
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? data : m)))
     }
 
     setSending(false)
+  }
+
+  const startEdit = (msg: Message) => {
+    if (!canEditMessage(msg)) {
+      alert('Pesan hanya bisa diedit dalam 30 menit setelah dikirim')
+      setMenuMsgId(null)
+      return
+    }
+    setEditingMsgId(msg.id)
+    setNewMessage(msg.content)
+    setMenuMsgId(null)
+  }
+
+  const deleteForMe = async (msgId: string) => {
+    if (!currentUserId) return
+
+    const msg = messages.find((m) => m.id === msgId)
+    const prevDeleted: string[] = msg?.deleted_for || []
+    const nextDeleted = prevDeleted.includes(currentUserId)
+      ? prevDeleted
+      : [...prevDeleted, currentUserId]
+
+    const { error } = await supabase
+      .from('messages')
+      .update({ deleted_for: nextDeleted })
+      .eq('id', msgId)
+
+    if (error) {
+      alert('Gagal hapus: ' + error.message)
+      console.error(error)
+      return
+    }
+
+    setMessages((prev) => prev.filter((m) => m.id !== msgId))
+    setMenuMsgId(null)
+    setDeleteConfirmId(null)
+    if (editingMsgId === msgId) {
+      setEditingMsgId(null)
+      setNewMessage('')
+    }
+  }
+
+  const deleteForEveryone = async (msgId: string) => {
+    if (!currentUserId) return
+
+    const msg = messages.find((m) => m.id === msgId)
+    if (!msg || !canDeleteForEveryone(msg)) {
+      alert('Hapus untuk semua hanya untuk pesan kamu sendiri dalam 30 menit')
+      setDeleteConfirmId(null)
+      return
+    }
+
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('id', msgId)
+      .eq('sender_id', currentUserId)
+
+    if (error) {
+      alert('Gagal hapus untuk semua: ' + error.message)
+      console.error(error)
+      return
+    }
+
+    setMessages((prev) => prev.filter((m) => m.id !== msgId))
+    setMenuMsgId(null)
+    setDeleteConfirmId(null)
+    if (editingMsgId === msgId) {
+      setEditingMsgId(null)
+      setNewMessage('')
+    }
   }
 
   if (loading) {
@@ -218,17 +417,161 @@ function ChatContent() {
         ) : (
           messages.map((msg) => {
             const isMe = msg.sender_id === currentUserId
+            const videoId = parseVideoId(msg.content)
+            const shared = videoId ? videoCache[videoId] : undefined
+
             return (
               <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm ${
-                    isMe
-                      ? 'bg-vezao-gradient text-white rounded-br-md'
-                      : 'bg-zinc-800 text-white rounded-bl-md'
-                  }`}
-                >
-                  {msg.content}
-                </div>
+                {videoId ? (
+                  <div
+                    className={`max-w-[70%] flex flex-col gap-1 relative ${
+                      isMe ? 'items-end' : 'items-start'
+                    }`}
+                  >
+                    <p
+                      className={`text-[10px] text-gray-500 px-1 ${
+                        isMe ? 'text-right' : 'text-left'
+                      }`}
+                    >
+                      {formatMsgTime(msg.created_at)}
+                    </p>
+                    <div className="relative">
+                      {isMe && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setMenuMsgId(menuMsgId === msg.id ? null : msg.id)
+                          }}
+                          className="absolute -top-1 -right-1 z-10 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-white/80 text-xs"
+                        >
+                          ⋯
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/v/${videoId}`)}
+                        className="rounded-2xl overflow-hidden text-left border border-white/10 bg-zinc-900 shadow-lg w-[200px]"
+                      >
+                        <div className="relative w-full aspect-[9/16] bg-zinc-800">
+                          {shared?.thumbnail_url ? (
+                            <img
+                              src={shared.thumbnail_url}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                          ) : shared?.video_url ? (
+                            <video
+                              src={`${shared.video_url}#t=0.1`}
+                              className="absolute inset-0 w-full h-full object-cover"
+                              muted
+                              playsInline
+                              preload="metadata"
+                            />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-500">
+                              Video
+                            </div>
+                          )}
+
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
+
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-md">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="w-6 h-6 text-black ml-0.5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </div>
+                          </div>
+
+                          <div className="absolute bottom-0 left-0 right-0 p-2.5">
+                            <p className="text-white text-xs font-semibold drop-shadow truncate">
+                              @{shared?.profiles?.username || 'user'}
+                            </p>
+                            {shared?.caption && (
+                              <p className="text-white/80 text-[10px] line-clamp-2 mt-0.5 drop-shadow">
+                                {shared.caption}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                      {menuMsgId === msg.id && isMe && (
+                        <div className="absolute right-0 top-8 z-20 bg-zinc-800 border border-white/10 rounded-xl py-1 shadow-xl min-w-[140px]">
+                          <button
+                            onClick={() => {
+                              setDeleteConfirmId(msg.id)
+                              setMenuMsgId(null)
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className={`max-w-[75%] flex flex-col gap-0.5 relative ${
+                      isMe ? 'items-end' : 'items-start'
+                    }`}
+                  >
+                    <p
+                      className={`text-[10px] text-gray-500 px-1 ${
+                        isMe ? 'text-right' : 'text-left'
+                      }`}
+                    >
+                      {formatMsgTime(msg.created_at)}
+                    </p>
+                    <div className="relative">
+                      {isMe && (
+                        <button
+                          type="button"
+                          onClick={() => setMenuMsgId(menuMsgId === msg.id ? null : msg.id)}
+                          className="absolute -top-1 -right-1 z-10 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center text-white/80 text-[10px]"
+                        >
+                          ⋯
+                        </button>
+                      )}
+                      <div
+                        className={`px-4 py-2.5 rounded-2xl text-sm ${
+                          isMe
+                            ? 'bg-vezao-gradient text-white rounded-br-md'
+                            : 'bg-zinc-800 text-white rounded-bl-md'
+                        } ${editingMsgId === msg.id ? 'ring-1 ring-purple-400' : ''}`}
+                      >
+                        {msg.content}
+                      </div>
+                      {menuMsgId === msg.id && isMe && (
+                        <div className="absolute right-0 top-full mt-1 z-20 bg-zinc-800 border border-white/10 rounded-xl py-1 shadow-xl min-w-[140px]">
+                          {canEditMessage(msg) && (
+                            <button
+                              onClick={() => startEdit(msg)}
+                              className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/5"
+                            >
+                              Edit
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setDeleteConfirmId(msg.id)
+                              setMenuMsgId(null)
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })
@@ -236,23 +579,93 @@ function ChatContent() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="sticky bottom-0 bg-black border-t border-white/10 px-3 py-3 flex items-center gap-2">
-        <input
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-          placeholder="Tulis pesan..."
-          className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-        />
-        <button
-          onClick={sendMessage}
-          disabled={!newMessage.trim() || sending}
-          className="w-10 h-10 bg-vezao-gradient rounded-full flex items-center justify-center disabled:opacity-50"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
-        </button>
+      <div className="sticky bottom-0 bg-black border-t border-white/10 px-3 py-3">
+        {editingMsgId && (
+          <div className="flex items-center justify-between mb-2 px-1">
+            <span className="text-xs text-purple-400">Mengedit pesan</span>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingMsgId(null)
+                setNewMessage('')
+              }}
+              className="text-xs text-gray-400"
+            >
+              Batal
+            </button>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <input
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+            placeholder={editingMsgId ? 'Edit pesan...' : 'Tulis pesan...'}
+            className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!newMessage.trim() || sending}
+            className="w-10 h-10 bg-vezao-gradient rounded-full flex items-center justify-center disabled:opacity-50"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-5 h-5 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+              />
+            </svg>
+          </button>
+        </div>
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setDeleteConfirmId(null)}
+          />
+          <div className="relative w-full max-w-sm mx-4 mb-6 sm:mb-0 bg-zinc-900 rounded-2xl p-4 border border-white/10">
+            <h3 className="text-center font-semibold mb-1">Hapus pesan?</h3>
+            <p className="text-center text-xs text-gray-400 mb-4">
+              Pilih cara menghapus pesan ini
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => deleteForMe(deleteConfirmId)}
+                className="w-full py-3 rounded-xl bg-zinc-800 text-sm font-medium hover:bg-zinc-700"
+              >
+                Hapus untuk saya
+              </button>
+              {(() => {
+                const m = messages.find((x) => x.id === deleteConfirmId)
+                if (m && canDeleteForEveryone(m)) {
+                  return (
+                    <button
+                      onClick={() => deleteForEveryone(deleteConfirmId)}
+                      className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/30"
+                    >
+                      Hapus untuk semua
+                    </button>
+                  )
+                }
+                return null
+              })()}
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="w-full py-3 text-sm text-gray-400"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   )

@@ -12,12 +12,49 @@ type Video = {
   comments_count: number
   views_count?: number | null
   comments_enabled?: boolean | null
+  created_at?: string
   user_id: string
   profiles: {
     username: string | null
     full_name: string | null
     avatar_url: string | null
   } | null
+}
+
+function formatDateTime(dateStr: string) {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear()
+
+  const time = d.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+
+  if (sameDay) return `Hari ini ${time}`
+
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  const isYesterday =
+    d.getDate() === yesterday.getDate() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getFullYear() === yesterday.getFullYear()
+
+  if (isYesterday) return `Kemarin ${time}`
+
+  return (
+    d.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    }) +
+    ' · ' +
+    time
+  )
 }
 
 export default function SingleVideoPage() {
@@ -59,6 +96,7 @@ const { data, error } = await supabase
           likes_count,
           comments_count,
           comments_enabled,
+          created_at,
           user_id,
           profiles (
             username,
@@ -151,7 +189,9 @@ const { data, error } = await supabase
   }
 
   return (
-    <div className="h-screen bg-black relative overflow-hidden">
+    <div className="h-screen bg-black md:bg-zinc-950 relative overflow-hidden flex items-center justify-center">
+      {/* Kolom video (mobile full, desktop portrait di tengah) */}
+      <div className="relative h-full w-full md:w-[420px] md:max-w-[420px] md:h-[100dvh] md:shadow-2xl md:overflow-hidden bg-black">
       <video
         ref={videoRef}
         src={video.video_url}
@@ -212,7 +252,10 @@ const { data, error } = await supabase
           <p className="font-semibold text-sm">@{video.profiles?.username || 'user'}</p>
         </div>
         <p className="text-sm opacity-90 line-clamp-3">{video.caption}</p>
-        <p className="text-xs text-white/60 mt-1">👁 {viewsCount.toLocaleString('id-ID')} views</p>
+        <p className="text-[11px] text-white/50 mt-1">
+          {video.created_at ? formatDateTime(video.created_at) : ''}
+          {viewsCount > 0 ? ` · 👁 ${viewsCount.toLocaleString('id-ID')} views` : ''}
+        </p>
       </div>
 
       <div className="absolute right-3 bottom-24 flex flex-col items-center gap-5 z-10">
@@ -244,6 +287,7 @@ const { data, error } = await supabase
           <span className="text-xs mt-1 text-white font-medium">Share</span>
         </button>
       </div>
+      </div>{/* tutup kolom video desktop */}
     </div>
   )
 }

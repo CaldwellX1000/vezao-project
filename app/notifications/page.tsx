@@ -20,20 +20,40 @@ type Notification = {
   } | null
 }
 
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const sec = Math.floor(diff / 1000)
-  if (sec < 60) return 'baru saja'
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}m`
-  const hour = Math.floor(min / 60)
-  if (hour < 24) return `${hour}j`
-  const day = Math.floor(hour / 24)
-  if (day < 7) return `${day}h`
-  return new Date(dateStr).toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'short',
+function formatDateTime(dateStr: string) {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear()
+
+  const time = d.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
   })
+
+  if (sameDay) return `Hari ini ${time}`
+
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  const isYesterday =
+    d.getDate() === yesterday.getDate() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getFullYear() === yesterday.getFullYear()
+
+  if (isYesterday) return `Kemarin ${time}`
+
+  return (
+    d.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    }) +
+    ' · ' +
+    time
+  )
 }
 
 export default function NotificationsPage() {
@@ -261,7 +281,7 @@ export default function NotificationsPage() {
 
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-300 leading-snug">{getText(n)}</p>
-                <p className="text-[11px] text-gray-500 mt-1">{timeAgo(n.created_at)}</p>
+                <p className="text-[11px] text-gray-500 mt-1">{formatDateTime(n.created_at)}</p>
 
                 {n.type === 'follow_request' && (
                   <div className="flex gap-2 mt-2">

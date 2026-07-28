@@ -32,6 +32,42 @@ type Comment = {
   } | null
 }
 
+function formatDateTime(dateStr: string) {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear()
+
+  const time = d.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+
+  if (sameDay) return `Hari ini ${time}`
+
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  const isYesterday =
+    d.getDate() === yesterday.getDate() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getFullYear() === yesterday.getFullYear()
+
+  if (isYesterday) return `Kemarin ${time}`
+
+  return (
+    d.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    }) +
+    ' · ' +
+    time
+  )
+}
+
 export default function FeedPage() {
   const [allVideos, setAllVideos] = useState<Video[]>([])
   const [likedVideos, setLikedVideos] = useState<Set<string>>(new Set())
@@ -51,6 +87,12 @@ export default function FeedPage() {
   const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set())
   const [showMore, setShowMore] = useState<string | null>(null)
   const [reportVideoId, setReportVideoId] = useState<string | null>(null)
+  const [shareVideoId, setShareVideoId] = useState<string | null>(null)
+  const [shareFriends, setShareFriends] = useState<
+    { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
+  >([])
+  const [loadingShareFriends, setLoadingShareFriends] = useState(false)
+  const [sharingTo, setSharingTo] = useState<string | null>(null)
   const [pullDistance, setPullDistance] = useState(0)
 
   const router = useRouter()
@@ -425,19 +467,69 @@ export default function FeedPage() {
     setShowMore(null)
   }
 
-  const handleShare = async (videoId: string) => {
-    const url = `${window.location.origin}/v/${videoId}`
-    if (navigator.share) {
+  const openShare = async (videoId: string) => {
+    setShareVideoId(videoId)
+    if (!userId) return
+    setLoadingShareFriends(true)
+    const { data: follows } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', userId)
+
+    const ids = follows?.map((f) => f.following_id) || []
+    if (ids.length === 0) {
+      setShareFriends([])
+      setLoadingShareFriends(false)
+      return
+    }
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, username, full_name, avatar_url')
+      .in('id', ids)
+      .limit(40)
+
+    setShareFriends(profiles || [])
+    setLoadingShareFriends(false)
+  }
+
+  const shareVideoToFriend = async (friendId: string) => {
+    if (!userId || !shareVideoId) return
+    setSharingTo(friendId)
+    const { error } = await supabase.from('messages').insert({
+      sender_id: userId,
+      receiver_id: friendId,
+      content: `__VIDEO__:${shareVideoId}`,
+      is_read: false,
+    })
+    setSharingTo(null)
+    if (error) {
+      alert('Gagal kirim video: ' + error.message)
+      return
+    }
+    alert('Video terkirim!')
+    setShareVideoId(null)
+  }
+
+  const shareToOtherApps = async () => {
+    if (!shareVideoId) return
+    const url = `${window.location.origin}/v/${shareVideoId}`
+    if (typeof navigator.share === 'function') {
       try {
         await navigator.share({
           title: 'VEZAO',
           text: 'Lihat video ini di VEZAO!',
           url,
         })
+        setShareVideoId(null)
       } catch {}
     } else {
-      await navigator.clipboard.writeText(url)
-      alert('Link video berhasil disalin!')
+      try {
+        await navigator.clipboard.writeText(url)
+        alert('Tautan disalin (browser tidak support share sheet)')
+      } catch {
+        prompt('Salin tautan:', url)
+      }
     }
   }
 
@@ -467,7 +559,7 @@ export default function FeedPage() {
   return (
     <div
       ref={containerRef}
-      className="h-screen bg-black overflow-y-scroll snap-y snap-mandatory pb-16"
+      className="h-screen bg-black overflow-y-scroll snap-y snap-mandatory pb-16 md:bg-zinc-950"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -495,7 +587,8 @@ export default function FeedPage() {
         </div>
       )}
 
-      <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-12 bg-gradient-to-b from-black/70 to-transparent">
+      <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center px-4 h-12 pointer-events-none">
+        <div className="w-full md:w-[420px] flex items-center justify-between px-4 h-12 bg-gradient-to-b from-black/70 to-transparent pointer-events-auto">
         <div className="flex items-center gap-5">
           <button
             onClick={() => setFeedTab('following')}
@@ -535,6 +628,7 @@ export default function FeedPage() {
             )}
           </div>
         </button>
+        </div>
       </div>
 
       {videos.length === 0 ? (
@@ -577,8 +671,10 @@ export default function FeedPage() {
           return (
             <div
               key={video.id}
-              className="h-screen w-full snap-start relative flex items-center justify-center"
+              className="h-screen w-full snap-start relative flex items-center justify-center md:bg-zinc-950"
             >
+              {/* Kolom video (mobile full, desktop portrait di tengah) */}
+              <div className="relative h-full w-full md:w-[420px] md:max-w-[420px] md:h-[100dvh] md:rounded-none md:shadow-2xl md:overflow-hidden bg-black">
               <video
                 ref={(el) => {
                   videoRefs.current[index] = el
@@ -659,6 +755,9 @@ export default function FeedPage() {
                     )
                   )}
                 </p>
+                <p className="text-[11px] text-white/50 mt-1">
+                  {formatDateTime(video.created_at)}
+                </p>
               </div>
 
               <div className="absolute right-3 bottom-32 flex flex-col items-center gap-5 z-10">
@@ -699,7 +798,7 @@ export default function FeedPage() {
                   <span className="text-xs mt-1 text-white font-medium">{video.comments_count || 0}</span>
                 </button>
 
-                <button onClick={() => handleShare(video.id)} className="flex flex-col items-center">
+                <button onClick={() => openShare(video.id)} className="flex flex-col items-center">
                   <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" />
@@ -718,6 +817,7 @@ export default function FeedPage() {
                   </div>
                 </button>
               </div>
+              </div>{/* tutup kolom video desktop */}
             </div>
           )
         })
@@ -793,6 +893,28 @@ export default function FeedPage() {
 
                 return (
                   <>
+                    <button
+                      onClick={async () => {
+                        if (!showMore) return
+                        const url = `${window.location.origin}/v/${showMore}`
+                        try {
+                          await navigator.clipboard.writeText(url)
+                          alert('Tautan disalin!')
+                        } catch {
+                          prompt('Salin tautan:', url)
+                        }
+                        setShowMore(null)
+                      }}
+                      className="flex flex-col items-center gap-1"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <span className="text-xs">Salin tautan</span>
+                    </button>
+
                     {!isOwn && (
                       <button
                         onClick={() => {
@@ -847,6 +969,71 @@ export default function FeedPage() {
               onClick={() => setReportVideoId(null)}
               className="w-full mt-3 py-3 text-sm text-gray-400"
             >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
+
+      {shareVideoId && (
+        <div className="fixed inset-0 z-[80] flex items-end">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShareVideoId(null)} />
+          <div className="relative w-full bg-zinc-900 rounded-t-2xl p-4 pb-8 max-h-[75vh] flex flex-col">
+            <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-3" />
+            <h3 className="text-center font-semibold mb-1">Kirim video</h3>
+            <p className="text-center text-xs text-gray-400 mb-4">Ke teman VEZAO atau app lain</p>
+
+            <button
+              onClick={shareToOtherApps}
+              className="w-full flex items-center gap-3 px-3 py-3 mb-4 rounded-xl bg-zinc-800 active:bg-zinc-700"
+            >
+              <div className="w-10 h-10 rounded-full bg-vezao-gradient flex items-center justify-center shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold">Bagikan ke app lain</p>
+                <p className="text-xs text-gray-400">WhatsApp, Instagram, dll</p>
+              </div>
+            </button>
+
+            <p className="text-xs text-gray-400 mb-2 px-1">Teman yang kamu follow</p>
+            <div className="flex-1 overflow-y-auto space-y-1 min-h-[120px]">
+              {loadingShareFriends ? (
+                <p className="text-center text-gray-500 py-6 text-sm">Loading...</p>
+              ) : shareFriends.length === 0 ? (
+                <p className="text-center text-gray-500 py-6 text-sm">Belum follow siapapun</p>
+              ) : (
+                shareFriends.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => shareVideoToFriend(f.id)}
+                    disabled={sharingTo === f.id}
+                    className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white/5 active:bg-white/10 disabled:opacity-50"
+                  >
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                      {f.avatar_url ? (
+                        <img src={f.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
+                          {(f.username || 'U')[0]?.toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-semibold truncate">{f.full_name || f.username}</p>
+                      <p className="text-xs text-gray-400 truncate">@{f.username}</p>
+                    </div>
+                    <span className="text-xs text-purple-400 shrink-0">
+                      {sharingTo === f.id ? '...' : 'Kirim'}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <button onClick={() => setShareVideoId(null)} className="w-full mt-3 py-3 text-sm text-gray-400">
               Batal
             </button>
           </div>

@@ -33,6 +33,42 @@ type Comment = {
   } | null
 }
 
+function formatDateTime(dateStr: string) {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear()
+
+  const time = d.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+
+  if (sameDay) return `Hari ini ${time}`
+
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  const isYesterday =
+    d.getDate() === yesterday.getDate() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getFullYear() === yesterday.getFullYear()
+
+  if (isYesterday) return `Kemarin ${time}`
+
+  return (
+    d.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    }) +
+    ' · ' +
+    time
+  )
+}
+
 function UserVideosContent() {
   const searchParams = useSearchParams()
   const userId = searchParams.get('userId')
@@ -490,6 +526,9 @@ setVideos((prev) => prev.filter((v) => v.id !== videoId))
                     <span key={i}>{part}</span>
                   )
                 )}
+              </p>
+              <p className="text-[11px] text-white/50 mt-1">
+                {formatDateTime(video.created_at)}
               </p>
             </div>
 

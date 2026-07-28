@@ -15,6 +15,41 @@ type Conversation = {
   hasUnread: boolean
 }
 
+function formatLastMessage(content: string) {
+  if (content.startsWith('__VIDEO__:')) return 'membagikan video'
+  return content
+}
+
+function formatInboxTime(dateStr: string) {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const diff = Date.now() - d.getTime()
+  const sec = Math.floor(diff / 1000)
+
+  if (sec < 60) return 'Baru saja'
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}m`
+  const hour = Math.floor(min / 60)
+  if (hour < 24) return `${hour}j`
+
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear()
+  if (sameDay) {
+    return d.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  }
+
+  return d.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
 export default function InboxPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,7 +112,7 @@ export default function InboxPage() {
           username: profile.username || 'user',
           fullName: profile.full_name || profile.username || 'user',
           avatarUrl: profile.avatar_url,
-          lastMessage: lastMsg.content,
+          lastMessage: formatLastMessage(lastMsg.content),
           lastMessageTime: lastMsg.created_at,
           hasUnread,
         })
@@ -199,14 +234,11 @@ export default function InboxPage() {
                     {conv.fullName}
                   </p>
                   <span className={`text-[11px] shrink-0 ml-2 ${conv.hasUnread ? 'text-white font-medium' : 'text-gray-500'}`}>
-                    {new Date(conv.lastMessageTime).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'short',
-                    })}
+                    {formatInboxTime(conv.lastMessageTime)}
                   </span>
                 </div>
                 <p className={`text-sm truncate mt-0.5 ${conv.hasUnread ? 'text-white font-medium' : 'text-gray-400'}`}>
-                  {conv.lastMessage}
+                  {formatLastMessage(conv.lastMessage)}
                 </p>
               </div>
 
