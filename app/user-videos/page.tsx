@@ -27,6 +27,7 @@ type Comment = {
   content: string
   created_at: string
   user_id: string
+  parent_id?: string | null
   profiles: {
     username: string | null
     avatar_url: string | null
@@ -85,6 +86,7 @@ function UserVideosContent() {
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState('')
   const [loadingComments, setLoadingComments] = useState(false)
+  const [replyTo, setReplyTo] = useState<Comment | null>(null)
   const [heartAnim, setHeartAnim] = useState<string | null>(null)
 
   const router = useRouter()
@@ -331,6 +333,7 @@ function UserVideosContent() {
     setActiveVideoId(videoId)
     setShowComments(true)
     setLoadingComments(true)
+    setReplyTo(null)
 
     const { data } = await supabase
       .from('comments')
@@ -339,13 +342,14 @@ function UserVideosContent() {
         content,
         created_at,
         user_id,
+        parent_id,
         profiles (
           username,
           avatar_url
         )
       `)
       .eq('video_id', videoId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
 
     if (data) setComments(data as any)
     setLoadingComments(false)
@@ -355,11 +359,13 @@ function UserVideosContent() {
     if (!newComment.trim() || !currentUserId || !activeVideoId) return
 
     const content = newComment.trim()
+    const parentId = replyTo?.id || null
 
     const { error } = await supabase.from('comments').insert({
       video_id: activeVideoId,
       user_id: currentUserId,
       content,
+      parent_id: parentId,
     })
 
     if (error) {
@@ -367,8 +373,8 @@ function UserVideosContent() {
       return
     }
 
+    // Semua komentar + reply dihitung
     await supabase.rpc('increment_comments', { video_id: activeVideoId })
-    setNewComment('')
     setVideos((prev) =>
       prev.map((v) =>
         v.id === activeVideoId
@@ -377,8 +383,21 @@ function UserVideosContent() {
       )
     )
 
+    setNewComment('')
+    setReplyTo(null)
+
     const video = videos.find((v) => v.id === activeVideoId)
-    if (video && video.user_id !== currentUserId) {
+
+    if (parentId && replyTo && replyTo.user_id !== currentUserId) {
+      await supabase.from('notifications').insert({
+        user_id: replyTo.user_id,
+        actor_id: currentUserId,
+        type: 'comment',
+        video_id: activeVideoId,
+        message: content,
+        is_read: false,
+      })
+    } else if (!parentId && video && video.user_id !== currentUserId) {
       await supabase.from('notifications').insert({
         user_id: video.user_id,
         actor_id: currentUserId,
@@ -799,42 +818,123 @@ setVideos((prev) => prev.filter((v) => v.id !== videoId))
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
               {loadingComments ? (
                 <p className="text-center text-gray-500 py-8">Loading...</p>
-              ) : comments.length === 0 ? (
+              ) : comments.filter((c) => !c.parent_id).length === 0 ? (
                 <p className="text-center text-gray-500 py-8">Belum ada komentar</p>
               ) : (
-                comments.map((c) => (
-                  <div key={c.id} className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 shrink-0">
-                      {c.profiles?.avatar_url ? (
-                        <img src={c.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
-                          {c.profiles?.username?.[0]?.toUpperCase() || 'U'}
+                comments
+                  .filter((c) => !c.parent_id)
+                  .map((c) => {
+                    const replies = comments.filter((r) => r.parent_id === c.id)
+                    return (
+                      <div key={c.id} className="space-y-2">
+                        <div className="flex gap-3">
+                          <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                            {c.profiles?.avatar_url ? (
+                              <img
+                                src={c.profiles.avatar_url}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
+                                {c.profiles?.username?.[0]?.toUpperCase() || 'U'}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold">
+                              @{c.profiles?.username || 'user'}
+                            </p>
+                            <p className="text-sm text-gray-300">{c.content}</p>
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="text-[11px] text-gray-500">
+                                {formatDateTime(c.created_at)}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setReplyTo(c)
+                                  setNewComment('')
+                                }}
+                                className="text-[11px] text-purple-400 font-medium"
+                              >
+                                Balas
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">@{c.profiles?.username || 'user'}</p>
-                      <p className="text-sm text-gray-300">{c.content}</p>
-                    </div>
-                  </div>
-                ))
+
+                        {replies.length > 0 && (
+                          <div className="ml-11 space-y-2 border-l border-white/10 pl-3">
+                            {replies.map((r) => (
+                              <div key={r.id} className="flex gap-2">
+                                <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                                  {r.profiles?.avatar_url ? (
+                                    <img
+                                      src={r.profiles.avatar_url}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-vezao-gradient">
+                                      {r.profiles?.username?.[0]?.toUpperCase() || 'U'}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold">
+                                    @{r.profiles?.username || 'user'}
+                                  </p>
+                                  <p className="text-xs text-gray-300">{r.content}</p>
+                                  <span className="text-[10px] text-gray-500">
+                                    {formatDateTime(r.created_at)}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
               )}
             </div>
-            <div className="p-3 border-t border-white/10 flex gap-2">
-              <input
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Tulis komentar..."
-                className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                onKeyDown={(e) => e.key === 'Enter' && submitComment()}
-              />
-              <button
-                onClick={submitComment}
-                className="bg-vezao-gradient px-5 py-2.5 rounded-full text-sm font-medium"
-              >
-                Kirim
-              </button>
+
+            <div className="p-3 border-t border-white/10 space-y-2">
+              {replyTo && (
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-xs text-gray-400">
+                    Membalas{' '}
+                    <span className="text-purple-400">
+                      @{replyTo.profiles?.username || 'user'}
+                    </span>
+                  </p>
+                  <button
+                    onClick={() => setReplyTo(null)}
+                    className="text-xs text-gray-500"
+                  >
+                    Batal
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder={
+                    replyTo
+                      ? `Balas @${replyTo.profiles?.username || 'user'}...`
+                      : 'Tulis komentar...'
+                  }
+                  className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  onKeyDown={(e) => e.key === 'Enter' && submitComment()}
+                />
+                <button
+                  onClick={submitComment}
+                  className="bg-vezao-gradient px-5 py-2.5 rounded-full text-sm font-medium"
+                >
+                  Kirim
+                </button>
+              </div>
             </div>
           </div>
         </div>
