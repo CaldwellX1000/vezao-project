@@ -4,11 +4,26 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+const COUNTRIES = [
+  'Indonesia',
+  'Malaysia',
+  'Singapore',
+  'Thailand',
+  'Philippines',
+  'Vietnam',
+  'Lainnya',
+]
+
+const GENDERS = ['Laki-laki', 'Perempuan', 'Lainnya']
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [username, setUsername] = useState('')
+  const [age, setAge] = useState('')
+  const [gender, setGender] = useState('')
+  const [country, setCountry] = useState('')
   const [agreeAge, setAgreeAge] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -19,7 +34,7 @@ export default function LoginPage() {
   const [otpCode, setOtpCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
-  const [resendCooldown, setResendCooldown] = useState(0)
+  const [resendCountdown, setResendCountdown] = useState(0)
   const router = useRouter()
   const supabase = createClient()
 
@@ -44,14 +59,23 @@ export default function LoginPage() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Countdown resend OTP (60 detik)
   useEffect(() => {
-    if (!isVerify || resendCooldown <= 0) return
+    if (!isVerify || resendCountdown <= 0) return
     const t = setInterval(() => {
-      setResendCooldown((s) => (s <= 1 ? 0 : s - 1))
+      setResendCountdown((s) => (s <= 1 ? 0 : s - 1))
     }, 1000)
     return () => clearInterval(t)
-  }, [isVerify, resendCooldown])
+  }, [isVerify, resendCountdown])
+
+  const resetRegisterFields = () => {
+    setPassword('')
+    setConfirmPassword('')
+    setUsername('')
+    setAge('')
+    setGender('')
+    setCountry('')
+    setAgreeAge(false)
+  }
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,7 +102,7 @@ export default function LoginPage() {
   }
 
   const handleResendCode = async () => {
-    if (resendCooldown > 0 || !email.trim()) return
+    if (resendCountdown > 0 || !email.trim()) return
     setLoading(true)
     setMessage('')
     try {
@@ -87,7 +111,7 @@ export default function LoginPage() {
         email: email.trim(),
       })
       if (error) throw error
-      setResendCooldown(60)
+      setResendCountdown(60)
       setMessage('Kode baru sudah dikirim. Cek inbox/spam.')
     } catch (error: any) {
       setMessage(error.message || 'Gagal kirim ulang kode')
@@ -129,6 +153,10 @@ export default function LoginPage() {
         if (error) throw error
         router.push('/')
       } else {
+        if (!email.trim()) {
+          setMessage('Email wajib diisi')
+          return
+        }
         if (!username.trim()) {
           setMessage('Username wajib diisi')
           return
@@ -139,6 +167,19 @@ export default function LoginPage() {
         }
         if (!/^[a-zA-Z0-9_]+$/.test(username.trim())) {
           setMessage('Username hanya huruf, angka, dan underscore')
+          return
+        }
+        const ageNum = parseInt(age, 10)
+        if (!age || isNaN(ageNum) || ageNum < 18) {
+          setMessage('Umur minimal 18 tahun')
+          return
+        }
+        if (!gender) {
+          setMessage('Pilih jenis kelamin')
+          return
+        }
+        if (!country) {
+          setMessage('Pilih negara')
           return
         }
         if (password.length < 6) {
@@ -184,16 +225,16 @@ export default function LoginPage() {
             id: data.user.id,
             username: uname,
             full_name: uname,
+            age: ageNum,
+            gender,
+            country,
           })
         }
 
         setIsVerify(true)
-        setResendCooldown(60)
+        setResendCountdown(60)
         setMessage('Kode 6 digit sudah dikirim ke email. Masukkan di bawah.')
-        setPassword('')
-        setConfirmPassword('')
-        setUsername('')
-        setAgreeAge(false)
+        resetRegisterFields()
       }
     } catch (error: any) {
       setMessage(error.message || 'Terjadi kesalahan')
@@ -202,17 +243,21 @@ export default function LoginPage() {
     }
   }
 
+  const inputClass =
+    'w-full px-4 py-3 bg-zinc-800/80 border border-zinc-700/80 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/80 focus:border-transparent transition'
+  const labelClass = 'block text-sm font-medium mb-1.5 text-gray-300'
+
   if (isVerify) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black px-4">
-        <div className="bg-zinc-900 p-8 rounded-2xl shadow-lg w-full max-w-md border border-white/10">
-          <div className="flex justify-center mb-4">
+        <div className="bg-zinc-900/95 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white/10">
+          <div className="flex justify-center mb-5">
             <img src="/icon.png" alt="VEZAO" className="w-14 h-14 rounded-2xl object-cover" />
           </div>
-          <h2 className="text-xl font-bold text-center mb-1 text-white tracking-wide">
+          <h2 className="text-2xl font-bold text-center mb-1 text-white tracking-wide">
             VERIFIKASI EMAIL
           </h2>
-          <p className="text-center text-sm text-gray-400 mb-6">
+          <p className="text-center text-sm text-gray-400 mb-6 leading-relaxed">
             Masukkan kode 6 digit yang dikirim ke
             <br />
             <span className="text-white font-medium">{email}</span>
@@ -220,16 +265,14 @@ export default function LoginPage() {
 
           <form onSubmit={handleVerifyOtp} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1 text-gray-300">
-                Kode verifikasi
-              </label>
+              <label className={labelClass}>Kode verifikasi</label>
               <input
                 type="text"
                 inputMode="numeric"
                 maxLength={8}
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white text-center text-2xl tracking-[0.4em] placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className={`${inputClass} text-center text-2xl tracking-[0.4em]`}
                 placeholder="000000"
                 autoFocus
               />
@@ -250,7 +293,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || otpCode.length < 6}
-              className="w-full bg-vezao-gradient text-white py-2.5 rounded-xl font-medium disabled:opacity-50"
+              className="w-full bg-vezao-gradient text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50"
             >
               {loading ? 'Memverifikasi...' : 'Verifikasi'}
             </button>
@@ -259,11 +302,11 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={handleResendCode}
-            disabled={loading || resendCooldown > 0}
+            disabled={loading || resendCountdown > 0}
             className="w-full mt-3 text-sm text-purple-400 hover:text-purple-300 disabled:text-gray-500 disabled:cursor-not-allowed"
           >
-            {resendCooldown > 0
-              ? `Kirim ulang kode (${resendCooldown}s)`
+            {resendCountdown > 0
+              ? `Kirim ulang kode (${resendCountdown}s)`
               : 'Kirim ulang kode'}
           </button>
 
@@ -274,7 +317,7 @@ export default function LoginPage() {
               setIsLogin(true)
               setOtpCode('')
               setMessage('')
-              setResendCooldown(0)
+              setResendCountdown(0)
             }}
             className="w-full mt-3 text-sm text-gray-400 hover:text-white"
           >
@@ -291,60 +334,117 @@ export default function LoginPage() {
     ? 'Lupa Password'
     : isLogin
     ? 'Login'
-    : 'BUAT AKUN'
+    : 'Buat Akun'
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black px-4">
-      <div className="bg-zinc-900 p-8 rounded-2xl shadow-lg w-full max-w-md border border-white/10">
-        <div className="flex justify-center mb-4">
+    <div className="min-h-screen flex items-center justify-center bg-black px-4 py-10">
+      <div className="bg-zinc-900/95 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white/10">
+        <div className="flex justify-center mb-5">
           <img src="/icon.png" alt="VEZAO" className="w-14 h-14 rounded-2xl object-cover" />
         </div>
-        <h2 className="text-xl font-bold text-center mb-1 text-white tracking-wide">{title}</h2>
+        <h2 className="text-2xl font-bold text-center text-white tracking-wide">{title}</h2>
         {!isLogin && !isForgot && !isRecovery && (
-          <p className="text-center text-sm text-gray-400 mb-6">Mulai perjalanan kamu</p>
+          <p className="text-center text-sm text-gray-400 mt-1 mb-6">Platfrom Media Sosial</p>
         )}
         {(isLogin || isForgot || isRecovery) && <div className="mb-6" />}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isRecovery && (
             <div>
-              <label className="block text-sm font-medium mb-1 text-gray-300">Gmail / Email</label>
+              <label className={labelClass}>
+                {!isLogin && !isForgot ? 'Gmail / Email' : 'Email'}
+              </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className={inputClass}
                 placeholder="email@gmail.com"
               />
             </div>
           )}
 
           {!isLogin && !isForgot && !isRecovery && (
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-300">Username</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) =>
-                  setUsername(e.target.value.replace(/\s/g, '').replace(/^@/, ''))
-                }
-                required
-                minLength={3}
-                maxLength={24}
-                className="w-full px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="Pilih username"
-              />
-              <p className="text-[11px] text-gray-500 mt-1">
-                Huruf, angka, underscore. Tanpa spasi & tanpa @.
-              </p>
-            </div>
+            <>
+              <div>
+                <label className={labelClass}>Username</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) =>
+                    setUsername(e.target.value.replace(/\s/g, '').replace(/^@/, ''))
+                  }
+                  required
+                  minLength={3}
+                  maxLength={24}
+                  className={inputClass}
+                  placeholder="Pilih username"
+                />
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  Huruf, angka, underscore · tanpa spasi & tanpa @
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Umur</label>
+                  <input
+                    type="number"
+                    min={18}
+                    max={120}
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    required
+                    className={inputClass}
+                    placeholder="18+"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Jenis Kelamin</label>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    required
+                    className={`${inputClass} appearance-none`}
+                  >
+                    <option value="" disabled>
+                      Pilih
+                    </option>
+                    {GENDERS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>Negara</label>
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  required
+                  className={`${inputClass} appearance-none`}
+                >
+                  <option value="" disabled>
+                    Pilih Negara
+                  </option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
 
           {(isRecovery || (!isForgot && !isRecovery)) && (
             <div>
-              <label className="block text-sm font-medium mb-1 text-gray-300">
-                {isRecovery ? 'Password baru' : 'Password'}
+              <label className={labelClass}>
+                {isRecovery ? 'Password baru' : 'Kata Sandi'}
               </label>
               <div className="relative">
                 <input
@@ -353,49 +453,22 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="w-full px-4 py-2.5 pr-12 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Minimal 6 karakter"
+                  className={`${inputClass} pr-12`}
+                  placeholder={isRecovery ? 'Password baru' : 'Buat kata sandi'}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1"
                 >
                   {showPassword ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-5 h-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                      />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                     </svg>
                   ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-5 h-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                      />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
                   )}
                 </button>
@@ -405,9 +478,7 @@ export default function LoginPage() {
 
           {((!isLogin && !isForgot) || isRecovery) && (
             <div>
-              <label className="block text-sm font-medium mb-1 text-gray-300">
-                Konfirmasi Password
-              </label>
+              <label className={labelClass}>Konfirmasi Kata Sandi</label>
               <div className="relative">
                 <input
                   type={showConfirm ? 'text' : 'password'}
@@ -415,49 +486,22 @@ export default function LoginPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="w-full px-4 py-2.5 pr-12 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Ulangi password"
+                  className={`${inputClass} pr-12`}
+                  placeholder="Konfirmasi kata sandi"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1"
                 >
                   {showConfirm ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-5 h-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                      />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                     </svg>
                   ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-5 h-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                      />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
                   )}
                 </button>
@@ -466,14 +510,14 @@ export default function LoginPage() {
           )}
 
           {!isLogin && !isForgot && !isRecovery && (
-            <label className="flex items-start gap-2 text-sm text-gray-300 cursor-pointer">
+            <label className="flex items-start gap-2.5 text-sm text-gray-300 cursor-pointer pt-1">
               <input
                 type="checkbox"
                 checked={agreeAge}
                 onChange={(e) => setAgreeAge(e.target.checked)}
-                className="mt-1 rounded border-zinc-600"
+                className="mt-0.5 rounded border-zinc-600 accent-purple-500"
               />
-              <span>
+              <span className="leading-relaxed">
                 Saya berusia <strong className="text-white">18 tahun</strong> atau lebih dan setuju
                 dengan ketentuan penggunaan VEZAO.
               </span>
@@ -497,7 +541,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-vezao-gradient text-white py-2.5 rounded-xl font-medium disabled:opacity-50 active:scale-[0.98] transition"
+            className="w-full bg-vezao-gradient text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition mt-1"
           >
             {loading
               ? 'Loading...'
@@ -542,9 +586,7 @@ export default function LoginPage() {
                   onClick={() => {
                     setIsLogin(!isLogin)
                     setMessage('')
-                    setConfirmPassword('')
-                    setUsername('')
-                    setAgreeAge(false)
+                    resetRegisterFields()
                   }}
                   className="text-purple-400 font-medium hover:underline"
                 >
