@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import BottomNav from '@/components/BottomNav'
 
 type Notification = {
   id: string
@@ -215,12 +216,6 @@ export default function NotificationsPage() {
       setCurrentUserId(user.id)
       await loadNotifications(user.id)
       setLoading(false)
-
-      await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', user.id)
-        .eq('is_read', false)
     }
 
     init()
@@ -228,10 +223,31 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     if (!currentUserId) return
+
+    const channel = supabase
+      .channel(`notif-${currentUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        () => {
+          loadNotifications(currentUserId)
+        }
+      )
+      .subscribe()
+
     const interval = setInterval(() => {
       loadNotifications(currentUserId)
-    }, 8000)
-    return () => clearInterval(interval)
+    }, 15000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(interval)
+    }
   }, [currentUserId, loadNotifications])
 
   const getText = (n: Notification) => {
@@ -359,7 +375,17 @@ export default function NotificationsPage() {
     setActingId(null)
   }
 
-  const handleClick = (n: Notification) => {
+  const handleClick = async (n: Notification) => {
+    if (!n.is_read) {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', n.id)
+      setNotifications((prev) =>
+        prev.map((x) => (x.id === n.id ? { ...x, is_read: true } : x))
+      )
+    }
+
     if (n.type === 'follow_request' || n.type === 'follow') {
       router.push(`/@${n.actor?.username || n.actor_id}`)
       return
@@ -488,7 +514,7 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t border-white/10 h-16 flex items-center justify-around z-50 backdrop-blur-md">
+      <BottomNav />
         <button onClick={() => router.push('/')} className="flex flex-col items-center gap-0.5">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
@@ -524,6 +550,5 @@ export default function NotificationsPage() {
           <span className="text-[11px] text-gray-400">Profile</span>
         </button>
       </div>
-    </div>
   )
 }
