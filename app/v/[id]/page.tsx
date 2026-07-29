@@ -594,7 +594,26 @@ export default function SingleVideoPage() {
       else el.pause()
     }
   }
-
+  const handleDeleteVideo = async (videoId: string) => {
+    if (!userId) return
+    if (!confirm('Hapus video ini?')) return
+    const { error } = await supabase
+      .from('videos')
+      .delete()
+      .eq('id', videoId)
+      .eq('user_id', userId)
+    if (error) {
+      alert('Gagal hapus: ' + error.message)
+      return
+    }
+    setShowMore(null)
+    const next = videos.filter((v) => v.id !== videoId)
+    if (next.length === 0) {
+      router.back()
+      return
+    }
+    setVideos(next)
+  }
   const openShare = async (videoId: string) => {
     setShareVideoId(videoId)
     if (!userId) return
@@ -1158,6 +1177,29 @@ export default function SingleVideoPage() {
             >
               Salin tautan
             </button>
+            {(() => {
+              const v = videos.find((x) => x.id === showMore)
+              if (!v || v.user_id !== userId) return null
+              return (
+                <>
+                  <button
+                    onClick={() => {
+                      setShowMore(null)
+                      router.push(`/upload?draft=${showMore}`)
+                    }}
+                    className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
+                  >
+                    Edit video
+                  </button>
+                  <button
+                    onClick={() => handleDeleteVideo(showMore)}
+                    className="w-full text-left px-4 py-3.5 text-sm text-red-400 hover:bg-white/5 rounded-xl"
+                  >
+                    Hapus video
+                  </button>
+                </>
+              )
+            })()}
             <button
               onClick={() => setShowMore(null)}
               className="w-full text-center py-3 text-sm text-gray-400 mt-1"
