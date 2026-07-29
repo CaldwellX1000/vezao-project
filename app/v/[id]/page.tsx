@@ -316,6 +316,7 @@ export default function SingleVideoPage() {
     const isSaved = savedVideos.has(videoId)
     if (isSaved) {
       await supabase.from('saves').delete().eq('user_id', userId).eq('video_id', videoId)
+      await supabase.rpc('decrement_saves', { video_id: videoId })
       setSavedVideos((prev) => {
         const next = new Set(prev)
         next.delete(videoId)
@@ -332,7 +333,11 @@ export default function SingleVideoPage() {
       const { error } = await supabase
         .from('saves')
         .insert({ user_id: userId, video_id: videoId })
-      if (error) return
+      if (error) {
+        alert('Gagal simpan: ' + error.message)
+        return
+      }
+      await supabase.rpc('increment_saves', { video_id: videoId })
       setSavedVideos((prev) => new Set(prev).add(videoId))
       setVideos((prev) =>
         prev.map((v) =>

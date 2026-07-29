@@ -168,14 +168,63 @@ export default function FeedPage() {
       return true
     })
 
-    const ranked = [...filtered].sort((a: any, b: any) => {
-      const score = (v: any) => {
-        const likes = v.likes_count || 0
-        const ageHours = (Date.now() - new Date(v.created_at).getTime()) / (1000 * 60 * 60)
-        return likes * 2 + Math.max(0, 48 - ageHours) * 0.5
-      }
-      return score(b) - score(a)
-    })
+    // ===== For You: engagement + freshness + strong shuffle top =====
+    const scoreVideo = (v: any, isFollower: boolean) => {
+      const likes = v.likes_count || 0
+      const comments = v.comments_count || 0
+      const saves = v.saves_count || 0
+      const shares = v.shares_count || 0
+      const views = v.views_count || 0
+
+      const engagement =
+        likes * 3 +
+        comments * 4 +
+        saves * 5 +
+        shares * 6 +
+        Math.log10(views + 1) * 2
+
+      const ageHours =
+        (Date.now() - new Date(v.created_at).getTime()) / (1000 * 60 * 60)
+      const freshness = Math.max(0, 72 - ageHours) * 0.8
+      const followBoost = isFollower ? 8 : 0
+
+      // Jitter besar → tiap refresh urutan beda
+      const jitter = Math.random() * 40
+
+      return engagement + freshness + followBoost + jitter
+    }
+
+    const scored = filtered.map((v: any) => ({
+      v,
+      s: scoreVideo(v, followingSet.has(v.user_id)),
+    }))
+    scored.sort((a, b) => b.s - a.s)
+
+    // Ambil top pool, acak lagi biar #1 tidak selalu video yang sama
+    const TOP_POOL = Math.min(12, scored.length)
+    const topPool = scored.slice(0, TOP_POOL)
+    const restPool = scored.slice(TOP_POOL)
+
+    // Fisher–Yates shuffle top pool
+    for (let i = topPool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[topPool[i], topPool[j]] = [topPool[j], topPool[i]]
+    }
+
+    const ordered = [...topPool, ...restPool]
+
+    // Hindari creator sama berurutan
+    const ranked: any[] = []
+    const rest = [...ordered]
+    let lastUserId: string | null = null
+    while (rest.length > 0) {
+      let idx = rest.findIndex((x) => x.v.user_id !== lastUserId)
+      if (idx === -1) idx = 0
+      const picked = rest.splice(idx, 1)[0]
+      ranked.push(picked.v)
+      lastUserId = picked.v.user_id
+    }
+
     setAllVideos(ranked as any)
 
     const { data: likesData } = await supabase.from('likes').select('video_id').eq('user_id', uid)
@@ -223,41 +272,71 @@ export default function FeedPage() {
     videoRefs.current = []
   }, [feedTab])
 
+  // Hanya 1 video play: yang paling terlihat
   useEffect(() => {
     if (videos.length === 0) return
+
+    const pauseAllExcept = (active: HTMLVideoElement | null) => {
+      videoRefs.current.forEach((v) => {
+        if (!v || v === active) return
+        v.pause()
+      })
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach((entry) => {
-          const video = entry.target as HTMLVideoElement
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
-            video.muted = isMuted
-            video.play().catch(() => {})
-            const vid = video.dataset.videoId
-            if (vid) registerView(vid)
-          } else {
-            video.pause()
-          }
-        })
-      },
-      { threshold: [0.7] }
-    )
-    videoRefs.current.forEach((video) => {
-      if (video) observer.observe(video)
-    })
-    return () => observer.disconnect()
-  }, [videos, isMuted, feedTab])
+        let bestEntry: IntersectionObserverEntry | null = null
 
-  useEffect(() => {
-    if (videos.length === 0) return
-    const timer = setTimeout(() => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) {
+            ;(entry.target as HTMLVideoElement).pause()
+            continue
+          }
+          if (
+            !bestEntry ||
+            entry.intersectionRatio > bestEntry.intersectionRatio
+          ) {
+            bestEntry = entry
+          }
+        }
+
+        if (bestEntry && bestEntry.intersectionRatio >= 0.55) {
+          const el = bestEntry.target as HTMLVideoElement
+          pauseAllExcept(el)
+          el.muted = isMuted
+          el.play().catch(() => {
+            el.muted = true
+            el.play().catch(() => {})
+          })
+          const vid = el.dataset.videoId
+          if (vid) registerView(vid)
+        }
+      },
+      { threshold: [0.25, 0.55, 0.7, 0.9] }
+    )
+
+    const t = setTimeout(() => {
+      videoRefs.current.forEach((video) => {
+        if (video) observer.observe(video)
+      })
       const first = videoRefs.current[0]
       if (first) {
+        pauseAllExcept(first)
         first.muted = isMuted
-        first.play().catch(() => {})
+        first.play().catch(() => {
+          first.muted = true
+          first.play().catch(() => {})
+        })
+        const vid = first.dataset.videoId
+        if (vid) registerView(vid)
       }
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [videos, feedTab])
+    }, 150)
+
+    return () => {
+      clearTimeout(t)
+      observer.disconnect()
+    }
+  }, [videos, isMuted, feedTab])
 
   const handleRefresh = async () => {
     if (!userId || refreshing) return
@@ -336,8 +415,10 @@ export default function FeedPage() {
   const toggleSave = async (videoId: string) => {
     if (!userId) return
     const isSaved = savedVideos.has(videoId)
+
     if (isSaved) {
       await supabase.from('saves').delete().eq('user_id', userId).eq('video_id', videoId)
+      await supabase.rpc('decrement_saves', { video_id: videoId })
       setSavedVideos((prev) => {
         const next = new Set(prev)
         next.delete(videoId)
@@ -356,10 +437,13 @@ export default function FeedPage() {
         alert('Gagal simpan: ' + error.message)
         return
       }
+      await supabase.rpc('increment_saves', { video_id: videoId })
       setSavedVideos((prev) => new Set(prev).add(videoId))
       setAllVideos((prev) =>
         prev.map((v) =>
-          v.id === videoId ? { ...v, saves_count: (v.saves_count || 0) + 1 } : v
+          v.id === videoId
+            ? { ...v, saves_count: (v.saves_count || 0) + 1 }
+            : v
         )
       )
     }
@@ -748,9 +832,9 @@ export default function FeedPage() {
                 data-video-id={video.id}
                 src={video.video_url}
                 className="absolute inset-0 w-full h-full object-cover"
-                loop
                 muted={isMuted}
                 playsInline
+                loop
                 preload={index < 3 ? 'auto' : 'metadata'}
                 onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
               />

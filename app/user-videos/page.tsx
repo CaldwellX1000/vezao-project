@@ -10,6 +10,8 @@ type Video = {
   video_url: string
   likes_count: number
   comments_count: number
+  saves_count?: number | null
+  shares_count?: number | null
   comments_enabled?: boolean | null
   visibility?: string | null
   is_pinned?: boolean | null
@@ -144,8 +146,8 @@ function UserVideosContent() {
       const { data } = await supabase
         .from('videos')
         .select(`
-          id, caption, video_url, likes_count, comments_count, comments_enabled,
-          visibility, is_pinned, created_at, user_id,
+          id, caption, video_url, likes_count, comments_count, saves_count, shares_count,
+          comments_enabled, visibility, is_pinned, created_at, user_id,
           profiles ( username, full_name, avatar_url )
         `)
         .eq('user_id', userId)
@@ -285,11 +287,19 @@ function UserVideosContent() {
         .delete()
         .eq('user_id', currentUserId)
         .eq('video_id', videoId)
+      await supabase.rpc('decrement_saves', { video_id: videoId })
       setSavedVideos((prev) => {
         const next = new Set(prev)
         next.delete(videoId)
         return next
       })
+      setVideos((prev) =>
+        prev.map((v) =>
+          v.id === videoId
+            ? { ...v, saves_count: Math.max(0, (v.saves_count || 0) - 1) }
+            : v
+        )
+      )
     } else {
       const { error } = await supabase
         .from('saves')
@@ -298,7 +308,15 @@ function UserVideosContent() {
         alert('Gagal simpan: ' + error.message)
         return
       }
+      await supabase.rpc('increment_saves', { video_id: videoId })
       setSavedVideos((prev) => new Set(prev).add(videoId))
+      setVideos((prev) =>
+        prev.map((v) =>
+          v.id === videoId
+            ? { ...v, saves_count: (v.saves_count || 0) + 1 }
+            : v
+        )
+      )
     }
   }
 
@@ -770,7 +788,9 @@ function UserVideosContent() {
                     </svg>
                   )}
                 </div>
-                <span className="text-xs mt-1 text-white font-medium">Save</span>
+                <span className="text-xs mt-1 text-white font-medium">
+                  {video.saves_count || 0}
+                </span>
               </button>
 
               <button onClick={handleShare} className="flex flex-col items-center">
