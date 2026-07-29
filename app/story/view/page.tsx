@@ -10,6 +10,7 @@ type Story = {
   media_url: string
   media_type: string | null
   created_at: string
+  caption?: string | null
   profiles?: {
     username: string | null
     avatar_url: string | null
@@ -104,7 +105,7 @@ function StoryViewContent() {
         .from('stories')
         .select(
           `
-          id, user_id, media_url, media_type, created_at,
+          id, user_id, media_url, media_type, created_at, caption,
           profiles ( username, avatar_url, full_name )
         `
         )
@@ -315,7 +316,7 @@ function StoryViewContent() {
     const { error } = await supabase.from('messages').insert({
       sender_id: currentUserId,
       receiver_id: s.user_id,
-      content: `📸 Story: ${replyText.trim()}`,
+      content: `__STORY__:${s.id}\n${replyText.trim()}`,
       is_read: false,
     })
     setSendingReply(false)
@@ -472,6 +473,22 @@ function StoryViewContent() {
             />
           )}
         </div>
+
+        {/* Caption */}
+        {story.caption && (
+          <div
+            className={`absolute left-0 right-0 z-30 px-4 pointer-events-none ${
+              isOwn ? 'bottom-10' : 'bottom-24'
+            }`}
+          >
+            <p className="text-sm text-white leading-snug drop-shadow-[0_1px_4px_rgba(0,0,0,0.95)] line-clamp-3">
+              <span className="font-semibold">
+                @{story.profiles?.username || 'user'}{' '}
+              </span>
+              <span className="font-normal text-white/95">{story.caption}</span>
+            </p>
+          </div>
+        )}
 
         {/* Reply */}
         {!isOwn && (

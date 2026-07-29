@@ -17,7 +17,13 @@ type Conversation = {
 }
 
 function formatLastMessage(content: string) {
-  if (content.startsWith('__VIDEO__:')) return 'membagikan video'
+  if (content.startsWith('__VIDEO__:')) return 'Membagikan video'
+  if (content.startsWith('__STORY__:')) {
+    const text = content.split('\n').slice(1).join(' ').trim()
+    return text
+      ? `Berkomentar tentang story anda: ${text}`
+      : 'Berkomentar tentang story anda'
+  }
   return content
 }
 

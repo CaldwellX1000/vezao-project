@@ -10,6 +10,7 @@ export default function StoryCreatePage() {
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image')
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState('')
+  const [caption, setCaption] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -59,6 +60,7 @@ export default function StoryCreatePage() {
         user_id: user.id,
         media_url: publicUrl,
         media_type: mediaType,
+        caption: caption.trim() || null,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       })
 
@@ -125,15 +127,26 @@ export default function StoryCreatePage() {
         />
 
         {preview && (
-          <button
-            onClick={() => {
-              setFile(null)
-              setPreview(null)
-            }}
-            className="text-sm text-gray-400"
-          >
-            Ganti file
-          </button>
+          <div className="w-full max-w-sm space-y-3">
+            <textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value.slice(0, 120))}
+              placeholder="Tambah caption..."
+              rows={2}
+              className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
+            />
+            <p className="text-[11px] text-gray-500 text-right">{caption.length}/120</p>
+            <button
+              onClick={() => {
+                setFile(null)
+                setPreview(null)
+                setCaption('')
+              }}
+              className="w-full text-sm text-gray-400 py-1"
+            >
+              Ganti file
+            </button>
+          </div>
         )}
 
         {message && (

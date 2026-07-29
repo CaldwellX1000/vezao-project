@@ -32,6 +32,22 @@ function parseVideoId(content: string): string | null {
   return null
 }
 
+function parseStoryReply(content: string): { storyId: string; text: string } | null {
+  if (!content.startsWith('__STORY__:')) return null
+  const lines = content.split('\n')
+  const storyId = lines[0].replace('__STORY__:', '').trim()
+  const text = lines.slice(1).join('\n').trim()
+  if (!storyId) return null
+  return { storyId, text }
+}
+
+type SharedStory = {
+  media_url: string
+  media_type: string | null
+  expired: boolean
+  user_id: string
+}
+
 function MessageStatus({
   msgId,
   isRead,
@@ -87,6 +103,7 @@ function ChatContent() {
   const [partnerUsername, setPartnerUsername] = useState('')
   const [partnerAvatar, setPartnerAvatar] = useState<string | null>(null)
   const [videoCache, setVideoCache] = useState<Record<string, SharedVideo | null>>({})
+  const [storyCache, setStoryCache] = useState<Record<string, SharedStory | null>>({})
   const [menuMsgId, setMenuMsgId] = useState<string | null>(null)
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -97,6 +114,7 @@ function ChatContent() {
 
   const canEditMessage = (msg: Message) => {
     if (parseVideoId(msg.content)) return false
+    if (parseStoryReply(msg.content)) return false
     const ageMs = Date.now() - new Date(msg.created_at).getTime()
     return ageMs <= 30 * 60 * 1000
   }
@@ -124,7 +142,38 @@ function ChatContent() {
 
     return !!(a || b)
   }
+  const loadSharedStories = async (msgs: Message[]) => {
+    const ids = [
+      ...new Set(
+        msgs
+          .map((m) => parseStoryReply(m.content)?.storyId)
+          .filter((id): id is string => !!id)
+      ),
+    ]
+    const missing = ids.filter((id) => !(id in storyCache))
+    if (missing.length === 0) return
 
+    const { data } = await supabase
+      .from('stories')
+      .select('id, media_url, media_type, expires_at, user_id')
+      .in('id', missing)
+
+    setStoryCache((prev) => {
+      const next = { ...prev }
+      missing.forEach((id) => {
+        next[id] = null
+      })
+      ;(data || []).forEach((s: any) => {
+        next[s.id] = {
+          media_url: s.media_url,
+          media_type: s.media_type,
+          expired: new Date(s.expires_at) <= new Date(),
+          user_id: s.user_id,
+        }
+      })
+      return next
+    })
+  }
   const loadSharedVideos = async (msgs: Message[]) => {
     const ids = [
       ...new Set(
@@ -179,6 +228,7 @@ function ChatContent() {
     })
     setMessages(filtered)
     await loadSharedVideos(filtered)
+    await loadSharedStories(filtered)
   }
 
   useEffect(() => {
@@ -258,6 +308,7 @@ function ChatContent() {
               return [...withoutTemp, newMsg]
             })
             loadSharedVideos([newMsg])
+            loadSharedStories([newMsg])
 
             if (newMsg.sender_id === partnerId) {
               supabase
@@ -506,13 +557,108 @@ function ChatContent() {
             const isMe = msg.sender_id === currentUserId
             const videoId = parseVideoId(msg.content)
             const shared = videoId ? videoCache[videoId] : undefined
+            const storyReply = parseStoryReply(msg.content)
+            const storyMeta = storyReply
+              ? storyCache[storyReply.storyId]
+              : undefined
 
             return (
               <div
                 key={msg.id}
                 className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
               >
-                {videoId ? (
+                {storyReply ? (
+                  <div
+                    className={`max-w-[75%] flex flex-col gap-1 relative ${
+                      isMe ? 'items-end' : 'items-start'
+                    }`}
+                  >
+                    <p
+                      className={`text-[10px] text-gray-500 px-1 flex items-center gap-0.5 ${
+                        isMe ? 'text-right justify-end' : 'text-left'
+                      }`}
+                    >
+                      {formatMsgTime(msg.created_at)}
+                      {isMe && (
+                        <MessageStatus msgId={msg.id} isRead={msg.is_read} />
+                      )}
+                    </p>
+                    <div className="relative">
+                      {isMe && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMenuMsgId(menuMsgId === msg.id ? null : msg.id)
+                          }
+                          className="absolute -top-1 -right-1 z-10 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center text-white/80 text-[10px]"
+                        >
+                          ⋯
+                        </button>
+                      )}
+                      <div
+                        className={`rounded-2xl overflow-hidden border border-white/10 ${
+                          isMe ? 'bg-vezao-gradient/20' : 'bg-zinc-800'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (storyMeta && !storyMeta.expired) {
+                              router.push(
+                                `/story/view?userId=${storyMeta.user_id}&from=inbox`
+                              )
+                            }
+                          }}
+                          className="flex items-center gap-2.5 p-2 text-left w-full min-w-[200px]"
+                        >
+                          <div className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-900 shrink-0">
+                            {!storyMeta || storyMeta.expired ? (
+                              <div className="w-full h-full flex items-center justify-center text-[9px] text-gray-500 text-center px-1">
+                                Berakhir
+                              </div>
+                            ) : storyMeta.media_type?.startsWith('video') ? (
+                              <video
+                                src={storyMeta.media_url}
+                                className="w-full h-full object-cover"
+                                muted
+                                playsInline
+                              />
+                            ) : (
+                              <img
+                                src={storyMeta.media_url}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] text-gray-400">
+                              Balasan story
+                            </p>
+                            {storyReply.text && (
+                              <p className="text-sm text-white line-clamp-2">
+                                {storyReply.text}
+                              </p>
+                            )}
+                          </div>
+                        </button>
+                      </div>
+                      {menuMsgId === msg.id && isMe && (
+                        <div className="absolute right-0 top-full mt-1 z-20 bg-zinc-800 border border-white/10 rounded-xl py-1 shadow-xl min-w-[140px]">
+                          <button
+                            onClick={() => {
+                              setDeleteConfirmId(msg.id)
+                              setMenuMsgId(null)
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : videoId ? (
                   <div
                     className={`max-w-[70%] flex flex-col gap-1 relative ${
                       isMe ? 'items-end' : 'items-start'
