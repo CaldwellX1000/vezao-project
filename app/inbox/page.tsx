@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
+import StoryBar from '@/components/StoryBar'
 
 type Conversation = {
   userId: string
@@ -306,6 +307,11 @@ export default function InboxPage() {
     <div className="min-h-screen bg-black text-white pb-20">
       <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10 px-4 h-14 flex items-center">
         <h1 className="text-lg font-bold">Inbox</h1>
+      </div>
+
+            {/* Stories — seperti TikTok Kotak Masuk */}
+      <div className="border-b border-white/10 pb-2">
+        <StoryBar />
       </div>
 
       <div className="divide-y divide-white/5" onClick={() => setMenuUserId(null)}>

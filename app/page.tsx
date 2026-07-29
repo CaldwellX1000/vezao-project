@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 
+
 type Video = {
   id: string
   caption: string | null
@@ -81,7 +82,7 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-  const [isMuted, setIsMuted] = useState(false)
+  const [isMuted, setIsMuted] = useState(true)
   const [showComments, setShowComments] = useState(false)
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
@@ -796,15 +797,17 @@ export default function FeedPage() {
 
   if (loading) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center">
+      <div className="h-screen bg-black flex items-center justify-center md:bg-zinc-950">
         <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="h-screen bg-black text-white overflow-hidden relative">
-      <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center gap-6 pt-3 pb-2 pointer-events-none">
+    <div className="h-screen w-full bg-black">
+      <div className="h-screen w-full max-w-[480px] mx-auto bg-black text-white overflow-hidden relative">
+      {/* Tab */}
+      <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-center gap-6 pt-3 pb-2 pointer-events-none">
         <button
           onClick={() => setFeedTab('following')}
           className={`text-sm font-semibold pointer-events-auto ${
@@ -823,11 +826,22 @@ export default function FeedPage() {
         </button>
       </div>
 
+
+            {/* Mute — style sama profil video */}
       <button
         onClick={() => setIsMuted(!isMuted)}
-        className="fixed top-3 right-3 z-40 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10"
+        className="absolute top-3 right-3 z-40 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10"
       >
-        {isMuted ? '🔇' : '🔊'}
+        {isMuted ? (
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          </svg>
+        )}
       </button>
 
       <div
@@ -1449,6 +1463,7 @@ export default function FeedPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
