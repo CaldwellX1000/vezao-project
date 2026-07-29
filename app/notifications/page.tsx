@@ -66,8 +66,19 @@ function TypeIcon({ type }: { type: string }) {
   }
   if (type === 'comment') {
     return (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        className="w-3 h-3 text-blue-400"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+        />
       </svg>
     )
   }
@@ -80,21 +91,54 @@ function TypeIcon({ type }: { type: string }) {
   }
   if (type === 'share') {
     return (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3 text-purple-400" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" />
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        className="w-3 h-3 text-purple-400"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"
+        />
       </svg>
     )
   }
   if (type === 'follow' || type === 'follow_request') {
     return (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        className="w-3 h-3 text-white"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+        />
       </svg>
     )
   }
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      className="w-3 h-3 text-gray-400"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+      />
     </svg>
   )
 }
@@ -104,6 +148,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [actingId, setActingId] = useState<string | null>(null)
+  const [followedBack, setFollowedBack] = useState<Set<string>>(new Set())
 
   const router = useRouter()
   const supabase = createClient()
@@ -111,7 +156,8 @@ export default function NotificationsPage() {
   const loadNotifications = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('notifications')
-      .select(`
+      .select(
+        `
         id,
         user_id,
         actor_id,
@@ -120,13 +166,15 @@ export default function NotificationsPage() {
         message,
         is_read,
         created_at
-      `)
+      `
+      )
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(50)
 
     if (!data || data.length === 0) {
       setNotifications([])
+      setFollowedBack(new Set())
       return
     }
 
@@ -142,6 +190,17 @@ export default function NotificationsPage() {
     }))
 
     setNotifications(withActor)
+
+    // Siapa yang sudah kita follow → tombol Following
+    if (actorIds.length > 0) {
+      const { data: myFollows } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', userId)
+        .in('following_id', actorIds)
+
+      setFollowedBack(new Set((myFollows || []).map((f) => f.following_id)))
+    }
   }, [])
 
   useEffect(() => {
@@ -240,7 +299,6 @@ export default function NotificationsPage() {
       .eq('target_id', currentUserId)
 
     await supabase.from('notifications').delete().eq('id', n.id)
-
     setNotifications((prev) => prev.filter((x) => x.id !== n.id))
     setActingId(null)
   }
@@ -257,7 +315,46 @@ export default function NotificationsPage() {
       .eq('target_id', currentUserId)
 
     await supabase.from('notifications').delete().eq('id', n.id)
+    setNotifications((prev) => prev.filter((x) => x.id !== n.id))
+    setActingId(null)
+  }
 
+  const handleFollowBack = async (n: Notification, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!currentUserId || actingId) return
+    setActingId(n.id)
+
+    const { error } = await supabase.from('follows').insert({
+      follower_id: currentUserId,
+      following_id: n.actor_id,
+    })
+
+    if (error && !String(error.message).toLowerCase().includes('duplicate')) {
+      alert('Gagal follow: ' + error.message)
+      setActingId(null)
+      return
+    }
+
+    // Notif ke dia
+    await supabase.from('notifications').insert({
+      user_id: n.actor_id,
+      actor_id: currentUserId,
+      type: 'follow',
+      video_id: null,
+      message: null,
+      is_read: false,
+    })
+
+    // JANGAN hapus notif — hanya tandai Following
+    setFollowedBack((prev) => new Set(prev).add(n.actor_id))
+    setActingId(null)
+  }
+
+  const handleDismiss = async (n: Notification, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (actingId) return
+    setActingId(n.id)
+    await supabase.from('notifications').delete().eq('id', n.id)
     setNotifications((prev) => prev.filter((x) => x.id !== n.id))
     setActingId(null)
   }
@@ -352,6 +449,33 @@ export default function NotificationsPage() {
                     >
                       Decline
                     </button>
+                  </div>
+                )}
+
+                {n.type === 'follow' && (
+                  <div className="flex gap-2 mt-2">
+                    {followedBack.has(n.actor_id) ? (
+                      <span className="px-4 py-1.5 rounded-full bg-zinc-800 border border-white/10 text-xs font-semibold text-gray-300">
+                        Following
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          onClick={(e) => handleFollowBack(n, e)}
+                          disabled={actingId === n.id}
+                          className="px-4 py-1.5 rounded-full bg-vezao-gradient text-xs font-semibold disabled:opacity-50"
+                        >
+                          Follow Back
+                        </button>
+                        <button
+                          onClick={(e) => handleDismiss(n, e)}
+                          disabled={actingId === n.id}
+                          className="px-4 py-1.5 rounded-full bg-zinc-800 border border-white/10 text-xs font-semibold disabled:opacity-50"
+                        >
+                          Hapus
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
