@@ -381,6 +381,18 @@ export default function SingleVideoPage() {
             : v
         )
       )
+
+      const owner = videos.find((v) => v.id === videoId)
+      if (owner && owner.user_id !== userId) {
+        await supabase.from('notifications').insert({
+          user_id: owner.user_id,
+          actor_id: userId,
+          type: 'save',
+          video_id: videoId,
+          message: null,
+          is_read: false,
+        })
+      }
     }
   }
 
@@ -628,6 +640,19 @@ export default function SingleVideoPage() {
       )
     )
     await supabase.from('videos').update({ shares_count: nextCount }).eq('id', shareVideoId)
+
+    const owner = videos.find((v) => v.id === shareVideoId)
+    if (owner && userId && owner.user_id !== userId) {
+      await supabase.from('notifications').insert({
+        user_id: owner.user_id,
+        actor_id: userId,
+        type: 'share',
+        video_id: shareVideoId,
+        message: null,
+        is_read: false,
+      })
+    }
+
     alert('Video terkirim!')
     setShareVideoId(null)
   }

@@ -169,29 +169,19 @@ export default function FeedPage() {
       return true
     })
 
-    // ===== For You: engagement + freshness + strong shuffle top =====
     const scoreVideo = (v: any, isFollower: boolean) => {
       const likes = v.likes_count || 0
       const comments = v.comments_count || 0
       const saves = v.saves_count || 0
       const shares = v.shares_count || 0
       const views = v.views_count || 0
-
       const engagement =
-        likes * 3 +
-        comments * 4 +
-        saves * 5 +
-        shares * 6 +
-        Math.log10(views + 1) * 2
-
+        likes * 3 + comments * 4 + saves * 5 + shares * 6 + Math.log10(views + 1) * 2
       const ageHours =
         (Date.now() - new Date(v.created_at).getTime()) / (1000 * 60 * 60)
       const freshness = Math.max(0, 72 - ageHours) * 0.8
       const followBoost = isFollower ? 8 : 0
-
-      // Jitter besar → tiap refresh urutan beda
       const jitter = Math.random() * 40
-
       return engagement + freshness + followBoost + jitter
     }
 
@@ -201,20 +191,16 @@ export default function FeedPage() {
     }))
     scored.sort((a, b) => b.s - a.s)
 
-    // Ambil top pool, acak lagi biar #1 tidak selalu video yang sama
     const TOP_POOL = Math.min(12, scored.length)
     const topPool = scored.slice(0, TOP_POOL)
     const restPool = scored.slice(TOP_POOL)
 
-    // Fisher–Yates shuffle top pool
     for (let i = topPool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
       ;[topPool[i], topPool[j]] = [topPool[j], topPool[i]]
     }
 
     const ordered = [...topPool, ...restPool]
-
-    // Hindari creator sama berurutan
     const ranked: any[] = []
     const rest = [...ordered]
     let lastUserId: string | null = null
@@ -273,7 +259,6 @@ export default function FeedPage() {
     videoRefs.current = []
   }, [feedTab])
 
-  // Hanya 1 video play: yang paling terlihat
   useEffect(() => {
     if (videos.length === 0) return
 
@@ -287,20 +272,15 @@ export default function FeedPage() {
     const observer = new IntersectionObserver(
       (entries) => {
         let bestEntry: IntersectionObserverEntry | null = null
-
         for (const entry of entries) {
           if (!entry.isIntersecting) {
             ;(entry.target as HTMLVideoElement).pause()
             continue
           }
-          if (
-            !bestEntry ||
-            entry.intersectionRatio > bestEntry.intersectionRatio
-          ) {
+          if (!bestEntry || entry.intersectionRatio > bestEntry.intersectionRatio) {
             bestEntry = entry
           }
         }
-
         if (bestEntry && bestEntry.intersectionRatio >= 0.55) {
           const el = bestEntry.target as HTMLVideoElement
           pauseAllExcept(el)
@@ -419,19 +399,14 @@ export default function FeedPage() {
 
     if (isSaved) {
       await supabase.from('saves').delete().eq('user_id', userId).eq('video_id', videoId)
-
-      const { error: rpcErr } = await supabase.rpc('decrement_saves', {
-        video_id: videoId,
-      })
+      const { error: rpcErr } = await supabase.rpc('decrement_saves', { video_id: videoId })
       if (rpcErr) {
-        const cur =
-          allVideos.find((v) => v.id === videoId)?.saves_count || 0
+        const cur = allVideos.find((v) => v.id === videoId)?.saves_count || 0
         await supabase
           .from('videos')
           .update({ saves_count: Math.max(0, cur - 1) })
           .eq('id', videoId)
       }
-
       setSavedVideos((prev) => {
         const next = new Set(prev)
         next.delete(videoId)
@@ -452,19 +427,14 @@ export default function FeedPage() {
         alert('Gagal simpan: ' + error.message)
         return
       }
-
-      const { error: rpcErr } = await supabase.rpc('increment_saves', {
-        video_id: videoId,
-      })
+      const { error: rpcErr } = await supabase.rpc('increment_saves', { video_id: videoId })
       if (rpcErr) {
-        const cur =
-          allVideos.find((v) => v.id === videoId)?.saves_count || 0
+        const cur = allVideos.find((v) => v.id === videoId)?.saves_count || 0
         await supabase
           .from('videos')
           .update({ saves_count: cur + 1 })
           .eq('id', videoId)
       }
-
       setSavedVideos((prev) => new Set(prev).add(videoId))
       setAllVideos((prev) =>
         prev.map((v) =>
@@ -473,6 +443,17 @@ export default function FeedPage() {
             : v
         )
       )
+      const owner = allVideos.find((v) => v.id === videoId)
+      if (owner && owner.user_id !== userId) {
+        await supabase.from('notifications').insert({
+          user_id: owner.user_id,
+          actor_id: userId,
+          type: 'save',
+          video_id: videoId,
+          message: null,
+          is_read: false,
+        })
+      }
     }
   }
 
@@ -613,7 +594,9 @@ export default function FeedPage() {
         .delete()
         .eq('user_id', userId)
         .eq('comment_id', commentId)
-      await supabase.rpc('decrement_comment_likes', { comment_id: commentId })
+      try {
+        await supabase.rpc('decrement_comment_likes', { comment_id: commentId })
+      } catch {}
       setLikedComments((prev) => {
         const next = new Set(prev)
         next.delete(commentId)
@@ -631,7 +614,9 @@ export default function FeedPage() {
         .from('comment_likes')
         .insert({ user_id: userId, comment_id: commentId })
       if (error) return
-      await supabase.rpc('increment_comment_likes', { comment_id: commentId })
+      try {
+        await supabase.rpc('increment_comment_likes', { comment_id: commentId })
+      } catch {}
       setLikedComments((prev) => new Set(prev).add(commentId))
       setComments((prev) =>
         prev.map((c) =>
@@ -648,12 +633,12 @@ export default function FeedPage() {
   }
 
   const saveEditComment = async () => {
-    if (!editingCommentId || !editCommentText.trim()) return
+    if (!editingCommentId || !editCommentText.trim() || !userId) return
     const { error } = await supabase
       .from('comments')
       .update({ content: editCommentText.trim() })
       .eq('id', editingCommentId)
-      .eq('user_id', userId!)
+      .eq('user_id', userId)
     if (error) {
       alert('Gagal edit: ' + error.message)
       return
@@ -677,33 +662,19 @@ export default function FeedPage() {
       alert('Gagal hapus: ' + error.message)
       return
     }
-    const removeCount = idsToDelete.length
-    for (let i = 0; i < removeCount; i++) {
-      await supabase.rpc('decrement_comments', { video_id: activeVideoId })
+    for (let i = 0; i < idsToDelete.length; i++) {
+      try {
+        await supabase.rpc('decrement_comments', { video_id: activeVideoId })
+      } catch {}
     }
     setAllVideos((prev) =>
       prev.map((v) =>
         v.id === activeVideoId
-          ? { ...v, comments_count: Math.max(0, (v.comments_count || 0) - removeCount) }
+          ? { ...v, comments_count: Math.max(0, (v.comments_count || 0) - idsToDelete.length) }
           : v
       )
     )
     setComments((prev) => prev.filter((c) => !idsToDelete.includes(c.id)))
-  }
-
-  const submitReport = async (reason: string) => {
-    if (!userId || !reportVideoId) return
-    const video = allVideos.find((v) => v.id === reportVideoId)
-    const { error } = await supabase.from('reports').insert({
-      reporter_id: userId,
-      reported_user_id: video?.user_id || null,
-      video_id: reportVideoId,
-      reason,
-    })
-    if (error) alert('Gagal report: ' + error.message)
-    else alert('Terima kasih. Laporan sudah dikirim.')
-    setReportVideoId(null)
-    setShowMore(null)
   }
 
   const openShare = async (videoId: string) => {
@@ -751,48 +722,89 @@ export default function FeedPage() {
       )
     )
     await supabase.from('videos').update({ shares_count: nextCount }).eq('id', shareVideoId)
+
+    const owner = allVideos.find((v) => v.id === shareVideoId)
+    if (owner && owner.user_id !== userId) {
+      await supabase.from('notifications').insert({
+        user_id: owner.user_id,
+        actor_id: userId,
+        type: 'share',
+        video_id: shareVideoId,
+        message: null,
+        is_read: false,
+      })
+    }
+
     alert('Video terkirim!')
     setShareVideoId(null)
   }
 
   const shareToOtherApps = async () => {
-    if (!shareVideoId) return
+    if (!shareVideoId || !userId) return
     const url = `${window.location.origin}/v/${shareVideoId}`
+    const bumpShare = async () => {
+      const video = allVideos.find((v) => v.id === shareVideoId)
+      const nextCount = (video?.shares_count || 0) + 1
+      setAllVideos((prev) =>
+        prev.map((v) =>
+          v.id === shareVideoId ? { ...v, shares_count: nextCount } : v
+        )
+      )
+      await supabase.from('videos').update({ shares_count: nextCount }).eq('id', shareVideoId)
+      const owner = allVideos.find((v) => v.id === shareVideoId)
+      if (owner && owner.user_id !== userId) {
+        await supabase.from('notifications').insert({
+          user_id: owner.user_id,
+          actor_id: userId,
+          type: 'share',
+          video_id: shareVideoId,
+          message: null,
+          is_read: false,
+        })
+      }
+    }
+
     if (typeof navigator.share === 'function') {
       try {
         await navigator.share({ title: 'VEZAO', text: 'Lihat video ini di VEZAO!', url })
-        const video = allVideos.find((v) => v.id === shareVideoId)
-        const nextCount = (video?.shares_count || 0) + 1
-        setAllVideos((prev) =>
-          prev.map((v) =>
-            v.id === shareVideoId ? { ...v, shares_count: nextCount } : v
-          )
-        )
-        await supabase.from('videos').update({ shares_count: nextCount }).eq('id', shareVideoId)
+        await bumpShare()
         setShareVideoId(null)
       } catch {}
     } else {
       try {
         await navigator.clipboard.writeText(url)
         alert('Tautan disalin')
+        await bumpShare()
+        setShareVideoId(null)
       } catch {
         prompt('Salin tautan:', url)
       }
     }
   }
 
+  const submitReport = async (reason: string) => {
+    if (!userId || !reportVideoId) return
+    const { error } = await supabase.from('reports').insert({
+      reporter_id: userId,
+      video_id: reportVideoId,
+      reason,
+    })
+    if (error) alert('Gagal report: ' + error.message)
+    else alert('Laporan terkirim. Terima kasih.')
+    setReportVideoId(null)
+  }
+
   if (loading) {
     return (
-      <div className="h-[100dvh] bg-black relative overflow-hidden">
-        <div className="absolute inset-0 bg-zinc-900 animate-pulse" />
-        <BottomNav />
+      <div className="h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="h-[100dvh] bg-black text-white relative overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-center gap-6 pt-3 pb-2 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
+    <div className="h-screen bg-black text-white overflow-hidden relative">
+      <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center gap-6 pt-3 pb-2 pointer-events-none">
         <button
           onClick={() => setFeedTab('following')}
           className={`text-sm font-semibold pointer-events-auto ${
@@ -811,40 +823,28 @@ export default function FeedPage() {
         </button>
       </div>
 
-      <div className="absolute top-3 right-3 z-40">
-        <button onClick={() => setIsMuted(!isMuted)} className="pointer-events-auto">
-          <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-            {isMuted ? (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="currentColor">
-                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="currentColor">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-              </svg>
-            )}
-          </div>
-        </button>
-      </div>
-
-      {pullDistance > 0 && (
-        <div className="absolute top-14 left-0 right-0 z-50 flex justify-center pointer-events-none">
-          <div className="text-xs text-white/70 bg-black/50 px-3 py-1 rounded-full">
-            {refreshing ? 'Refreshing...' : pullDistance > 50 ? 'Release' : 'Pull'}
-          </div>
-        </div>
-      )}
+      <button
+        onClick={() => setIsMuted(!isMuted)}
+        className="fixed top-3 right-3 z-40 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10"
+      >
+        {isMuted ? '🔇' : '🔊'}
+      </button>
 
       <div
         ref={containerRef}
-        className="h-[100dvh] overflow-y-scroll snap-y snap-mandatory"
+        className="h-[100dvh] overflow-y-scroll snap-y snap-mandatory pb-16"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        style={{ paddingTop: pullDistance > 0 ? pullDistance : 0 }}
       >
+        {refreshing && (
+          <div className="text-center text-xs text-white/70 py-2">Refresh...</div>
+        )}
+
         {videos.length === 0 ? (
-          <div className="h-[100dvh] flex items-center justify-center text-gray-500 text-sm">
-            {feedTab === 'following' ? 'Belum follow siapapun' : 'Belum ada video'}
+          <div className="h-screen flex items-center justify-center text-gray-400 text-sm">
+            {feedTab === 'following' ? 'Follow seseorang untuk lihat video' : 'Belum ada video'}
           </div>
         ) : (
           videos.map((video, index) => (
@@ -859,116 +859,163 @@ export default function FeedPage() {
                 data-video-id={video.id}
                 src={video.video_url}
                 className="absolute inset-0 w-full h-full object-cover"
+                loop
                 muted={isMuted}
                 playsInline
-                loop
-                preload={index < 3 ? 'auto' : 'metadata'}
+                preload={index < 2 ? 'auto' : 'metadata'}
                 onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
               />
-
               {heartAnim === video.id && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
                   <span className="text-7xl text-red-500 animate-ping">♥</span>
                 </div>
               )}
-
               <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
-
-              <div className="absolute bottom-20 left-4 right-20 text-white z-10">
-                <div
-                  className="flex items-center gap-2 mb-1.5 cursor-pointer"
-                  onClick={() => router.push(`/@${video.profiles?.username || video.user_id}`)}
-                >
-                  <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 border border-white/20">
-                    {video.profiles?.avatar_url ? (
-                      <img src={video.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
-                        {video.profiles?.username?.[0]?.toUpperCase() || 'U'}
-                      </div>
-                    )}
-                  </div>
-                  <p className="font-semibold text-sm">@{video.profiles?.username || 'user'}</p>
-                </div>
-                              <p className="text-sm opacity-90 line-clamp-3">{video.caption}</p>
-              {video.sound_name && (
-                <p className="text-xs text-white/80 mt-1.5 flex items-center gap-1.5 max-w-full">
-                  <span className="shrink-0">🎵</span>
-                  <span className="truncate">{video.sound_name}</span>
-                </p>
-              )}
-              <p className="text-[11px] text-white/50 mt-1">{formatDateTime(video.created_at)}</p>
-              </div>
-
-              <div className="absolute right-2 bottom-28 flex flex-col items-center gap-3 z-10">
-                <div className="flex flex-col items-center mb-1">
-                  <button
+              <div className="absolute bottom-24 left-4 right-20 text-white z-10">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div
+                    className="flex items-center gap-2 cursor-pointer"
                     onClick={() =>
                       router.push(`/@${video.profiles?.username || video.user_id}`)
                     }
                   >
-                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white bg-zinc-700">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 border border-white/20">
                       {video.profiles?.avatar_url ? (
-                        <img src={video.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                        <img
+                          src={video.profiles.avatar_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
                           {video.profiles?.username?.[0]?.toUpperCase() || 'U'}
                         </div>
                       )}
                     </div>
-                  </button>
+                    <p className="font-semibold text-sm">
+                      @{video.profiles?.username || 'user'}
+                    </p>
+                  </div>
                   {userId !== video.user_id && (
                     <button
                       onClick={() => toggleFollow(video.user_id)}
-                      className={`-mt-2 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold border border-black ${
+                      className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                         following.has(video.user_id)
-                          ? 'bg-zinc-600 text-white'
+                          ? 'bg-white/20 text-white'
                           : 'bg-vezao-gradient text-white'
                       }`}
                     >
-                      {following.has(video.user_id) ? '✓' : '+'}
+                      {following.has(video.user_id) ? 'Following' : 'Follow'}
                     </button>
                   )}
                 </div>
+                <p className="text-sm opacity-90 line-clamp-3">{video.caption}</p>
+                {(video.sound_name || video.profiles?.username) && (
+                  <p className="text-[11px] text-white/60 mt-1 truncate">
+                    ♪ {video.sound_name || `Original sound - @${video.profiles?.username}`}
+                  </p>
+                )}
+                <p className="text-[11px] text-white/40 mt-0.5">
+                  {formatDateTime(video.created_at)}
+                </p>
+              </div>
 
+              <div className="absolute right-2 bottom-28 flex flex-col items-center gap-3 z-10">
                 <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
                   <div
                     className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 ${
                       likedVideos.has(video.id) ? 'bg-red-500/90' : 'bg-black/40 backdrop-blur-md'
                     }`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" viewBox="0 0 24 24" fill={likedVideos.has(video.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-5 h-5 text-white"
+                      viewBox="0 0 24 24"
+                      fill={likedVideos.has(video.id) ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                      />
                     </svg>
                   </div>
-                  <span className="text-[10px] mt-0.5 text-white font-medium">{video.likes_count}</span>
+                  <span className="text-[10px] mt-0.5 text-white font-medium">
+                    {video.likes_count}
+                  </span>
                 </button>
 
-                <button onClick={() => openComments(video.id)} className="flex flex-col items-center">
+                <button
+                  onClick={() => openComments(video.id)}
+                  className="flex flex-col items-center"
+                >
                   <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-5 h-5 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                      />
                     </svg>
                   </div>
-                  <span className="text-[10px] mt-0.5 text-white font-medium">{video.comments_count || 0}</span>
+                  <span className="text-[10px] mt-0.5 text-white font-medium">
+                    {video.comments_count || 0}
+                  </span>
                 </button>
 
                 <button onClick={() => toggleSave(video.id)} className="flex flex-col items-center">
                   <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 ${savedVideos.has(video.id) ? 'text-yellow-400' : 'text-white'}`} fill={savedVideos.has(video.id) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className={`w-5 h-5 ${
+                        savedVideos.has(video.id) ? 'text-yellow-400' : 'text-white'
+                      }`}
+                      fill={savedVideos.has(video.id) ? 'currentColor' : 'none'}
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                      />
                     </svg>
                   </div>
-                  <span className="text-[10px] mt-0.5 text-white font-medium">{video.saves_count || 0}</span>
+                  <span className="text-[10px] mt-0.5 text-white font-medium">
+                    {video.saves_count || 0}
+                  </span>
                 </button>
 
                 <button onClick={() => openShare(video.id)} className="flex flex-col items-center">
                   <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-5 h-5 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"
+                      />
                     </svg>
                   </div>
-                  <span className="text-[10px] mt-0.5 text-white font-medium">{video.shares_count || 0}</span>
+                  <span className="text-[10px] mt-0.5 text-white font-medium">
+                    {video.shares_count || 0}
+                  </span>
                 </button>
 
                 <button onClick={() => setShowMore(video.id)}>
@@ -1024,7 +1071,11 @@ export default function FeedPage() {
                         <div className="flex gap-3">
                           <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 shrink-0">
                             {c.profiles?.avatar_url ? (
-                              <img src={c.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                              <img
+                                src={c.profiles.avatar_url}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
                                 {c.profiles?.username?.[0]?.toUpperCase() || 'U'}
@@ -1032,7 +1083,9 @@ export default function FeedPage() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold">@{c.profiles?.username || 'user'}</p>
+                            <p className="text-sm font-semibold">
+                              @{c.profiles?.username || 'user'}
+                            </p>
                             {editingCommentId === c.id ? (
                               <div className="mt-1 space-y-2">
                                 <input
@@ -1042,7 +1095,10 @@ export default function FeedPage() {
                                   autoFocus
                                 />
                                 <div className="flex gap-2">
-                                  <button onClick={saveEditComment} className="text-xs text-purple-400 font-medium">
+                                  <button
+                                    onClick={saveEditComment}
+                                    className="text-xs text-purple-400 font-medium"
+                                  >
                                     Simpan
                                   </button>
                                   <button
@@ -1060,7 +1116,9 @@ export default function FeedPage() {
                               <p className="text-sm text-gray-300">{c.content}</p>
                             )}
                             <div className="flex items-center gap-3 mt-1 flex-wrap">
-                              <span className="text-[11px] text-gray-500">{formatDateTime(c.created_at)}</span>
+                              <span className="text-[11px] text-gray-500">
+                                {formatDateTime(c.created_at)}
+                              </span>
                               <button
                                 onClick={() => {
                                   setReplyTo(c)
@@ -1071,8 +1129,15 @@ export default function FeedPage() {
                               >
                                 Balas
                               </button>
-                              <button onClick={() => toggleCommentLike(c.id)} className="flex items-center gap-1 text-[11px]">
-                                <span className={likedComments.has(c.id) ? 'text-red-500' : 'text-gray-500'}>
+                              <button
+                                onClick={() => toggleCommentLike(c.id)}
+                                className="flex items-center gap-1 text-[11px]"
+                              >
+                                <span
+                                  className={
+                                    likedComments.has(c.id) ? 'text-red-500' : 'text-gray-500'
+                                  }
+                                >
                                   {likedComments.has(c.id) ? '♥' : '♡'}
                                 </span>
                                 {(c.likes_count || 0) > 0 && (
@@ -1082,11 +1147,17 @@ export default function FeedPage() {
                               {isOwn && editingCommentId !== c.id && (
                                 <>
                                   {canEditComment(c.created_at) && (
-                                    <button onClick={() => startEditComment(c)} className="text-[11px] text-gray-400">
+                                    <button
+                                      onClick={() => startEditComment(c)}
+                                      className="text-[11px] text-gray-400"
+                                    >
                                       Edit
                                     </button>
                                   )}
-                                  <button onClick={() => deleteComment(c)} className="text-[11px] text-red-400">
+                                  <button
+                                    onClick={() => deleteComment(c)}
+                                    className="text-[11px] text-red-400"
+                                  >
                                     Hapus
                                   </button>
                                 </>
@@ -1102,7 +1173,11 @@ export default function FeedPage() {
                                 <div key={r.id} className="flex gap-2">
                                   <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 shrink-0">
                                     {r.profiles?.avatar_url ? (
-                                      <img src={r.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                                      <img
+                                        src={r.profiles.avatar_url}
+                                        alt=""
+                                        className="w-full h-full object-cover"
+                                      />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-vezao-gradient">
                                         {r.profiles?.username?.[0]?.toUpperCase() || 'U'}
@@ -1110,7 +1185,9 @@ export default function FeedPage() {
                                     )}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold">@{r.profiles?.username || 'user'}</p>
+                                    <p className="text-xs font-semibold">
+                                      @{r.profiles?.username || 'user'}
+                                    </p>
                                     {editingCommentId === r.id ? (
                                       <div className="mt-1 space-y-1">
                                         <input
@@ -1120,10 +1197,16 @@ export default function FeedPage() {
                                           autoFocus
                                         />
                                         <div className="flex gap-2">
-                                          <button onClick={saveEditComment} className="text-[10px] text-purple-400">
+                                          <button
+                                            onClick={saveEditComment}
+                                            className="text-[10px] text-purple-400"
+                                          >
                                             Simpan
                                           </button>
-                                          <button onClick={() => setEditingCommentId(null)} className="text-[10px] text-gray-500">
+                                          <button
+                                            onClick={() => setEditingCommentId(null)}
+                                            className="text-[10px] text-gray-500"
+                                          >
                                             Batal
                                           </button>
                                         </div>
@@ -1132,20 +1215,37 @@ export default function FeedPage() {
                                       <p className="text-xs text-gray-300">{r.content}</p>
                                     )}
                                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                      <span className="text-[10px] text-gray-500">{formatDateTime(r.created_at)}</span>
-                                      <button onClick={() => toggleCommentLike(r.id)} className="flex items-center gap-0.5 text-[10px]">
-                                        <span className={likedComments.has(r.id) ? 'text-red-500' : 'text-gray-500'}>
+                                      <span className="text-[10px] text-gray-500">
+                                        {formatDateTime(r.created_at)}
+                                      </span>
+                                      <button
+                                        onClick={() => toggleCommentLike(r.id)}
+                                        className="flex items-center gap-0.5 text-[10px]"
+                                      >
+                                        <span
+                                          className={
+                                            likedComments.has(r.id)
+                                              ? 'text-red-500'
+                                              : 'text-gray-500'
+                                          }
+                                        >
                                           {likedComments.has(r.id) ? '♥' : '♡'}
                                         </span>
                                       </button>
                                       {isOwnReply && editingCommentId !== r.id && (
                                         <>
                                           {canEditComment(r.created_at) && (
-                                            <button onClick={() => startEditComment(r)} className="text-[10px] text-gray-400">
+                                            <button
+                                              onClick={() => startEditComment(r)}
+                                              className="text-[10px] text-gray-400"
+                                            >
                                               Edit
                                             </button>
                                           )}
-                                          <button onClick={() => deleteComment(r)} className="text-[10px] text-red-400">
+                                          <button
+                                            onClick={() => deleteComment(r)}
+                                            className="text-[10px] text-red-400"
+                                          >
                                             Hapus
                                           </button>
                                         </>
@@ -1166,7 +1266,10 @@ export default function FeedPage() {
               {replyTo && (
                 <div className="flex items-center justify-between px-1">
                   <p className="text-xs text-gray-400">
-                    Membalas <span className="text-purple-400">@{replyTo.profiles?.username || 'user'}</span>
+                    Membalas{' '}
+                    <span className="text-purple-400">
+                      @{replyTo.profiles?.username || 'user'}
+                    </span>
                   </p>
                   <button onClick={() => setReplyTo(null)} className="text-xs text-gray-500">
                     Batal
@@ -1178,12 +1281,17 @@ export default function FeedPage() {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder={
-                    replyTo ? `Balas @${replyTo.profiles?.username || 'user'}...` : 'Tulis komentar...'
+                    replyTo
+                      ? `Balas @${replyTo.profiles?.username || 'user'}...`
+                      : 'Tulis komentar...'
                   }
                   className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                   onKeyDown={(e) => e.key === 'Enter' && submitComment()}
                 />
-                <button onClick={submitComment} className="bg-vezao-gradient px-5 py-2.5 rounded-full text-sm font-medium">
+                <button
+                  onClick={submitComment}
+                  className="bg-vezao-gradient px-5 py-2.5 rounded-full text-sm font-medium"
+                >
                   Kirim
                 </button>
               </div>
@@ -1211,7 +1319,9 @@ export default function FeedPage() {
                 }}
                 className="flex flex-col items-center gap-1"
               >
-                <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">🔗</div>
+                <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
+                  🔗
+                </div>
                 <span className="text-xs">Salin tautan</span>
               </button>
               {allVideos.find((v) => v.id === showMore)?.user_id !== userId && (
@@ -1222,12 +1332,19 @@ export default function FeedPage() {
                   }}
                   className="flex flex-col items-center gap-1"
                 >
-                  <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">🚩</div>
+                  <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
+                    🚩
+                  </div>
                   <span className="text-xs text-orange-400">Report</span>
                 </button>
               )}
-              <button onClick={() => setShowMore(null)} className="flex flex-col items-center gap-1">
-                <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">✕</div>
+              <button
+                onClick={() => setShowMore(null)}
+                className="flex flex-col items-center gap-1"
+              >
+                <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
+                  ✕
+                </div>
                 <span className="text-xs">Tutup</span>
               </button>
             </div>
@@ -1252,7 +1369,10 @@ export default function FeedPage() {
                 </button>
               ))}
             </div>
-            <button onClick={() => setReportVideoId(null)} className="w-full mt-3 py-3 text-sm text-gray-400">
+            <button
+              onClick={() => setReportVideoId(null)}
+              className="w-full mt-3 py-3 text-sm text-gray-400"
+            >
               Batal
             </button>
           </div>
@@ -1265,12 +1385,16 @@ export default function FeedPage() {
           <div className="relative w-full bg-zinc-900 rounded-t-2xl p-4 pb-8 max-h-[75vh] flex flex-col">
             <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-3" />
             <h3 className="text-center font-semibold mb-1">Kirim video</h3>
-            <p className="text-center text-xs text-gray-400 mb-4">Ke teman VEZAO atau app lain</p>
+            <p className="text-center text-xs text-gray-400 mb-4">
+              Ke teman VEZAO atau app lain
+            </p>
             <button
               onClick={shareToOtherApps}
               className="w-full flex items-center gap-3 px-3 py-3 mb-4 rounded-xl bg-zinc-800"
             >
-              <div className="w-10 h-10 rounded-full bg-vezao-gradient flex items-center justify-center">↗</div>
+              <div className="w-10 h-10 rounded-full bg-vezao-gradient flex items-center justify-center">
+                ↗
+              </div>
               <div className="text-left">
                 <p className="text-sm font-semibold">Bagikan ke app lain</p>
                 <p className="text-xs text-gray-400">WhatsApp, Instagram, dll</p>
@@ -1292,7 +1416,11 @@ export default function FeedPage() {
                   >
                     <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-700 shrink-0">
                       {f.avatar_url ? (
-                        <img src={f.avatar_url} alt="" className="w-full h-full object-cover" />
+                        <img
+                          src={f.avatar_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
                           {(f.username || 'U')[0]?.toUpperCase()}
@@ -1300,7 +1428,9 @@ export default function FeedPage() {
                       )}
                     </div>
                     <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm font-semibold truncate">{f.full_name || f.username}</p>
+                      <p className="text-sm font-semibold truncate">
+                        {f.full_name || f.username}
+                      </p>
                       <p className="text-xs text-gray-400 truncate">@{f.username}</p>
                     </div>
                     <span className="text-xs text-purple-400">
@@ -1310,7 +1440,10 @@ export default function FeedPage() {
                 ))
               )}
             </div>
-            <button onClick={() => setShareVideoId(null)} className="w-full mt-3 py-3 text-sm text-gray-400">
+            <button
+              onClick={() => setShareVideoId(null)}
+              className="w-full mt-3 py-3 text-sm text-gray-400"
+            >
               Batal
             </button>
           </div>

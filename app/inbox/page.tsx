@@ -56,6 +56,7 @@ export default function InboxPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [totalUnread, setTotalUnread] = useState(0)
   const [menuUserId, setMenuUserId] = useState<string | null>(null)
+  const [notifUnread, setNotifUnread] = useState(0)
 
   const router = useRouter()
   const supabase = createClient()
@@ -230,6 +231,14 @@ export default function InboxPage() {
         return
       }
       setCurrentUserId(user.id)
+
+      const { count: nCount } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false)
+      setNotifUnread(nCount || 0)
+
       await loadConversations(user.id)
       setLoading(false)
     }
@@ -255,8 +264,14 @@ export default function InboxPage() {
       )
       .subscribe()
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       loadConversations(currentUserId)
+      const { count: nCount } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', currentUserId)
+        .eq('is_read', false)
+      setNotifUnread(nCount || 0)
     }, 3000)
 
     return () => {
@@ -293,16 +308,56 @@ export default function InboxPage() {
         <h1 className="text-lg font-bold">Inbox</h1>
       </div>
 
-      {conversations.length === 0 ? (
-        <div className="flex flex-col items-center justify-center pt-32 text-gray-400">
-          <p className="text-sm">Belum ada pesan</p>
-          <p className="text-xs mt-1">
-            Mulai chat dengan menekan tombol Message di profil orang
-          </p>
-        </div>
-      ) : (
-        <div className="divide-y divide-white/5" onClick={() => setMenuUserId(null)}>
-          {conversations.map((conv) => (
+      <div className="divide-y divide-white/5" onClick={() => setMenuUserId(null)}>
+        {/* Sistem Notifikasi */}
+        <button
+          type="button"
+          onClick={() => router.push('/notifications')}
+          className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-white/5 text-left"
+        >
+          <div className="relative shrink-0">
+            <div className="w-12 h-12 rounded-full bg-vezao-gradient flex items-center justify-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-6 h-6 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                />
+              </svg>
+            </div>
+            {notifUnread > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-[10px] font-bold flex items-center justify-center text-white">
+                {notifUnread > 99 ? '99+' : notifUnread}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white">Sistem Notifikasi</p>
+            <p className="text-sm text-gray-400 truncate">
+              {notifUnread > 0
+                ? `${notifUnread} notifikasi belum dibaca`
+                : 'Like, follow, komentar, dan lainnya'}
+            </p>
+          </div>
+          <span className="text-gray-500 text-lg">›</span>
+        </button>
+
+        {conversations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <p className="text-sm">Belum ada pesan</p>
+            <p className="text-xs mt-1 px-6 text-center">
+              Mulai chat dengan menekan tombol Message di profil orang
+            </p>
+          </div>
+        ) : (
+          conversations.map((conv) => (
             <div
               key={conv.userId}
               className="relative flex items-center gap-2 px-4 py-3 active:bg-white/5"
@@ -398,9 +453,9 @@ export default function InboxPage() {
                 </div>
               )}
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
 
       <BottomNav />
     </div>

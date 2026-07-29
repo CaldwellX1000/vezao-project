@@ -56,6 +56,49 @@ function formatDateTime(dateStr: string) {
   )
 }
 
+function TypeIcon({ type }: { type: string }) {
+  if (type === 'like') {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3 text-red-400" fill="currentColor">
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+      </svg>
+    )
+  }
+  if (type === 'comment') {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      </svg>
+    )
+  }
+  if (type === 'save') {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3 text-yellow-400" fill="currentColor">
+        <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+      </svg>
+    )
+  }
+  if (type === 'share') {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3 text-purple-400" fill="none" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" />
+      </svg>
+    )
+  }
+  if (type === 'follow' || type === 'follow_request') {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    )
+  }
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+    </svg>
+  )
+}
+
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
@@ -103,7 +146,9 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user) {
         router.replace('/login')
         return
@@ -168,15 +213,14 @@ export default function NotificationsPage() {
           {' menyimpan videomu'}
         </>
       )
+    if (n.type === 'share')
+      return (
+        <>
+          <span className="font-semibold text-white">@{name}</span>
+          {' membagikan videomu'}
+        </>
+      )
     return n.message || 'Notifikasi baru'
-  }
-
-  const typeIcon = (type: string) => {
-    if (type === 'like') return '♥'
-    if (type === 'comment') return '💬'
-    if (type === 'save') return '🔖'
-    if (type === 'follow' || type === 'follow_request') return '👤'
-    return '🔔'
   }
 
   const handleAccept = async (n: Notification, e: React.MouseEvent) => {
@@ -184,20 +228,17 @@ export default function NotificationsPage() {
     if (!currentUserId || actingId) return
     setActingId(n.id)
 
-    // Insert follow
     await supabase.from('follows').insert({
       follower_id: n.actor_id,
       following_id: currentUserId,
     })
 
-    // Update / hapus request
     await supabase
       .from('follow_requests')
       .delete()
       .eq('requester_id', n.actor_id)
       .eq('target_id', currentUserId)
 
-    // Hapus notif request, buat notif follow biasa opsional
     await supabase.from('notifications').delete().eq('id', n.id)
 
     setNotifications((prev) => prev.filter((x) => x.id !== n.id))
@@ -222,11 +263,7 @@ export default function NotificationsPage() {
   }
 
   const handleClick = (n: Notification) => {
-    if (n.type === 'follow_request') {
-      router.push(`/@${n.actor?.username || n.actor_id}`)
-      return
-    }
-    if (n.type === 'follow') {
+    if (n.type === 'follow_request' || n.type === 'follow') {
       router.push(`/@${n.actor?.username || n.actor_id}`)
       return
     }
@@ -260,7 +297,9 @@ export default function NotificationsPage() {
             🔔
           </div>
           <p className="text-sm">Belum ada notifikasi</p>
-          <p className="text-xs text-gray-600">Like, komentar & follow akan muncul di sini</p>
+          <p className="text-xs text-gray-600">
+            Like, save, share, komentar & follow muncul di sini
+          </p>
         </div>
       ) : (
         <div className="divide-y divide-white/5">
@@ -275,21 +314,27 @@ export default function NotificationsPage() {
               <div className="relative shrink-0">
                 <div className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden">
                   {n.actor?.avatar_url ? (
-                    <img src={n.actor.avatar_url} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={n.actor.avatar_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
                       {(n.actor?.username || 'U')[0]?.toUpperCase()}
                     </div>
                   )}
                 </div>
-                <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-zinc-900 border border-black flex items-center justify-center text-[10px]">
-                  {typeIcon(n.type)}
+                <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-zinc-900 border border-black flex items-center justify-center">
+                  <TypeIcon type={n.type} />
                 </span>
               </div>
 
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-300 leading-snug">{getText(n)}</p>
-                <p className="text-[11px] text-gray-500 mt-1">{formatDateTime(n.created_at)}</p>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  {formatDateTime(n.created_at)}
+                </p>
 
                 {n.type === 'follow_request' && (
                   <div className="flex gap-2 mt-2">
