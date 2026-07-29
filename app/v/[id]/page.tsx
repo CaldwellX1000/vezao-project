@@ -77,7 +77,7 @@ function canEditComment(createdAt: string) {
 export default function SingleVideoPage() {
   const params = useParams()
   const rawId = params?.id
-  const startVideoId = Array.isArray(rawId) ? rawId[0] : (rawId as string)
+  const startVideoId = String(Array.isArray(rawId) ? rawId[0] : rawId || '')
 
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
@@ -126,6 +126,12 @@ export default function SingleVideoPage() {
         router.replace('/')
         return
       }
+
+      setLoading(true)
+      setVideos([])
+      videoRefs.current = []
+      initialDoneRef.current = false
+
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -146,12 +152,16 @@ export default function SingleVideoPage() {
         )
         .eq('id', startVideoId)
         .eq('is_draft', false)
-        .single()
+        .maybeSingle()
 
       if (error || !startVideo) {
         setLoading(false)
         return
       }
+
+      // 1) Tampilkan dulu video dari URL — biar tidak ke video lain
+      setVideos([startVideo as any])
+      setLoading(false)
 
       const ownerId = startVideo.user_id
       const { data: all } = await supabase
@@ -168,24 +178,22 @@ export default function SingleVideoPage() {
         .order('created_at', { ascending: false })
 
       const isOwn = user.id === ownerId
-      let list: Video[] = ((all || []) as any[]).filter((v) => {
+      let rest: Video[] = ((all || []) as any[]).filter((v) => {
+        if (String(v.id) === String(startVideoId)) return false
         if (isOwn) return true
         const vis = String(v.visibility || 'public').toLowerCase().trim()
         if (vis === 'private') return false
         return true
       })
 
-      list = [...list].sort((a, b) => {
+      rest = [...rest].sort((a, b) => {
         if (a.is_pinned && !b.is_pinned) return -1
         if (!a.is_pinned && b.is_pinned) return 1
         return 0
       })
 
-      if (!list.find((v) => v.id === startVideoId)) {
-        list = [startVideo as any, ...list]
-      }
-
-      setVideos(list)
+      // 2) Start tetap index 0, sisanya di belakang
+      setVideos([startVideo as any, ...rest])
 
       const { data: likesData } = await supabase
         .from('likes')
@@ -198,29 +206,29 @@ export default function SingleVideoPage() {
         .select('video_id')
         .eq('user_id', user.id)
       if (savesData) setSavedVideos(new Set(savesData.map((s) => s.video_id)))
-
-      setLoading(false)
     }
+
     load()
   }, [startVideoId])
 
+  // Play hanya video index 0 (= URL)
   useEffect(() => {
     if (videos.length === 0) return
+    if (String(videos[0].id) !== String(startVideoId)) return
+
     initialDoneRef.current = false
+
     const timer = setTimeout(() => {
-      let index = videos.findIndex((v) => v.id === startVideoId)
-      if (index < 0) index = 0
-      videoRefs.current.forEach((v) => {
+      if (containerRef.current) containerRef.current.scrollTop = 0
+
+      videoRefs.current.forEach((v, i) => {
         if (!v) return
+        if (i === 0) return
         v.pause()
-        try {
-          v.currentTime = 0
-        } catch {}
       })
-      const container = containerRef.current
-      if (container) container.scrollTop = index * window.innerHeight
-      const el = videoRefs.current[index]
-      if (el) {
+
+      const el = videoRefs.current[0]
+      if (el && String(el.dataset.videoId) === String(startVideoId)) {
         el.muted = false
         setIsMuted(false)
         el.play().catch(async () => {
@@ -231,15 +239,18 @@ export default function SingleVideoPage() {
             setIsMuted(false)
           } catch {}
         })
-        registerView(videos[index].id)
+        registerView(String(startVideoId))
       }
+
       initialDoneRef.current = true
-    }, 300)
+    }, 400)
+
     return () => clearTimeout(timer)
   }, [videos, startVideoId])
 
   useEffect(() => {
     if (videos.length === 0) return
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (!initialDoneRef.current) return
@@ -268,6 +279,7 @@ export default function SingleVideoPage() {
       },
       { threshold: [0.65] }
     )
+
     videoRefs.current.forEach((v) => {
       if (v) observer.observe(v)
     })
@@ -314,9 +326,21 @@ export default function SingleVideoPage() {
   const toggleSave = async (videoId: string) => {
     if (!userId) return
     const isSaved = savedVideos.has(videoId)
+
     if (isSaved) {
       await supabase.from('saves').delete().eq('user_id', userId).eq('video_id', videoId)
-      await supabase.rpc('decrement_saves', { video_id: videoId })
+
+      const { error: rpcErr } = await supabase.rpc('decrement_saves', {
+        video_id: videoId,
+      })
+      if (rpcErr) {
+        const cur = videos.find((v) => v.id === videoId)?.saves_count || 0
+        await supabase
+          .from('videos')
+          .update({ saves_count: Math.max(0, cur - 1) })
+          .eq('id', videoId)
+      }
+
       setSavedVideos((prev) => {
         const next = new Set(prev)
         next.delete(videoId)
@@ -337,7 +361,18 @@ export default function SingleVideoPage() {
         alert('Gagal simpan: ' + error.message)
         return
       }
-      await supabase.rpc('increment_saves', { video_id: videoId })
+
+      const { error: rpcErr } = await supabase.rpc('increment_saves', {
+        video_id: videoId,
+      })
+      if (rpcErr) {
+        const cur = videos.find((v) => v.id === videoId)?.saves_count || 0
+        await supabase
+          .from('videos')
+          .update({ saves_count: cur + 1 })
+          .eq('id', videoId)
+      }
+
       setSavedVideos((prev) => new Set(prev).add(videoId))
       setVideos((prev) =>
         prev.map((v) =>
@@ -623,7 +658,7 @@ export default function SingleVideoPage() {
     }
   }
 
-  if (loading) {
+  if (loading && videos.length === 0) {
     return (
       <div className="h-screen bg-black flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -631,11 +666,14 @@ export default function SingleVideoPage() {
     )
   }
 
-  if (videos.length === 0) {
+  if (!loading && videos.length === 0) {
     return (
       <div className="h-screen bg-black flex flex-col items-center justify-center gap-4 text-white">
         <p>Video tidak ditemukan</p>
-        <button onClick={() => router.back()} className="bg-vezao-gradient px-6 py-2.5 rounded-full text-sm">
+        <button
+          onClick={() => router.back()}
+          className="bg-vezao-gradient px-6 py-2.5 rounded-full text-sm"
+        >
           Kembali
         </button>
       </div>
@@ -644,6 +682,7 @@ export default function SingleVideoPage() {
 
   return (
     <div
+      key={startVideoId}
       ref={containerRef}
       className="h-screen bg-black overflow-y-scroll snap-y snap-mandatory"
     >
@@ -652,7 +691,14 @@ export default function SingleVideoPage() {
           onClick={() => router.back()}
           className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10 pointer-events-auto"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-5 h-5 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
@@ -675,7 +721,10 @@ export default function SingleVideoPage() {
         const isLiked = likedVideos.has(video.id)
         const isSaved = savedVideos.has(video.id)
         return (
-          <div key={video.id} className="h-screen w-full snap-start relative flex items-center justify-center">
+          <div
+            key={`${video.id}-${index}`}
+            className="h-screen w-full snap-start relative flex items-center justify-center"
+          >
             <video
               ref={(el) => {
                 videoRefs.current[index] = el
@@ -686,7 +735,7 @@ export default function SingleVideoPage() {
               loop
               muted={isMuted}
               playsInline
-              preload={index < 3 ? 'auto' : 'metadata'}
+              preload={index < 2 ? 'auto' : 'metadata'}
               onClick={(e) => handleTap(video.id, e.currentTarget)}
             />
             {heartAnim === video.id && (
@@ -698,22 +747,32 @@ export default function SingleVideoPage() {
             <div className="absolute bottom-8 left-4 right-20 text-white z-10">
               <div
                 className="flex items-center gap-2 mb-1.5 cursor-pointer"
-                onClick={() => router.push(`/@${video.profiles?.username || video.user_id}`)}
+                onClick={() =>
+                  router.push(`/@${video.profiles?.username || video.user_id}`)
+                }
               >
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 border border-white/20">
                   {video.profiles?.avatar_url ? (
-                    <img src={video.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={video.profiles.avatar_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
                       {video.profiles?.username?.[0]?.toUpperCase() || 'U'}
                     </div>
                   )}
                 </div>
-                <p className="font-semibold text-sm">@{video.profiles?.username || 'user'}</p>
+                <p className="font-semibold text-sm">
+                  @{video.profiles?.username || 'user'}
+                </p>
               </div>
               <p className="text-sm opacity-90 line-clamp-3">{video.caption}</p>
               {video.created_at && (
-                <p className="text-[11px] text-white/50 mt-1">{formatDateTime(video.created_at)}</p>
+                <p className="text-[11px] text-white/50 mt-1">
+                  {formatDateTime(video.created_at)}
+                </p>
               )}
             </div>
 
@@ -724,38 +783,90 @@ export default function SingleVideoPage() {
                     isLiked ? 'bg-red-500/90' : 'bg-black/40 backdrop-blur-md'
                   }`}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" viewBox="0 0 24 24" fill={isLiked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-5 h-5 text-white"
+                    viewBox="0 0 24 24"
+                    fill={isLiked ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                    />
                   </svg>
                 </div>
-                <span className="text-[10px] mt-0.5 text-white font-medium">{video.likes_count}</span>
+                <span className="text-[10px] mt-0.5 text-white font-medium">
+                  {video.likes_count}
+                </span>
               </button>
 
               <button onClick={() => openComments(video.id)} className="flex flex-col items-center">
                 <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-5 h-5 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                    />
                   </svg>
                 </div>
-                <span className="text-[10px] mt-0.5 text-white font-medium">{video.comments_count || 0}</span>
+                <span className="text-[10px] mt-0.5 text-white font-medium">
+                  {video.comments_count || 0}
+                </span>
               </button>
 
               <button onClick={() => toggleSave(video.id)} className="flex flex-col items-center">
                 <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 ${isSaved ? 'text-yellow-400' : 'text-white'}`} fill={isSaved ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className={`w-5 h-5 ${isSaved ? 'text-yellow-400' : 'text-white'}`}
+                    fill={isSaved ? 'currentColor' : 'none'}
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                    />
                   </svg>
                 </div>
-                <span className="text-[10px] mt-0.5 text-white font-medium">{video.saves_count || 0}</span>
+                <span className="text-[10px] mt-0.5 text-white font-medium">
+                  {video.saves_count || 0}
+                </span>
               </button>
 
               <button onClick={() => openShare(video.id)} className="flex flex-col items-center">
                 <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-5 h-5 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"
+                    />
                   </svg>
                 </div>
-                <span className="text-[10px] mt-0.5 text-white font-medium">{video.shares_count || 0}</span>
+                <span className="text-[10px] mt-0.5 text-white font-medium">
+                  {video.shares_count || 0}
+                </span>
               </button>
 
               <button onClick={() => setShowMore(video.id)}>
@@ -768,6 +879,7 @@ export default function SingleVideoPage() {
         )
       })}
 
+      {/* comments / share / more — sama seperti sebelumnya */}
       {showComments && (
         <div className="fixed inset-0 z-[60] flex items-end">
           <div
@@ -792,7 +904,6 @@ export default function SingleVideoPage() {
                 ✕
               </button>
             </div>
-
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
               {loadingComments ? (
                 <p className="text-center text-gray-500 py-8">Loading...</p>
@@ -809,7 +920,11 @@ export default function SingleVideoPage() {
                         <div className="flex gap-3">
                           <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 shrink-0">
                             {c.profiles?.avatar_url ? (
-                              <img src={c.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                              <img
+                                src={c.profiles.avatar_url}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
                                 {c.profiles?.username?.[0]?.toUpperCase() || 'U'}
@@ -817,7 +932,9 @@ export default function SingleVideoPage() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold">@{c.profiles?.username || 'user'}</p>
+                            <p className="text-sm font-semibold">
+                              @{c.profiles?.username || 'user'}
+                            </p>
                             {editingCommentId === c.id ? (
                               <div className="mt-1 space-y-2">
                                 <input
@@ -827,7 +944,10 @@ export default function SingleVideoPage() {
                                   autoFocus
                                 />
                                 <div className="flex gap-2">
-                                  <button onClick={saveEditComment} className="text-xs text-purple-400 font-medium">
+                                  <button
+                                    onClick={saveEditComment}
+                                    className="text-xs text-purple-400 font-medium"
+                                  >
                                     Simpan
                                   </button>
                                   <button
@@ -845,7 +965,9 @@ export default function SingleVideoPage() {
                               <p className="text-sm text-gray-300">{c.content}</p>
                             )}
                             <div className="flex items-center gap-3 mt-1 flex-wrap">
-                              <span className="text-[11px] text-gray-500">{formatDateTime(c.created_at)}</span>
+                              <span className="text-[11px] text-gray-500">
+                                {formatDateTime(c.created_at)}
+                              </span>
                               <button
                                 onClick={() => {
                                   setReplyTo(c)
@@ -856,8 +978,17 @@ export default function SingleVideoPage() {
                               >
                                 Balas
                               </button>
-                              <button onClick={() => toggleCommentLike(c.id)} className="flex items-center gap-1 text-[11px]">
-                                <span className={likedComments.has(c.id) ? 'text-red-500' : 'text-gray-500'}>
+                              <button
+                                onClick={() => toggleCommentLike(c.id)}
+                                className="flex items-center gap-1 text-[11px]"
+                              >
+                                <span
+                                  className={
+                                    likedComments.has(c.id)
+                                      ? 'text-red-500'
+                                      : 'text-gray-500'
+                                  }
+                                >
                                   {likedComments.has(c.id) ? '♥' : '♡'}
                                 </span>
                                 {(c.likes_count || 0) > 0 && (
@@ -867,11 +998,17 @@ export default function SingleVideoPage() {
                               {isOwn && editingCommentId !== c.id && (
                                 <>
                                   {canEditComment(c.created_at) && (
-                                    <button onClick={() => startEditComment(c)} className="text-[11px] text-gray-400">
+                                    <button
+                                      onClick={() => startEditComment(c)}
+                                      className="text-[11px] text-gray-400"
+                                    >
                                       Edit
                                     </button>
                                   )}
-                                  <button onClick={() => deleteComment(c)} className="text-[11px] text-red-400">
+                                  <button
+                                    onClick={() => deleteComment(c)}
+                                    className="text-[11px] text-red-400"
+                                  >
                                     Hapus
                                   </button>
                                 </>
@@ -879,7 +1016,6 @@ export default function SingleVideoPage() {
                             </div>
                           </div>
                         </div>
-
                         {replies.length > 0 && (
                           <div className="ml-11 space-y-2 border-l border-white/10 pl-3">
                             {replies.map((r) => {
@@ -888,7 +1024,11 @@ export default function SingleVideoPage() {
                                 <div key={r.id} className="flex gap-2">
                                   <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 shrink-0">
                                     {r.profiles?.avatar_url ? (
-                                      <img src={r.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                                      <img
+                                        src={r.profiles.avatar_url}
+                                        alt=""
+                                        className="w-full h-full object-cover"
+                                      />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-vezao-gradient">
                                         {r.profiles?.username?.[0]?.toUpperCase() || 'U'}
@@ -896,48 +1036,21 @@ export default function SingleVideoPage() {
                                     )}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold">@{r.profiles?.username || 'user'}</p>
-                                    {editingCommentId === r.id ? (
-                                      <div className="mt-1 space-y-1">
-                                        <input
-                                          value={editCommentText}
-                                          onChange={(e) => setEditCommentText(e.target.value)}
-                                          className="w-full bg-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none"
-                                          autoFocus
-                                        />
-                                        <div className="flex gap-2">
-                                          <button onClick={saveEditComment} className="text-[10px] text-purple-400">
-                                            Simpan
-                                          </button>
-                                          <button onClick={() => setEditingCommentId(null)} className="text-[10px] text-gray-500">
-                                            Batal
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <p className="text-xs text-gray-300">{r.content}</p>
-                                    )}
-                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                      <span className="text-[10px] text-gray-500">{formatDateTime(r.created_at)}</span>
-                                      <button onClick={() => toggleCommentLike(r.id)} className="flex items-center gap-0.5 text-[10px]">
-                                        <span className={likedComments.has(r.id) ? 'text-red-500' : 'text-gray-500'}>
-                                          {likedComments.has(r.id) ? '♥' : '♡'}
-                                        </span>
-                                        {(r.likes_count || 0) > 0 && (
-                                          <span className="text-gray-500">{r.likes_count}</span>
-                                        )}
-                                      </button>
-                                      {isOwnReply && editingCommentId !== r.id && (
-                                        <>
-                                          {canEditComment(r.created_at) && (
-                                            <button onClick={() => startEditComment(r)} className="text-[10px] text-gray-400">
-                                              Edit
-                                            </button>
-                                          )}
-                                          <button onClick={() => deleteComment(r)} className="text-[10px] text-red-400">
-                                            Hapus
-                                          </button>
-                                        </>
+                                    <p className="text-xs font-semibold">
+                                      @{r.profiles?.username || 'user'}
+                                    </p>
+                                    <p className="text-xs text-gray-300">{r.content}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[10px] text-gray-500">
+                                        {formatDateTime(r.created_at)}
+                                      </span>
+                                      {isOwnReply && (
+                                        <button
+                                          onClick={() => deleteComment(r)}
+                                          className="text-[10px] text-red-400"
+                                        >
+                                          Hapus
+                                        </button>
                                       )}
                                     </div>
                                   </div>
@@ -951,14 +1064,19 @@ export default function SingleVideoPage() {
                   })
               )}
             </div>
-
             <div className="p-3 border-t border-white/10 space-y-2">
               {replyTo && (
                 <div className="flex items-center justify-between px-1">
                   <p className="text-xs text-gray-400">
-                    Membalas <span className="text-purple-400">@{replyTo.profiles?.username || 'user'}</span>
+                    Membalas{' '}
+                    <span className="text-purple-400">
+                      @{replyTo.profiles?.username || 'user'}
+                    </span>
                   </p>
-                  <button onClick={() => setReplyTo(null)} className="text-xs text-gray-500">
+                  <button
+                    onClick={() => setReplyTo(null)}
+                    className="text-xs text-gray-500"
+                  >
                     Batal
                   </button>
                 </div>
@@ -968,12 +1086,17 @@ export default function SingleVideoPage() {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder={
-                    replyTo ? `Balas @${replyTo.profiles?.username || 'user'}...` : 'Tulis komentar...'
+                    replyTo
+                      ? `Balas @${replyTo.profiles?.username || 'user'}...`
+                      : 'Tulis komentar...'
                   }
                   className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                   onKeyDown={(e) => e.key === 'Enter' && submitComment()}
                 />
-                <button onClick={submitComment} className="bg-vezao-gradient px-5 py-2.5 rounded-full text-sm font-medium">
+                <button
+                  onClick={submitComment}
+                  className="bg-vezao-gradient px-5 py-2.5 rounded-full text-sm font-medium"
+                >
                   Kirim
                 </button>
               </div>
@@ -1002,7 +1125,10 @@ export default function SingleVideoPage() {
             >
               Salin tautan
             </button>
-            <button onClick={() => setShowMore(null)} className="w-full text-center py-3 text-sm text-gray-400 mt-1">
+            <button
+              onClick={() => setShowMore(null)}
+              className="w-full text-center py-3 text-sm text-gray-400 mt-1"
+            >
               Tutup
             </button>
           </div>
@@ -1011,12 +1137,16 @@ export default function SingleVideoPage() {
 
       {shareVideoId && (
         <div className="fixed inset-0 z-[80] flex items-end">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShareVideoId(null)} />
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShareVideoId(null)}
+          />
           <div className="relative w-full max-w-[480px] mx-auto bg-zinc-900 rounded-t-2xl p-4 pb-8 max-h-[75vh] flex flex-col">
             <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-3" />
             <h3 className="text-center font-semibold mb-1">Kirim video</h3>
-            <p className="text-center text-xs text-gray-400 mb-4">Ke teman VEZAO atau app lain</p>
-
+            <p className="text-center text-xs text-gray-400 mb-4">
+              Ke teman VEZAO atau app lain
+            </p>
             <button
               onClick={shareToOtherApps}
               className="w-full flex items-center gap-3 px-3 py-3 mb-4 rounded-xl bg-zinc-800"
@@ -1029,13 +1159,14 @@ export default function SingleVideoPage() {
                 <p className="text-xs text-gray-400">WhatsApp, Instagram, dll</p>
               </div>
             </button>
-
             <p className="text-xs text-gray-400 mb-2">Teman yang kamu follow</p>
             <div className="flex-1 overflow-y-auto space-y-1 min-h-[120px]">
               {loadingShareFriends ? (
                 <p className="text-center text-gray-500 py-6 text-sm">Loading...</p>
               ) : shareFriends.length === 0 ? (
-                <p className="text-center text-gray-500 py-6 text-sm">Belum follow siapapun</p>
+                <p className="text-center text-gray-500 py-6 text-sm">
+                  Belum follow siapapun
+                </p>
               ) : (
                 shareFriends.map((f) => (
                   <button
@@ -1046,7 +1177,11 @@ export default function SingleVideoPage() {
                   >
                     <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-700 shrink-0">
                       {f.avatar_url ? (
-                        <img src={f.avatar_url} alt="" className="w-full h-full object-cover" />
+                        <img
+                          src={f.avatar_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
                           {(f.username || 'U')[0]?.toUpperCase()}

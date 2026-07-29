@@ -584,7 +584,7 @@ function UserProfileContent() {
                 key={video.id}
                 onClick={() => {
                   if (!video.id) return
-                  window.location.href = `/v/${video.id}`
+                  router.push(`/v/${video.id}`)
                 }}
                 className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer active:opacity-80"
               >

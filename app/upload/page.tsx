@@ -23,6 +23,7 @@ function UploadContent() {
   const [existingThumbUrl, setExistingThumbUrl] = useState<string | null>(null)
   const [commentsEnabled, setCommentsEnabled] = useState(true)
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public')
+  const [soundName, setSoundName] = useState('')
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
   const [recording, setRecording] = useState(false)
@@ -56,7 +57,7 @@ function UploadContent() {
       if (draftId) {
         const { data: draft } = await supabase
           .from('videos')
-          .select('id, caption, video_url, thumbnail_url, is_draft, user_id, comments_enabled, visibility')
+          .select('id, caption, video_url, thumbnail_url, is_draft, user_id, comments_enabled, visibility, sound_name')
           .eq('id', draftId)
           .single()
 
@@ -69,6 +70,7 @@ function UploadContent() {
           setCoverPreview(draft.thumbnail_url)
           setCommentsEnabled(draft.comments_enabled !== false)
           setVisibility((draft.visibility as any) || 'public')
+          setSoundName((draft as any).sound_name || '')
           setMode('preview')
         }
       }
@@ -321,6 +323,7 @@ function UploadContent() {
             is_draft: asDraft,
             comments_enabled: commentsEnabled,
             visibility: visibility,
+            sound_name: soundName.trim() || null,
           })
           .eq('id', editingDraftId)
           .eq('user_id', user.id)
@@ -408,6 +411,7 @@ function UploadContent() {
         is_draft: asDraft,
         comments_enabled: commentsEnabled,
         visibility: visibility,
+        sound_name: soundName.trim() || null,
       })
 
       if (dbError) throw dbError
@@ -438,6 +442,7 @@ function UploadContent() {
     setExistingThumbUrl(null)
     setCommentsEnabled(true)
     setVisibility('public')
+    setSoundName('')
     setMode('choose')
     router.replace('/upload')
   }
@@ -652,6 +657,16 @@ function UploadContent() {
             className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
           />
           <p className="text-[11px] text-gray-500 text-right mt-1">{caption.length}/150</p>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-400 mb-2">Musik / suara (opsional)</label>
+          <input
+            value={soundName}
+            onChange={(e) => setSoundName(e.target.value.slice(0, 80))}
+            placeholder="Contoh: Original sound - @username"
+            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          />
         </div>
 
         {/* Izinkan komentar */}

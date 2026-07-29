@@ -15,6 +15,7 @@ type Video = {
   views_count?: number | null
   saves_count?: number | null
   shares_count?: number | null
+  sound_name?: string | null
   created_at: string
   user_id: string
   profiles: {
@@ -150,7 +151,7 @@ export default function FeedPage() {
       .from('videos')
       .select(`
         id, caption, video_url, likes_count, comments_count, comments_enabled,
-        saves_count, shares_count, visibility, views_count, created_at, user_id,
+        saves_count, shares_count, visibility, views_count, sound_name, created_at, user_id,
         profiles ( username, full_name, avatar_url, is_private )
       `)
       .eq('is_draft', false)
@@ -418,7 +419,19 @@ export default function FeedPage() {
 
     if (isSaved) {
       await supabase.from('saves').delete().eq('user_id', userId).eq('video_id', videoId)
-      await supabase.rpc('decrement_saves', { video_id: videoId })
+
+      const { error: rpcErr } = await supabase.rpc('decrement_saves', {
+        video_id: videoId,
+      })
+      if (rpcErr) {
+        const cur =
+          allVideos.find((v) => v.id === videoId)?.saves_count || 0
+        await supabase
+          .from('videos')
+          .update({ saves_count: Math.max(0, cur - 1) })
+          .eq('id', videoId)
+      }
+
       setSavedVideos((prev) => {
         const next = new Set(prev)
         next.delete(videoId)
@@ -432,12 +445,26 @@ export default function FeedPage() {
         )
       )
     } else {
-      const { error } = await supabase.from('saves').insert({ user_id: userId, video_id: videoId })
+      const { error } = await supabase
+        .from('saves')
+        .insert({ user_id: userId, video_id: videoId })
       if (error) {
         alert('Gagal simpan: ' + error.message)
         return
       }
-      await supabase.rpc('increment_saves', { video_id: videoId })
+
+      const { error: rpcErr } = await supabase.rpc('increment_saves', {
+        video_id: videoId,
+      })
+      if (rpcErr) {
+        const cur =
+          allVideos.find((v) => v.id === videoId)?.saves_count || 0
+        await supabase
+          .from('videos')
+          .update({ saves_count: cur + 1 })
+          .eq('id', videoId)
+      }
+
       setSavedVideos((prev) => new Set(prev).add(videoId))
       setAllVideos((prev) =>
         prev.map((v) =>
@@ -863,8 +890,14 @@ export default function FeedPage() {
                   </div>
                   <p className="font-semibold text-sm">@{video.profiles?.username || 'user'}</p>
                 </div>
-                <p className="text-sm opacity-90 line-clamp-3">{video.caption}</p>
-                <p className="text-[11px] text-white/50 mt-1">{formatDateTime(video.created_at)}</p>
+                              <p className="text-sm opacity-90 line-clamp-3">{video.caption}</p>
+              {video.sound_name && (
+                <p className="text-xs text-white/80 mt-1.5 flex items-center gap-1.5 max-w-full">
+                  <span className="shrink-0">🎵</span>
+                  <span className="truncate">{video.sound_name}</span>
+                </p>
+              )}
+              <p className="text-[11px] text-white/50 mt-1">{formatDateTime(video.created_at)}</p>
               </div>
 
               <div className="absolute right-2 bottom-28 flex flex-col items-center gap-3 z-10">
