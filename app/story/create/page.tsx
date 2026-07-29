@@ -11,6 +11,7 @@ export default function StoryCreatePage() {
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState('')
   const [caption, setCaption] = useState('')
+  const [progress, setProgress] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -33,6 +34,7 @@ export default function StoryCreatePage() {
     if (!file) return
     setUploading(true)
     setMessage('')
+    setProgress(0)
 
     try {
       const {
@@ -43,14 +45,53 @@ export default function StoryCreatePage() {
         return
       }
 
-      const ext = file.name.split('.').pop() || (mediaType === 'video' ? 'mp4' : 'jpg')
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session) {
+        router.replace('/login')
+        return
+      }
+
+      const ext =
+        file.name.split('.').pop() || (mediaType === 'video' ? 'mp4' : 'jpg')
       const path = `${user.id}/${Date.now()}.${ext}`
 
-      const { error: upErr } = await supabase.storage
-        .from('stories')
-        .upload(path, file, { upsert: false })
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (!supabaseUrl || !anonKey) {
+        throw new Error('Konfigurasi Supabase belum lengkap')
+      }
 
-      if (upErr) throw upErr
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', `${supabaseUrl}/storage/v1/object/stories/${path}`)
+        xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
+        xhr.setRequestHeader('apikey', anonKey)
+        xhr.setRequestHeader('x-upsert', 'false')
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            setProgress(Math.round((e.loaded / e.total) * 100))
+          }
+        }
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve()
+          else {
+            try {
+              const err = JSON.parse(xhr.responseText)
+              reject(new Error(err.message || 'Gagal upload file'))
+            } catch {
+              reject(new Error('Gagal upload file'))
+            }
+          }
+        }
+        xhr.onerror = () => reject(new Error('Jaringan error saat upload'))
+        xhr.send(file)
+      })
+
+      setProgress(100)
 
       const {
         data: { publicUrl },
@@ -70,6 +111,7 @@ export default function StoryCreatePage() {
       setTimeout(() => router.push('/'), 800)
     } catch (err: any) {
       setMessage(err.message || 'Gagal upload')
+      setProgress(0)
     } finally {
       setUploading(false)
     }
@@ -148,6 +190,35 @@ export default function StoryCreatePage() {
             </button>
           </div>
         )}
+
+        {uploading && (
+          <div className="w-full max-w-sm space-y-2 px-1">
+            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-vezao-gradient transition-all duration-200"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-center text-gray-400">
+              Mengupload... {progress}%
+            </p>
+          </div>
+        )}
+
+                {uploading && (
+          <div className="w-full max-w-sm space-y-2 px-1">
+            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-vezao-gradient transition-all duration-200"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-center text-gray-400">
+              Mengupload... {progress}%
+            </p>
+          </div>
+        )}
+
 
         {message && (
           <p

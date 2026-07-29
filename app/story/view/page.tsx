@@ -67,15 +67,45 @@ function StoryViewContent() {
   const startRef = useRef<number>(0)
   const elapsedRef = useRef<number>(0)
   const DURATION = 5000
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false)
 
-  // Load queue user yang punya story
+  // Queue: story sendiri + yang kita follow saja
   useEffect(() => {
     const loadQueue = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: follows } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id)
+
+      const followingIds = (follows || []).map((f) => f.following_id)
+      const allowed = new Set<string>([user.id, ...followingIds])
+
       const { data } = await supabase
         .from('stories')
         .select('user_id')
         .gt('expires_at', new Date().toISOString())
-      const ids = [...new Set((data || []).map((s) => s.user_id))]
+
+      const ids = [
+        ...new Set(
+          (data || [])
+            .map((s) => s.user_id)
+            .filter((id) => allowed.has(id))
+        ),
+      ]
+
+      // Story sendiri di depan (opsional)
+      ids.sort((a, b) => {
+        if (a === user.id) return -1
+        if (b === user.id) return 1
+        return 0
+      })
+
       setQueue(ids)
     }
     loadQueue()
@@ -188,9 +218,52 @@ function StoryViewContent() {
     exitStory()
   }
 
-  // Progress + auto next (hormati pause)
+  // Progress + auto next
+  // Foto: 5 detik | Video: ikut durasi video
   useEffect(() => {
-    if (loading || stories.length === 0 || paused) {
+    if (loading || stories.length === 0) return
+
+    const s = stories[index]
+    if (!s) return
+
+    const mediaIsVideo =
+      s.media_type?.startsWith('video') ||
+      s.media_url?.includes('.mp4') ||
+      s.media_url?.includes('video')
+
+    // --- VIDEO: progress dari currentTime / duration ---
+    if (mediaIsVideo) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+
+      const tick = () => {
+        const v = videoRef.current
+        if (!v || paused) return
+        if (!v.duration || !isFinite(v.duration)) return
+        const p = Math.min(100, (v.currentTime / v.duration) * 100)
+        setProgress(p)
+        if (p >= 99.5) {
+          elapsedRef.current = 0
+          setIndex((i) => {
+            if (i >= stories.length - 1) {
+              goToNextUserOrBack()
+              return i
+            }
+            return i + 1
+          })
+        }
+      }
+
+      timerRef.current = setInterval(tick, 80)
+      return () => {
+        if (timerRef.current) clearInterval(timerRef.current)
+      }
+    }
+
+    // --- FOTO: 5 detik ---
+    if (paused) {
       if (timerRef.current) {
         clearInterval(timerRef.current)
         timerRef.current = null
@@ -221,7 +294,7 @@ function StoryViewContent() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [index, loading, stories.length, paused, userId, queue])
+  }, [index, loading, stories, paused, userId, queue])
 
   // Reset elapsed saat ganti slide
   useEffect(() => {
@@ -232,10 +305,12 @@ function StoryViewContent() {
   const onHoldStart = () => {
     elapsedRef.current = (progress / 100) * DURATION
     setPaused(true)
+    videoRef.current?.pause()
   }
 
   const onHoldEnd = () => {
     setPaused(false)
+    videoRef.current?.play().catch(() => {})
   }
 
   const goNext = () => {
@@ -457,11 +532,13 @@ function StoryViewContent() {
           {isVideo ? (
             <video
               key={story.id}
+              ref={videoRef}
               src={story.media_url}
               className="absolute inset-0 w-full h-full object-contain pointer-events-none"
               autoPlay
               playsInline
               muted={false}
+              onEnded={goNext}
             />
           ) : (
             <img
