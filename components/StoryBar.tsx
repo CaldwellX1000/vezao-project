@@ -25,13 +25,26 @@ export default function StoryBar() {
       } = await supabase.auth.getUser()
       if (!user) return
 
+      // Orang yang kita follow
+      const { data: follows } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id)
+
+      const followingIds = (follows || []).map((f) => f.following_id)
+      // Hanya diri sendiri + following
+      const allowedIds = [user.id, ...followingIds]
+
+      // Story aktif hanya dari allowed
       const { data: stories } = await supabase
         .from('stories')
         .select('user_id')
         .gt('expires_at', new Date().toISOString())
+        .in('user_id', allowedIds)
 
       const storyUserIds = [...new Set((stories || []).map((s) => s.user_id))]
 
+      // Urutan: saya dulu, lalu following yang punya story
       const orderedIds = [
         user.id,
         ...storyUserIds.filter((id) => id !== user.id),

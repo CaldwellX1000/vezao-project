@@ -49,6 +49,7 @@ export default function ProfilePage() {
   const [isPrivate, setIsPrivate] = useState(false)
   const [editIsPrivate, setEditIsPrivate] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [hasStory, setHasStory] = useState(false)
   const [showAccountSheet, setShowAccountSheet] = useState(false)
   const [accounts, setAccounts] = useState<StoredAccount[]>([])
 
@@ -115,6 +116,14 @@ const list = published || []
         router.replace('/login')
         return
       }
+
+      const { count: storyCount } = await supabase
+        .from('stories')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gt('expires_at', new Date().toISOString())
+
+      setHasStory((storyCount || 0) > 0)
 
       setUserId(user.id)
 
@@ -459,17 +468,31 @@ const list = published || []
       <div className="px-4 -mt-12">
         <div className="flex justify-between items-end">
           <div className="relative">
-            <div className="w-24 h-24 rounded-full bg-zinc-800 border-[3px] border-black overflow-hidden flex items-center justify-center text-3xl font-bold">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                fullName?.[0]?.toUpperCase() || 'U'
-              )}
+            <div
+              className={`w-24 h-24 rounded-full p-[3px] ${
+                hasStory ? 'bg-vezao-gradient cursor-pointer' : 'bg-transparent'
+              }`}
+              onClick={() => {
+                if (hasStory && userId) {
+                  router.push(`/story/view?userId=${userId}`)
+                }
+              }}
+            >
+              <div className="w-full h-full rounded-full bg-zinc-800 border-[3px] border-black overflow-hidden flex items-center justify-center text-3xl font-bold">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  fullName?.[0]?.toUpperCase() || 'U'
+                )}
+              </div>
             </div>
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={(e) => {
+                e.stopPropagation()
+                fileInputRef.current?.click()
+              }}
               disabled={uploading}
-              className="absolute bottom-0 right-0 w-7 h-7 bg-vezao-gradient rounded-full flex items-center justify-center border-2 border-black text-sm font-bold"
+              className="absolute bottom-0 right-0 w-7 h-7 bg-vezao-gradient rounded-full flex items-center justify-center border-2 border-black text-sm font-bold z-10"
             >
               {uploading ? '…' : '+'}
             </button>

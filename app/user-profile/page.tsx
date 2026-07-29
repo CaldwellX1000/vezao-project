@@ -39,6 +39,7 @@ function UserProfileContent() {
   const [showMenu, setShowMenu] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [isPrivate, setIsPrivate] = useState(false)
+  const [hasStory, setHasStory] = useState(false)
   const [canViewVideos, setCanViewVideos] = useState(true)
 
   const router = useRouter()
@@ -121,6 +122,16 @@ function UserProfileContent() {
       }
 
       setTargetUserId(resolvedId)
+
+            const { data: activeStories, error: storyErr } = await supabase
+        .from('stories')
+        .select('id')
+        .eq('user_id', resolvedId)
+        .gt('expires_at', new Date().toISOString())
+        .limit(1)
+
+      console.log('story check', { activeStories, storyErr, resolvedId })
+      setHasStory(!!(activeStories && activeStories.length > 0))
 
       // Blokir 2 arah
       const { data: iBlocked } = await supabase
@@ -382,12 +393,23 @@ function UserProfileContent() {
 
       <div className="px-4 -mt-12">
         <div className="flex justify-between items-end">
-          <div className="w-24 h-24 rounded-full bg-zinc-800 border-[3px] border-black overflow-hidden flex items-center justify-center text-3xl font-bold">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-            ) : (
-              fullName?.[0]?.toUpperCase() || 'U'
-            )}
+          <div
+            className={`w-24 h-24 rounded-full p-[3px] ${
+              hasStory ? 'bg-vezao-gradient cursor-pointer' : ''
+            }`}
+            onClick={() => {
+              if (hasStory && targetUserId) {
+                router.push(`/story/view?userId=${targetUserId}`)
+              }
+            }}
+          >
+            <div className="w-full h-full rounded-full bg-zinc-800 border-[3px] border-black overflow-hidden flex items-center justify-center text-3xl font-bold">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                fullName?.[0]?.toUpperCase() || 'U'
+              )}
+            </div>
           </div>
 
           {currentUserId !== targetUserId && (

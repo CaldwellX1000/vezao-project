@@ -38,6 +38,7 @@ function ProfileByUsername() {
   const [showMenu, setShowMenu] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [isPrivate, setIsPrivate] = useState(false)
+  const [hasStory, setHasStory] = useState(false)
   const [canViewVideos, setCanViewVideos] = useState(true)
 
   const router = useRouter()
@@ -129,6 +130,16 @@ function ProfileByUsername() {
       setWebsite(byName.website || '')
       setAvatarUrl(byName.avatar_url || null)
       setIsPrivate(byName.is_private || false)
+
+            const nowIso = new Date().toISOString()
+      const { data: activeStories } = await supabase
+        .from('stories')
+        .select('id')
+        .eq('user_id', resolvedId)
+        .or(`expires_at.gt.${nowIso},expires_at.is.null`)
+        .limit(1)
+
+      setHasStory(!!(activeStories && activeStories.length > 0))
 
       const { data: blockData } = await supabase
         .from('blocks')
@@ -276,12 +287,25 @@ function ProfileByUsername() {
       <div className="h-28 bg-vezao-gradient" />
       <div className="px-4 -mt-12">
         <div className="flex justify-between items-end">
-          <div className="w-24 h-24 rounded-full bg-zinc-800 border-[3px] border-black overflow-hidden flex items-center justify-center text-3xl font-bold">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              fullName?.[0]?.toUpperCase() || 'U'
-            )}
+          <div
+            className={`w-[104px] h-[104px] rounded-full flex items-center justify-center ${
+              hasStory ? 'bg-vezao-gradient p-[3px] cursor-pointer' : 'p-0'
+            }`}
+            onClick={() => {
+              if (hasStory && targetUserId) {
+                router.push(`/story/view?userId=${targetUserId}`)
+              }
+            }}
+          >
+            <div className="w-24 h-24 rounded-full bg-black p-[2px]">
+              <div className="w-full h-full rounded-full bg-zinc-800 overflow-hidden flex items-center justify-center text-3xl font-bold">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  fullName?.[0]?.toUpperCase() || 'U'
+                )}
+              </div>
+            </div>
           </div>
 
           {currentUserId !== targetUserId && (

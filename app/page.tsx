@@ -678,6 +678,22 @@ export default function FeedPage() {
     setComments((prev) => prev.filter((c) => !idsToDelete.includes(c.id)))
   }
 
+    const handleDeleteVideo = async (videoId: string) => {
+    if (!userId) return
+    if (!confirm('Hapus video ini?')) return
+    const { error } = await supabase
+      .from('videos')
+      .delete()
+      .eq('id', videoId)
+      .eq('user_id', userId)
+    if (error) {
+      alert('Gagal hapus: ' + error.message)
+      return
+    }
+    setShowMore(null)
+    setAllVideos((prev) => prev.filter((v) => v.id !== videoId))
+  }
+
   const openShare = async (videoId: string) => {
     setShareVideoId(videoId)
     if (!userId) return
@@ -783,15 +799,29 @@ export default function FeedPage() {
     }
   }
 
-  const submitReport = async (reason: string) => {
+    const submitReport = async (reason: string) => {
     if (!userId || !reportVideoId) return
-    const { error } = await supabase.from('reports').insert({
-      reporter_id: userId,
+
+    const video = allVideos.find((v) => v.id === reportVideoId)
+    if (!video) {
+      alert('Video tidak ditemukan')
+      return
+    }
+
+      const { error } = await supabase.from('reports').insert({
       video_id: reportVideoId,
+      reporter_id: userId,
+      reported_user_id: video.user_id,
       reason,
+      video_url: video.video_url,
     })
-    if (error) alert('Gagal report: ' + error.message)
-    else alert('Laporan terkirim. Terima kasih.')
+
+    if (error) {
+      alert('Gagal report: ' + error.message)
+      return
+    }
+
+    alert('Laporan terkirim. Terima kasih.')
     setReportVideoId(null)
   }
 
@@ -1338,7 +1368,32 @@ export default function FeedPage() {
                 </div>
                 <span className="text-xs">Salin tautan</span>
               </button>
-              {allVideos.find((v) => v.id === showMore)?.user_id !== userId && (
+
+              {allVideos.find((v) => v.id === showMore)?.user_id === userId ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setShowMore(null)
+                      router.push(`/upload?draft=${showMore}`)
+                    }}
+                    className="flex flex-col items-center gap-1"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
+                      ✏️
+                    </div>
+                    <span className="text-xs">Edit</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteVideo(showMore)}
+                    className="flex flex-col items-center gap-1"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
+                      🗑️
+                    </div>
+                    <span className="text-xs text-red-400">Hapus</span>
+                  </button>
+                </>
+              ) : (
                 <button
                   onClick={() => {
                     setReportVideoId(showMore)
@@ -1352,6 +1407,7 @@ export default function FeedPage() {
                   <span className="text-xs text-orange-400">Report</span>
                 </button>
               )}
+
               <button
                 onClick={() => setShowMore(null)}
                 className="flex flex-col items-center gap-1"
