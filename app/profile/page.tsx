@@ -794,6 +794,21 @@ const list = published || []
           <p className="text-sm text-gray-400">@{username}</p>
         </div>
 
+        {bio && (
+          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>
+        )}
+
+        {website && (
+          <a
+            href={website.startsWith('http') ? website : `https://${website}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
+          >
+            {website.replace(/^https?:\/\//, '')}
+          </a>
+        )}
+
         <div className="flex justify-around mt-4 py-3 rounded-2xl bg-zinc-900/80 border border-white/5">
           <div className="text-center flex-1">
             <p className="font-bold text-lg">{videos.length}</p>
@@ -818,19 +833,6 @@ const list = published || []
             <p className="text-[11px] text-gray-400 mt-0.5">Likes</p>
           </div>
         </div>
-
-        {bio && <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>}
-
-        {website && (
-          <a
-            href={website.startsWith('http') ? website : `https://${website}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
-          >
-            {website.replace(/^https?:\/\//, '')}
-          </a>
-        )}
       </div>
 
       <div className="flex border-b border-white/10 mt-5">

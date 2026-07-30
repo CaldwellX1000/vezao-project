@@ -493,12 +493,26 @@ function ProfileByUsername() {
             <h1 className="text-xl font-bold">{fullName || username}</h1>
             {isPrivate && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 border border-white/10">
-                 Private
+                Private
               </span>
             )}
           </div>
           <p className="text-sm text-gray-400">@{username}</p>
         </div>
+
+        {bio && (
+          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>
+        )}
+        {website && (
+          <a
+            href={website.startsWith('http') ? website : `https://${website}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
+          >
+            {website.replace(/^https?:\/\//, '')}
+          </a>
+        )}
 
         <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900 border border-white/15">
           <div className="text-center flex-1">
@@ -532,20 +546,6 @@ function ProfileByUsername() {
             <p className="text-[11px] text-gray-400 mt-0.5">Likes</p>
           </div>
         </div>
-
-        {bio && (
-          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>
-        )}
-        {website && (
-          <a
-            href={website.startsWith('http') ? website : `https://${website}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
-          >
-            {website.replace(/^https?:\/\//, '')}
-          </a>
-        )}
       </div>
 
       <div className="px-1 pt-4">
