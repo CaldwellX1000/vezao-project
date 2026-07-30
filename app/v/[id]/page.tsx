@@ -19,6 +19,7 @@ type Video = {
   is_pinned?: boolean | null
   visibility?: string | null
   is_draft?: boolean | null
+  sound_name?: string | null
   profiles: {
     username: string | null
     full_name: string | null
@@ -146,7 +147,7 @@ export default function SingleVideoPage() {
         .select(
           `
           id, caption, video_url, likes_count, comments_count, saves_count, shares_count, comments_enabled,
-          created_at, user_id, is_pinned, visibility, is_draft,
+          created_at, user_id, is_pinned, visibility, is_draft, sound_name,
           profiles ( username, full_name, avatar_url )
         `
         )
@@ -169,7 +170,7 @@ export default function SingleVideoPage() {
         .select(
           `
           id, caption, video_url, likes_count, comments_count, saves_count, shares_count, comments_enabled,
-          created_at, user_id, is_pinned, visibility, is_draft,
+          created_at, user_id, is_pinned, visibility, is_draft, sound_name,
           profiles ( username, full_name, avatar_url )
         `
         )
@@ -698,7 +699,15 @@ export default function SingleVideoPage() {
         v.id === shareVideoId ? { ...v, shares_count: nextCount } : v
       )
     )
-    await supabase.from('videos').update({ shares_count: nextCount }).eq('id', shareVideoId)
+    const { error: shareErr } = await supabase.rpc('increment_shares', {
+      video_id: shareVideoId,
+    })
+    if (shareErr) {
+      await supabase
+        .from('videos')
+        .update({ shares_count: nextCount })
+        .eq('id', shareVideoId)
+    }
 
     const owner = videos.find((v) => v.id === shareVideoId)
     if (owner && userId && owner.user_id !== userId) {
@@ -729,13 +738,30 @@ export default function SingleVideoPage() {
             v.id === shareVideoId ? { ...v, shares_count: nextCount } : v
           )
         )
-        await supabase.from('videos').update({ shares_count: nextCount }).eq('id', shareVideoId)
+        const { error: shareErr } = await supabase.rpc('increment_shares', {
+          video_id: shareVideoId,
+        })
+        if (shareErr) {
+          await supabase
+            .from('videos')
+            .update({ shares_count: nextCount })
+            .eq('id', shareVideoId)
+        }
         setShareVideoId(null)
       } catch {}
     } else {
       try {
         await navigator.clipboard.writeText(url)
         alert('Tautan disalin')
+        const video = videos.find((v) => v.id === shareVideoId)
+        const nextCount = (video?.shares_count || 0) + 1
+        setVideos((prev) =>
+          prev.map((v) =>
+            v.id === shareVideoId ? { ...v, shares_count: nextCount } : v
+          )
+        )
+        await supabase.rpc('increment_shares', { video_id: shareVideoId })
+        setShareVideoId(null)
       } catch {
         prompt('Salin tautan:', url)
       }
@@ -865,6 +891,22 @@ export default function SingleVideoPage() {
                 </p>
               </div>
               <p className="text-sm opacity-90 line-clamp-3">{video.caption}</p>
+              <p
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const name =
+                    video.sound_name ||
+                    `Original sound - @${video.profiles?.username || 'user'}`
+                  router.push(`/sound?name=${encodeURIComponent(name)}`)
+                }}
+                className="text-[11px] text-white/70 mt-1 flex items-center gap-1 cursor-pointer max-w-[90%]"
+              >
+                <span>♪</span>
+                <span className="truncate">
+                  {video.sound_name ||
+                    `Original sound - @${video.profiles?.username || 'user'}`}
+                </span>
+              </p>
               {video.created_at && (
                 <p className="text-[11px] text-white/50 mt-1">
                   {formatDateTime(video.created_at)}

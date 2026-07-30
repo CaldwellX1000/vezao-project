@@ -57,6 +57,21 @@ function formatInboxTime(dateStr: string) {
   })
 }
 
+type NotifItem = {
+  id: string
+  type: string
+  video_id: string | null
+  message: string | null
+  is_read: boolean
+  created_at: string
+  actor_id: string
+  actor?: {
+    username: string | null
+    full_name: string | null
+    avatar_url: string | null
+  } | null
+}
+
 export default function InboxPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,6 +79,9 @@ export default function InboxPage() {
   const [totalUnread, setTotalUnread] = useState(0)
   const [menuUserId, setMenuUserId] = useState<string | null>(null)
   const [notifUnread, setNotifUnread] = useState(0)
+  const [tab, setTab] = useState<'messages' | 'activity'>('messages')
+  const [notifications, setNotifications] = useState<NotifItem[]>([])
+  const [loadingNotif, setLoadingNotif] = useState(false)
 
   const router = useRouter()
   const supabase = createClient()
@@ -164,6 +182,64 @@ export default function InboxPage() {
     setConversations(convList)
   }, [])
 
+  const loadNotifications = useCallback(async (userId: string) => {
+    setLoadingNotif(true)
+    const { data } = await supabase
+      .from('notifications')
+      .select(
+        `
+        id, type, video_id, message, is_read, created_at, actor_id
+      `
+      )
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    if (!data || data.length === 0) {
+      setNotifications([])
+      setNotifUnread(0)
+      setLoadingNotif(false)
+      return
+    }
+
+    const actorIds = [...new Set(data.map((n) => n.actor_id))]
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, username, full_name, avatar_url')
+      .in('id', actorIds)
+
+    const list: NotifItem[] = data.map((n) => ({
+      ...n,
+      actor: profiles?.find((p) => p.id === n.actor_id) || null,
+    }))
+
+    setNotifications(list)
+    setNotifUnread(list.filter((n) => !n.is_read).length)
+    setLoadingNotif(false)
+  }, [])
+
+  const markAllNotifRead = async () => {
+    if (!currentUserId) return
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', currentUserId)
+      .eq('is_read', false)
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+    setNotifUnread(0)
+  }
+
+  const notifText = (n: NotifItem) => {
+    const name = n.actor?.username || n.actor?.full_name || 'seseorang'
+    if (n.type === 'like') return `@${name} menyukai videomu`
+    if (n.type === 'follow') return `@${name} mulai mengikuti kamu`
+    if (n.type === 'follow_request') return `@${name} meminta follow`
+    if (n.type === 'comment') return `@${name} mengomentari: ${n.message || ''}`
+    if (n.type === 'save') return `@${name} menyimpan videomu`
+    if (n.type === 'share') return `@${name} membagikan videomu`
+    return n.message || 'Notifikasi baru'
+  }
+
   const deleteChat = async (partnerId: string) => {
     if (!currentUserId) return
     const ok = confirm('Hapus chat ini dari inbox kamu?')
@@ -239,14 +315,8 @@ export default function InboxPage() {
       }
       setCurrentUserId(user.id)
 
-      const { count: nCount } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('is_read', false)
-      setNotifUnread(nCount || 0)
-
       await loadConversations(user.id)
+      await loadNotifications(user.id)
       setLoading(false)
     }
 
@@ -271,15 +341,10 @@ export default function InboxPage() {
       )
       .subscribe()
 
-    const interval = setInterval(async () => {
+    const interval = setInterval(() => {
       loadConversations(currentUserId)
-      const { count: nCount } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', currentUserId)
-        .eq('is_read', false)
-      setNotifUnread(nCount || 0)
-    }, 3000)
+      loadNotifications(currentUserId)
+    }, 5000)
 
     return () => {
       supabase.removeChannel(channel)
@@ -311,56 +376,129 @@ export default function InboxPage() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-20">
-      <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10 px-4 h-14 flex items-center">
-        <h1 className="text-lg font-bold">Inbox</h1>
-      </div>
-
-            {/* Stories — seperti TikTok Kotak Masuk */}
-      <div className="border-b border-white/10 pb-2">
-        <StoryBar />
-      </div>
-
-      <div className="divide-y divide-white/5" onClick={() => setMenuUserId(null)}>
-        {/* Sistem Notifikasi */}
-        <button
-          type="button"
-          onClick={() => router.push('/notifications')}
-          className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-white/5 text-left"
-        >
-          <div className="relative shrink-0">
-            <div className="w-12 h-12 rounded-full bg-vezao-gradient flex items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-6 h-6 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                />
-              </svg>
-            </div>
-            {notifUnread > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-[10px] font-bold flex items-center justify-center text-white">
-                {notifUnread > 99 ? '99+' : notifUnread}
+      <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10">
+        <div className="px-4 h-14 flex items-center justify-between">
+          <h1 className="text-lg font-bold">Inbox</h1>
+          {tab === 'activity' && notifUnread > 0 && (
+            <button
+              onClick={markAllNotifRead}
+              className="text-xs text-purple-400 font-medium"
+            >
+              Tandai semua dibaca
+            </button>
+          )}
+        </div>
+        <div className="flex px-4">
+          <button
+            onClick={() => setTab('messages')}
+            className={`flex-1 py-2.5 text-sm font-semibold relative ${
+              tab === 'messages' ? 'text-white' : 'text-gray-500'
+            }`}
+          >
+            Pesan
+            {totalUnread > 0 && (
+              <span className="ml-1 text-[10px] text-purple-400">
+                {totalUnread}
               </span>
             )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white">Sistem Notifikasi</p>
-            <p className="text-sm text-gray-400 truncate">
-              {notifUnread > 0
-                ? `${notifUnread} notifikasi belum dibaca`
-                : 'Like, follow, komentar, dan lainnya'}
-            </p>
-          </div>
-          <span className="text-gray-500 text-lg">›</span>
-        </button>
+            {tab === 'messages' && (
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-white rounded-full" />
+            )}
+          </button>
+          <button
+            onClick={() => setTab('activity')}
+            className={`flex-1 py-2.5 text-sm font-semibold relative ${
+              tab === 'activity' ? 'text-white' : 'text-gray-500'
+            }`}
+          >
+            Aktivitas
+            {notifUnread > 0 && (
+              <span className="ml-1 text-[10px] text-purple-400">
+                {notifUnread}
+              </span>
+            )}
+            {tab === 'activity' && (
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-white rounded-full" />
+            )}
+          </button>
+        </div>
+      </div>
 
+      {tab === 'messages' && (
+        <div className="border-b border-white/10 pb-2">
+          <StoryBar />
+        </div>
+      )}
+
+      {tab === 'activity' ? (
+        <div className="divide-y divide-white/5">
+          {loadingNotif ? (
+            <p className="text-center text-gray-500 py-12 text-sm">Loading...</p>
+          ) : notifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+              <p className="text-sm">Belum ada aktivitas</p>
+              <p className="text-xs mt-1">Like, follow, dan komentar muncul di sini</p>
+            </div>
+          ) : (
+            notifications.map((n) => (
+              <button
+                key={n.id}
+                type="button"
+                onClick={async () => {
+                  if (!n.is_read) {
+                    await supabase
+                      .from('notifications')
+                      .update({ is_read: true })
+                      .eq('id', n.id)
+                    setNotifications((prev) =>
+                      prev.map((x) =>
+                        x.id === n.id ? { ...x, is_read: true } : x
+                      )
+                    )
+                    setNotifUnread((c) => Math.max(0, c - 1))
+                  }
+                  if (n.video_id) router.push(`/v/${n.video_id}`)
+                  else if (n.actor?.username)
+                    router.push(`/@${n.actor.username}`)
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-white/5 ${
+                  !n.is_read ? 'bg-white/[0.03]' : ''
+                }`}
+              >
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+                  {n.actor?.avatar_url ? (
+                    <img
+                      src={n.actor.avatar_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
+                      {(n.actor?.username || 'U')[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p
+                    className={`text-sm ${
+                      !n.is_read ? 'font-semibold text-white' : 'text-gray-300'
+                    }`}
+                  >
+                    {notifText(n)}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {formatInboxTime(n.created_at)}
+                  </p>
+                </div>
+                {!n.is_read && (
+                  <div className="w-2 h-2 rounded-full bg-vezao-gradient shrink-0" />
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      ) : (
+      <div className="divide-y divide-white/5" onClick={() => setMenuUserId(null)}>
         {conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <p className="text-sm">Belum ada pesan</p>
@@ -468,6 +606,7 @@ export default function InboxPage() {
           ))
         )}
       </div>
+      )}
 
       <BottomNav />
     </div>

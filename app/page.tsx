@@ -738,7 +738,15 @@ export default function FeedPage() {
         v.id === shareVideoId ? { ...v, shares_count: nextCount } : v
       )
     )
-    await supabase.from('videos').update({ shares_count: nextCount }).eq('id', shareVideoId)
+    const { error: shareErr } = await supabase.rpc('increment_shares', {
+      video_id: shareVideoId,
+    })
+    if (shareErr) {
+      await supabase
+        .from('videos')
+        .update({ shares_count: nextCount })
+        .eq('id', shareVideoId)
+    }
 
     const owner = allVideos.find((v) => v.id === shareVideoId)
     if (owner && owner.user_id !== userId) {
@@ -767,7 +775,15 @@ export default function FeedPage() {
           v.id === shareVideoId ? { ...v, shares_count: nextCount } : v
         )
       )
-      await supabase.from('videos').update({ shares_count: nextCount }).eq('id', shareVideoId)
+      const { error: shareErr } = await supabase.rpc('increment_shares', {
+        video_id: shareVideoId,
+      })
+      if (shareErr) {
+        await supabase
+          .from('videos')
+          .update({ shares_count: nextCount })
+          .eq('id', shareVideoId)
+      }
       const owner = allVideos.find((v) => v.id === shareVideoId)
       if (owner && owner.user_id !== userId) {
         await supabase.from('notifications').insert({
@@ -957,11 +973,22 @@ export default function FeedPage() {
                   )}
                 </div>
                 <p className="text-sm opacity-90 line-clamp-3">{video.caption}</p>
-                {(video.sound_name || video.profiles?.username) && (
-                  <p className="text-[11px] text-white/60 mt-1 truncate">
-                    ♪ {video.sound_name || `Original sound - @${video.profiles?.username}`}
-                  </p>
-                )}
+                <p
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const name =
+                      video.sound_name ||
+                      `Original sound - @${video.profiles?.username || 'user'}`
+                    router.push(`/sound?name=${encodeURIComponent(name)}`)
+                  }}
+                  className="text-[11px] text-white/70 mt-1 flex items-center gap-1 cursor-pointer max-w-[90%]"
+                >
+                  <span>♪</span>
+                  <span className="truncate">
+                    {video.sound_name ||
+                      `Original sound - @${video.profiles?.username || 'user'}`}
+                  </span>
+                </p>
                 <p className="text-[11px] text-white/40 mt-0.5">
                   {formatDateTime(video.created_at)}
                 </p>
