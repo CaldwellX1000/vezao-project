@@ -919,9 +919,12 @@ export default function FeedPage() {
                 <div className="flex items-center gap-2 mb-1.5">
                   <div
                     className="flex items-center gap-2 cursor-pointer"
-                    onClick={() =>
-                      router.push(`/@${video.profiles?.username || video.user_id}`)
-                    }
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      router.push(
+                        `/@${video.profiles?.username || video.user_id}`
+                      )
+                    }}
                   >
                     <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 border border-white/20">
                       {video.profiles?.avatar_url ? (
@@ -1127,7 +1130,14 @@ export default function FeedPage() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold">
+                            <p
+                              className="text-sm font-semibold cursor-pointer"
+                              onClick={() =>
+                                router.push(
+                                  `/@${c.profiles?.username || c.user_id}`
+                                )
+                              }
+                            >
                               @{c.profiles?.username || 'user'}
                             </p>
                             {editingCommentId === c.id ? (

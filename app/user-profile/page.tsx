@@ -442,6 +442,26 @@ function UserProfileContent() {
                 Message
               </button>
 
+              <button
+                onClick={async () => {
+                  const url = `${window.location.origin}/@${username}`
+                  try {
+                    if (navigator.share) {
+                      await navigator.share({
+                        title: `${fullName || username} di VEZAO`,
+                        url,
+                      })
+                    } else {
+                      await navigator.clipboard.writeText(url)
+                      alert('Link profil disalin!')
+                    }
+                  } catch {}
+                }}
+                className="px-4 py-1.5 bg-zinc-800 text-white text-sm font-semibold rounded-full border border-white/10"
+              >
+                Share
+              </button>
+
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(!showMenu)}
@@ -524,32 +544,36 @@ function UserProfileContent() {
           <p className="text-sm text-gray-400">@{username}</p>
         </div>
 
-        <div className="flex gap-6 mt-4">
-          <div className="text-center">
-            <p className="font-bold text-base">{canViewVideos ? videos.length : '—'}</p>
-            <p className="text-xs text-gray-400">Videos</p>
+        <div className="flex justify-around mt-4 py-3 rounded-2xl bg-zinc-900/80 border border-white/5">
+          <div className="text-center flex-1">
+            <p className="font-bold text-lg">
+              {canViewVideos ? videos.length : '—'}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Videos</p>
           </div>
           <div
-            className="text-center cursor-pointer"
+            className="text-center flex-1 cursor-pointer active:opacity-70"
             onClick={() =>
               router.push(`/follow-list?userId=${targetUserId}&type=following`)
             }
           >
-            <p className="font-bold text-base">{followingCount}</p>
-            <p className="text-xs text-gray-400">Following</p>
+            <p className="font-bold text-lg">{followingCount}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Following</p>
           </div>
           <div
-            className="text-center cursor-pointer"
+            className="text-center flex-1 cursor-pointer active:opacity-70"
             onClick={() =>
               router.push(`/follow-list?userId=${targetUserId}&type=followers`)
             }
           >
-            <p className="font-bold text-base">{followersCount}</p>
-            <p className="text-xs text-gray-400">Followers</p>
+            <p className="font-bold text-lg">{followersCount}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Followers</p>
           </div>
-          <div className="text-center">
-            <p className="font-bold text-base">{canViewVideos ? totalLikes : '—'}</p>
-            <p className="text-xs text-gray-400">Likes</p>
+          <div className="text-center flex-1">
+            <p className="font-bold text-lg">
+              {canViewVideos ? totalLikes : '—'}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Likes</p>
           </div>
         </div>
 
@@ -598,7 +622,13 @@ function UserProfileContent() {
             </p>
           </div>
         ) : videos.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">Belum ada video</div>
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-2xl mb-4">
+              🎬
+            </div>
+            <p className="text-white font-semibold text-sm mb-1">Belum ada video</p>
+            <p className="text-xs text-gray-500">@{username} belum mengunggah video</p>
+          </div>
         ) : (
           <div className="grid grid-cols-3 gap-[2px]">
             {videos.map((video) => (

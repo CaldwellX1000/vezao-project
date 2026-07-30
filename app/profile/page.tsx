@@ -463,7 +463,7 @@ const list = published || []
   return (
     <div className="min-h-screen bg-black text-white pb-20 md:bg-zinc-950">
       <div className="w-full md:max-w-[480px] md:mx-auto md:min-h-screen md:bg-black md:border-x md:border-white/10">
-      <div className="h-28 bg-vezao-gradient relative" />
+      <div className="h-28 bg-vezao-gradient" />
 
       <div className="px-4 -mt-12">
         <div className="flex justify-between items-end">
@@ -508,9 +508,15 @@ const list = published || []
           <div className="flex gap-2 mb-1 items-center">
             <button
               onClick={() => setEditing(true)}
-              className="px-5 py-1.5 bg-white text-black text-sm font-semibold rounded-full"
+              className="px-4 py-1.5 bg-zinc-800 border border-white/10 text-white text-sm font-semibold rounded-full"
             >
               Edit
+            </button>
+            <button
+              onClick={handleShareProfile}
+              className="px-4 py-1.5 bg-zinc-800 border border-white/10 text-white text-sm font-semibold rounded-full"
+            >
+              Share
             </button>
 
             <div className="relative">
@@ -603,28 +609,28 @@ const list = published || []
           <p className="text-sm text-gray-400">@{username}</p>
         </div>
 
-        <div className="flex gap-6 mt-4">
-          <div className="text-center">
-            <p className="font-bold text-base">{videos.length}</p>
-            <p className="text-xs text-gray-400">Videos</p>
+        <div className="flex justify-around mt-4 py-3 rounded-2xl bg-zinc-900/80 border border-white/5">
+          <div className="text-center flex-1">
+            <p className="font-bold text-lg">{videos.length}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Videos</p>
           </div>
           <div
-            className="text-center cursor-pointer"
+            className="text-center flex-1 cursor-pointer active:opacity-70"
             onClick={() => router.push(`/follow-list?userId=${userId}&type=following`)}
           >
-            <p className="font-bold text-base">{followingCount}</p>
-            <p className="text-xs text-gray-400">Following</p>
+            <p className="font-bold text-lg">{followingCount}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Following</p>
           </div>
           <div
-            className="text-center cursor-pointer"
+            className="text-center flex-1 cursor-pointer active:opacity-70"
             onClick={() => router.push(`/follow-list?userId=${userId}&type=followers`)}
           >
-            <p className="font-bold text-base">{followersCount}</p>
-            <p className="text-xs text-gray-400">Followers</p>
+            <p className="font-bold text-lg">{followersCount}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Followers</p>
           </div>
-          <div className="text-center">
-            <p className="font-bold text-base">{totalLikes}</p>
-            <p className="text-xs text-gray-400">Likes</p>
+          <div className="text-center flex-1">
+            <p className="font-bold text-lg">{totalLikes}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Likes</p>
           </div>
         </div>
 
@@ -761,22 +767,44 @@ const list = published || []
 
       <div className="px-1 pt-1">
         {displayVideos.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-gray-400 mb-3">
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-2xl mb-4">
+              {activeTab === 'videos'
+                ? '🎬'
+                : activeTab === 'private'
+                ? '🔒'
+                : activeTab === 'liked'
+                ? '♡'
+                : activeTab === 'saved'
+                ? '🔖'
+                : '📝'}
+            </div>
+            <p className="text-white font-semibold text-sm mb-1">
               {activeTab === 'videos'
                 ? 'Belum ada video'
                 : activeTab === 'private'
                 ? 'Belum ada video privat'
                 : activeTab === 'liked'
-                ? 'Belum ada video yang disukai'
+                ? 'Belum ada yang disukai'
                 : activeTab === 'saved'
-                ? 'Belum ada video tersimpan'
+                ? 'Belum ada yang disimpan'
                 : 'Belum ada draft'}
+            </p>
+            <p className="text-xs text-gray-500 mb-5 max-w-[240px]">
+              {activeTab === 'videos'
+                ? 'Upload video pertama kamu biar profil lebih hidup'
+                : activeTab === 'private'
+                ? 'Video dengan visibilitas Hanya saya muncul di sini'
+                : activeTab === 'liked'
+                ? 'Video yang kamu like akan terkumpul di sini'
+                : activeTab === 'saved'
+                ? 'Simpan video dari feed untuk ditonton nanti'
+                : 'Draft tersimpan otomatis sebelum kamu posting'}
             </p>
             {activeTab === 'videos' && (
               <button
                 onClick={() => router.push('/upload')}
-                className="bg-vezao-gradient text-white px-6 py-2.5 rounded-full text-sm font-medium"
+                className="bg-vezao-gradient text-white px-6 py-2.5 rounded-full text-sm font-semibold"
               >
                 Upload Video
               </button>
@@ -832,8 +860,10 @@ const list = published || []
                       }}
                       className="absolute inset-0 cursor-pointer"
                     />
-{activeTab === 'videos' && video.is_pinned && (
-                      <span className="absolute top-1 left-1 text-xs z-10 drop-shadow">📌</span>
+{activeTab === 'videos' && video.is_pinned === true && (
+                      <span className="absolute top-1 left-1 text-xs z-10 drop-shadow pointer-events-none">
+                        📌
+                      </span>
                     )}
                     <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between gap-1 px-1 z-10 pointer-events-none">
                       <span className="text-[10px] font-semibold text-white bg-black/50 rounded px-1 py-0.5">

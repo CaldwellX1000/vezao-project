@@ -123,6 +123,13 @@ function ProfileByUsername() {
       }
 
       const resolvedId = byName.id
+
+      // Profil sendiri → pakai halaman /profile (Edit, pin, tabs, dll)
+      if (user.id === resolvedId) {
+        router.replace('/profile')
+        return
+      }
+
       setTargetUserId(resolvedId)
       setUsername(byName.username || 'user')
       setFullName(byName.full_name || byName.username || 'user')
@@ -313,20 +320,147 @@ function ProfileByUsername() {
               <button
                 onClick={toggleFollow}
                 disabled={isBlocked}
-                className={`px-5 py-1.5 text-sm font-semibold rounded-full ${
+                className={`px-4 py-1.5 text-sm font-semibold rounded-full ${
                   isFollowing || isRequested
-                    ? 'bg-white/20'
+                    ? 'bg-zinc-800 border border-white/10'
                     : 'bg-vezao-gradient'
-                }`}
+                } ${isBlocked ? 'opacity-50' : ''}`}
               >
                 {followLabel}
               </button>
               <button
-                onClick={() => router.push(`/inbox/chat?userId=${targetUserId}`)}
+                onClick={() => {
+                  if (isBlocked) {
+                    alert('Tidak bisa chat. Akun ini diblokir.')
+                    return
+                  }
+                  router.push(`/inbox/chat?userId=${targetUserId}`)
+                }}
                 className="px-4 py-1.5 bg-zinc-800 text-sm font-semibold rounded-full border border-white/10"
               >
                 Message
               </button>
+
+              <div className="relative">
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="w-9 h-9 bg-zinc-800 text-white rounded-full border border-white/10 flex items-center justify-center"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="12" cy="6" r="1.5" />
+                    <circle cx="12" cy="12" r="1.5" />
+                    <circle cx="12" cy="18" r="1.5" />
+                  </svg>
+                </button>
+
+                {showMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowMenu(false)}
+                    />
+                    <div className="absolute right-0 top-11 z-50 w-44 bg-zinc-900 border border-white/10 rounded-xl overflow-hidden shadow-xl">
+                      <button
+                        onClick={async () => {
+                          setShowMenu(false)
+                          const url = `${window.location.origin}/@${username}`
+                          try {
+                            if (navigator.share) {
+                              await navigator.share({
+                                title: `${fullName || username} di VEZAO`,
+                                url,
+                              })
+                            } else {
+                              await navigator.clipboard.writeText(url)
+                              alert('Link profil disalin!')
+                            }
+                          } catch {}
+                        }}
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-white"
+                      >
+                        Share profil
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setShowMenu(false)
+                          if (!currentUserId || !targetUserId) return
+
+                          if (isBlocked) {
+                            await supabase
+                              .from('blocks')
+                              .delete()
+                              .eq('blocker_id', currentUserId)
+                              .eq('blocked_id', targetUserId)
+                            setIsBlocked(false)
+                            return
+                          }
+
+                          const ok = confirm(
+                            `Block @${username}? Mereka tidak bisa lihat profil dan video kamu.`
+                          )
+                          if (!ok) return
+
+                          const { error } = await supabase.from('blocks').insert({
+                            blocker_id: currentUserId,
+                            blocked_id: targetUserId,
+                          })
+                          if (error) {
+                            alert('Gagal block: ' + error.message)
+                            return
+                          }
+
+                          if (isFollowing) {
+                            await supabase
+                              .from('follows')
+                              .delete()
+                              .eq('follower_id', currentUserId)
+                              .eq('following_id', targetUserId)
+                            setIsFollowing(false)
+                            setFollowersCount((p) => Math.max(0, p - 1))
+                          }
+                          await supabase
+                            .from('follow_requests')
+                            .delete()
+                            .eq('requester_id', currentUserId)
+                            .eq('target_id', targetUserId)
+
+                          setIsRequested(false)
+                          setIsBlocked(true)
+                        }}
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-red-400 border-t border-white/5"
+                      >
+                        {isBlocked ? 'Unblock' : 'Block'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setShowMenu(false)
+                          if (!currentUserId || !targetUserId) return
+                          const reason = prompt('Alasan report (opsional):')
+                          if (reason === null) return
+
+                          const { error } = await supabase.from('reports').insert({
+                            reporter_id: currentUserId,
+                            reported_user_id: targetUserId,
+                            video_id: null,
+                            reason: reason || null,
+                          })
+
+                          if (error) alert('Gagal report: ' + error.message)
+                          else alert('Terima kasih. Laporan sudah dikirim.')
+                        }}
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-white border-t border-white/5"
+                      >
+                        Report
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -343,33 +477,74 @@ function ProfileByUsername() {
           <p className="text-sm text-gray-400">@{username}</p>
         </div>
 
-        <div className="flex gap-6 mt-4">
-          <div className="text-center">
-            <p className="font-bold">{canViewVideos ? videos.length : '—'}</p>
-            <p className="text-xs text-gray-400">Videos</p>
+        <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900 border border-white/15">
+          <div className="text-center flex-1">
+            <p className="font-bold text-lg">
+              {canViewVideos ? videos.length : '—'}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Videos</p>
           </div>
-          <div className="text-center">
-            <p className="font-bold">{followingCount}</p>
-            <p className="text-xs text-gray-400">Following</p>
+          <div
+            className="text-center flex-1 cursor-pointer active:opacity-70"
+            onClick={() =>
+              router.push(`/follow-list?userId=${targetUserId}&type=following`)
+            }
+          >
+            <p className="font-bold text-lg">{followingCount}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Following</p>
           </div>
-          <div className="text-center">
-            <p className="font-bold">{followersCount}</p>
-            <p className="text-xs text-gray-400">Followers</p>
+          <div
+            className="text-center flex-1 cursor-pointer active:opacity-70"
+            onClick={() =>
+              router.push(`/follow-list?userId=${targetUserId}&type=followers`)
+            }
+          >
+            <p className="font-bold text-lg">{followersCount}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Followers</p>
           </div>
-          <div className="text-center">
-            <p className="font-bold">{canViewVideos ? totalLikes : '—'}</p>
-            <p className="text-xs text-gray-400">Likes</p>
+          <div className="text-center flex-1">
+            <p className="font-bold text-lg">
+              {canViewVideos ? totalLikes : '—'}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Likes</p>
           </div>
         </div>
 
-        {bio && <p className="mt-3 text-sm whitespace-pre-line">{bio}</p>}
+        {bio && (
+          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>
+        )}
+        {website && (
+          <a
+            href={website.startsWith('http') ? website : `https://${website}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
+          >
+            {website.replace(/^https?:\/\//, '')}
+          </a>
+        )}
       </div>
 
       <div className="px-1 pt-4">
         {!canViewVideos ? (
-          <div className="text-center py-16">
+          <div className="text-center py-16 px-6">
             <div className="text-4xl mb-3">🔒</div>
-            <p className="font-semibold">This account is private</p>
+            <p className="font-semibold mb-1">This account is private</p>
+            <p className="text-sm text-gray-400">
+              {isRequested
+                ? 'Request sudah dikirim. Tunggu persetujuan.'
+                : `Follow @${username} untuk melihat video mereka`}
+            </p>
+          </div>
+        ) : videos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-2xl mb-4">
+              🎬
+            </div>
+            <p className="text-white font-semibold text-sm mb-1">Belum ada video</p>
+            <p className="text-xs text-gray-500">
+              @{username} belum mengunggah video
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-[2px]">

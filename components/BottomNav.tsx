@@ -29,17 +29,25 @@ export default function BottomNav() {
         if (b.blocked_id === user.id) blockedSet.add(b.blocker_id)
       })
 
-      // Ambil pesan unread, lalu exclude yang dari akun diblokir
+      // Pesan unread (exclude yang diblokir)
       const { data: unreadMsgs } = await supabase
         .from('messages')
         .select('id, sender_id')
         .eq('receiver_id', user.id)
         .eq('is_read', false)
 
-      const filtered = (unreadMsgs || []).filter(
+      const msgUnread = (unreadMsgs || []).filter(
         (m) => !blockedSet.has(m.sender_id)
-      )
-      setInboxUnread(filtered.length)
+      ).length
+
+      // Notifikasi sistem (like, follow, komentar, dll.)
+      const { count: notifCount } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false)
+
+      setInboxUnread(msgUnread + (notifCount || 0))
     }
 
     load()

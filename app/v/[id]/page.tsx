@@ -594,6 +594,46 @@ export default function SingleVideoPage() {
       else el.pause()
     }
   }
+  const togglePin = async (videoId: string) => {
+    if (!userId) return
+    const video = videos.find((v) => v.id === videoId)
+    if (!video || video.user_id !== userId) return
+
+    const currentlyPinned = !!video.is_pinned
+
+    if (!currentlyPinned) {
+      const { count } = await supabase
+        .from('videos')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('is_pinned', true)
+        .eq('is_draft', false)
+
+      if ((count || 0) >= 3) {
+        alert('Maksimal 3 video yang bisa di-pin')
+        return
+      }
+    }
+
+    const { error } = await supabase
+      .from('videos')
+      .update({ is_pinned: !currentlyPinned })
+      .eq('id', videoId)
+      .eq('user_id', userId)
+
+    if (error) {
+      alert('Gagal: ' + error.message)
+      return
+    }
+
+    setVideos((prev) =>
+      prev.map((v) =>
+        v.id === videoId ? { ...v, is_pinned: !currentlyPinned } : v
+      )
+    )
+    setShowMore(null)
+  }
+
   const handleDeleteVideo = async (videoId: string) => {
     if (!userId) return
     if (!confirm('Hapus video ini?')) return
@@ -789,6 +829,11 @@ export default function SingleVideoPage() {
               preload={index < 2 ? 'auto' : 'metadata'}
               onClick={(e) => handleTap(video.id, e.currentTarget)}
             />
+            {video.is_pinned && (
+              <span className="absolute top-14 left-3 z-20 text-xs bg-black/60 px-2 py-1 rounded-full border border-white/10">
+                📌 Dipin
+              </span>
+            )}
             {heartAnim === video.id && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
                 <span className="text-7xl text-red-500 animate-ping">♥</span>
@@ -1182,6 +1227,12 @@ export default function SingleVideoPage() {
               if (!v || v.user_id !== userId) return null
               return (
                 <>
+                  <button
+                    onClick={() => togglePin(showMore)}
+                    className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
+                  >
+                    {v.is_pinned ? 'Unpin dari profil' : 'Pin ke profil'}
+                  </button>
                   <button
                     onClick={() => {
                       setShowMore(null)
