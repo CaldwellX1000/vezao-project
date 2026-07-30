@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Lexend } from "next/font/google";
 import "./globals.css";
+import InstallPrompt from "@/components/InstallPrompt";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,6 +49,7 @@ export default function RootLayout({
     >
       <body className={`${lexend.className} min-h-full flex flex-col`}>
         {children}
+        <InstallPrompt />
       </body>
     </html>
   );
