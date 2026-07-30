@@ -317,7 +317,7 @@ export default function NotificationsPage() {
       return (
         <>
           <span className="font-semibold text-white">@{name}</span>
-          {' mention kamu: '}
+          {n.video_id ? ' mention kamu di video: ' : ' mention kamu di story: '}
           <span className="text-gray-400">{n.message || '...'}</span>
         </>
       )

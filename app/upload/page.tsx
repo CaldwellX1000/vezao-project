@@ -6,6 +6,44 @@ import { useRouter, useSearchParams } from 'next/navigation'
 
 type Mode = 'choose' | 'gallery' | 'camera' | 'preview'
 
+function extractMentions(text: string): string[] {
+  const matches = text.match(/@([a-zA-Z0-9._]+)/g) || []
+  return [...new Set(matches.map((m) => m.slice(1)))]
+}
+
+async function notifyMentions(
+  supabase: ReturnType<typeof createClient>,
+  opts: {
+    text: string
+    actorId: string
+    videoId: string | null
+  }
+) {
+  const usernames = extractMentions(opts.text)
+  if (usernames.length === 0) return
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, username')
+    .in('username', usernames)
+
+  if (!profiles?.length) return
+
+  const rows = profiles
+    .filter((p) => p.id && p.id !== opts.actorId)
+    .map((p) => ({
+      user_id: p.id,
+      actor_id: opts.actorId,
+      type: 'mention',
+      video_id: opts.videoId,
+      message: opts.text.slice(0, 120),
+      is_read: false,
+    }))
+
+  if (rows.length === 0) return
+  await supabase.from('notifications').insert(rows)
+}
+
 function UploadContent() {
   const searchParams = useSearchParams()
   const draftId = searchParams.get('draft')
@@ -336,6 +374,14 @@ function UploadContent() {
 
         if (error) throw error
 
+        if (!asDraft && caption.trim()) {
+          await notifyMentions(supabase, {
+            text: caption.trim(),
+            actorId: user.id,
+            videoId: editingDraftId,
+          })
+        }
+
         setProgress(100)
         setMessage(asDraft ? 'Draft tersimpan!' : 'Upload berhasil!')
         setTimeout(() => {
@@ -409,18 +455,30 @@ function UploadContent() {
 
       setProgress(80)
 
-      const { error: dbError } = await supabase.from('videos').insert({
-        user_id: user.id,
-        caption: caption.trim() || null,
-        video_url: publicUrl,
-        thumbnail_url: thumbnailUrl,
-        is_draft: asDraft,
-        comments_enabled: commentsEnabled,
-        visibility: visibility,
-        sound_name: soundName.trim() || null,
-      })
+      const { data: inserted, error: dbError } = await supabase
+        .from('videos')
+        .insert({
+          user_id: user.id,
+          caption: caption.trim() || null,
+          video_url: publicUrl,
+          thumbnail_url: thumbnailUrl,
+          is_draft: asDraft,
+          comments_enabled: commentsEnabled,
+          visibility: visibility,
+          sound_name: soundName.trim() || null,
+        })
+        .select('id')
+        .single()
 
       if (dbError) throw dbError
+
+      if (!asDraft && caption.trim() && inserted?.id) {
+        await notifyMentions(supabase, {
+          text: caption.trim(),
+          actorId: user.id,
+          videoId: inserted.id,
+        })
+      }
 
       setProgress(100)
       setMessage(asDraft ? 'Draft tersimpan!' : 'Upload berhasil!')

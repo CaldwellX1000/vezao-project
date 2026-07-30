@@ -4,6 +4,44 @@ import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+function extractMentions(text: string): string[] {
+  const matches = text.match(/@([a-zA-Z0-9._]+)/g) || []
+  return [...new Set(matches.map((m) => m.slice(1)))]
+}
+
+async function notifyMentions(
+  supabase: ReturnType<typeof createClient>,
+  opts: {
+    text: string
+    actorId: string
+    videoId: string | null
+  }
+) {
+  const usernames = extractMentions(opts.text)
+  if (usernames.length === 0) return
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, username')
+    .in('username', usernames)
+
+  if (!profiles?.length) return
+
+  const rows = profiles
+    .filter((p) => p.id && p.id !== opts.actorId)
+    .map((p) => ({
+      user_id: p.id,
+      actor_id: opts.actorId,
+      type: 'mention',
+      video_id: opts.videoId,
+      message: opts.text.slice(0, 120),
+      is_read: false,
+    }))
+
+  if (rows.length === 0) return
+  await supabase.from('notifications').insert(rows)
+}
+
 export default function StoryCreatePage() {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -155,6 +193,14 @@ export default function StoryCreatePage() {
       })
 
       if (dbErr) throw dbErr
+
+      if (caption.trim()) {
+        await notifyMentions(supabase, {
+          text: caption.trim(),
+          actorId: user.id,
+          videoId: null,
+        })
+      }
 
       setMessage('Story berhasil diposting!')
       setTimeout(() => router.push('/'), 800)
