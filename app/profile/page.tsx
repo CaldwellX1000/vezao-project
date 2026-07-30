@@ -435,6 +435,24 @@ const list = published || []
     if (coverInputRef.current) coverInputRef.current.value = ''
   }
 
+  const handleRemoveCover = async () => {
+    if (!userId || !coverUrl) return
+    if (!confirm('Hapus foto sampul?')) return
+
+    setUploadingCover(true)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ cover_url: null })
+      .eq('id', userId)
+
+    if (error) {
+      alert('Gagal hapus sampul: ' + error.message)
+    } else {
+      setCoverUrl(null)
+    }
+    setUploadingCover(false)
+  }
+
   const handleSave = async () => {
     if (!userId) return
     setSaving(true)
@@ -521,14 +539,26 @@ const list = published || []
         ) : (
           <div className="absolute inset-0 bg-vezao-gradient" />
         )}
-        <button
-          type="button"
-          onClick={() => coverInputRef.current?.click()}
-          disabled={uploadingCover}
-          className="absolute bottom-2 right-3 z-10 px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm text-[11px] font-medium border border-white/20"
-        >
-          {uploadingCover ? '...' : coverUrl ? 'Ganti sampul' : 'Tambah sampul'}
-        </button>
+        <div className="absolute bottom-2 right-3 z-10 flex gap-2">
+          {coverUrl && (
+            <button
+              type="button"
+              onClick={handleRemoveCover}
+              disabled={uploadingCover}
+              className="px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm text-[11px] font-medium border border-white/20 text-red-300"
+            >
+              Hapus
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => coverInputRef.current?.click()}
+            disabled={uploadingCover}
+            className="px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm text-[11px] font-medium border border-white/20"
+          >
+            {uploadingCover ? '...' : coverUrl ? 'Ganti sampul' : 'Tambah sampul'}
+          </button>
+        </div>
         <input
           ref={coverInputRef}
           type="file"

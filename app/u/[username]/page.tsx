@@ -304,7 +304,7 @@ function ProfileByUsername() {
   return (
     <div className="min-h-screen bg-black text-white pb-20 md:bg-zinc-950">
       <div className="w-full md:max-w-[480px] md:mx-auto md:min-h-screen md:bg-black md:border-x md:border-white/10">
-      <div className="relative h-28 overflow-hidden">
+      <div className="relative h-28 overflow-hidden z-0">
         {coverUrl ? (
           <img
             src={coverUrl}
@@ -315,7 +315,7 @@ function ProfileByUsername() {
           <div className="absolute inset-0 bg-vezao-gradient" />
         )}
       </div>
-      <div className="px-4 -mt-12">
+      <div className="relative z-10 px-4 -mt-12">
         <div className="flex justify-between items-end">
           <div
             className={`w-[104px] h-[104px] rounded-full flex items-center justify-center ${

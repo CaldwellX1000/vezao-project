@@ -112,7 +112,6 @@ export default function InboxPage() {
       partnerIds.add(partnerId)
     })
 
-    // Sembunyikan chat dengan akun yang diblokir (2 arah)
     const { data: myBlocks } = await supabase
       .from('blocks')
       .select('blocker_id, blocked_id')
@@ -126,7 +125,6 @@ export default function InboxPage() {
 
     blockedSet.forEach((id) => partnerIds.delete(id))
 
-    // Unread hanya dari yang tidak diblokir
     const unread = messages.filter(
       (m) =>
         m.receiver_id === userId &&
@@ -218,7 +216,6 @@ export default function InboxPage() {
     setNotifications(list)
     setNotifUnread(list.filter((n) => !n.is_read).length)
 
-    // Siapa yang sudah kita follow → tombol "Following"
     if (actorIds.length > 0) {
       const { data: myFollows } = await supabase
         .from('follows')
@@ -317,6 +314,70 @@ export default function InboxPage() {
 
     setConversations((prev) => prev.filter((c) => c.userId !== partnerId))
     setMenuUserId(null)
+  }
+
+  const handleAcceptRequest = async (n: NotifItem, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!currentUserId || actingId) return
+    setActingId(n.id)
+
+    const { error: followErr } = await supabase.from('follows').insert({
+      follower_id: n.actor_id,
+      following_id: currentUserId,
+    })
+    if (followErr && !String(followErr.message).toLowerCase().includes('duplicate')) {
+      alert('Gagal accept: ' + followErr.message)
+      setActingId(null)
+      return
+    }
+
+    await supabase
+      .from('follow_requests')
+      .update({ status: 'accepted' })
+      .eq('requester_id', n.actor_id)
+      .eq('target_id', currentUserId)
+      .eq('status', 'pending')
+
+    await supabase
+      .from('notifications')
+      .update({ is_read: true, type: 'follow' })
+      .eq('id', n.id)
+
+    await supabase.from('notifications').insert({
+      user_id: n.actor_id,
+      actor_id: currentUserId,
+      type: 'follow',
+      video_id: null,
+      message: null,
+      is_read: false,
+    })
+
+    setNotifications((prev) =>
+      prev.map((x) =>
+        x.id === n.id ? { ...x, is_read: true, type: 'follow' } : x
+      )
+    )
+    setNotifUnread((c) => Math.max(0, c - 1))
+    setActingId(null)
+  }
+
+  const handleDeclineRequest = async (n: NotifItem, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!currentUserId || actingId) return
+    setActingId(n.id)
+
+    await supabase
+      .from('follow_requests')
+      .update({ status: 'rejected' })
+      .eq('requester_id', n.actor_id)
+      .eq('target_id', currentUserId)
+      .eq('status', 'pending')
+
+    await supabase.from('notifications').delete().eq('id', n.id)
+
+    setNotifications((prev) => prev.filter((x) => x.id !== n.id))
+    setNotifUnread((c) => Math.max(0, c - 1))
+    setActingId(null)
   }
 
   const handleFollowBack = async (n: NotifItem, e: React.MouseEvent) => {
@@ -537,10 +598,31 @@ export default function InboxPage() {
                       {formatInboxTime(n.created_at)}
                     </p>
                   </div>
-                  {!n.is_read && n.type !== 'follow' && (
+                  {!n.is_read && n.type !== 'follow' && n.type !== 'follow_request' && (
                     <div className="w-2 h-2 rounded-full bg-vezao-gradient shrink-0" />
                   )}
                 </button>
+
+                {n.type === 'follow_request' && (
+                  <div className="shrink-0 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => handleAcceptRequest(n, e)}
+                      disabled={actingId === n.id}
+                      className="px-3 py-1.5 rounded-full bg-vezao-gradient text-xs font-semibold disabled:opacity-50"
+                    >
+                      {actingId === n.id ? '...' : 'Confirm'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeclineRequest(n, e)}
+                      disabled={actingId === n.id}
+                      className="px-3 py-1.5 rounded-full bg-zinc-800 border border-white/10 text-xs font-semibold disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
 
                 {n.type === 'follow' && (
                   <div className="shrink-0">
@@ -565,114 +647,114 @@ export default function InboxPage() {
           )}
         </div>
       ) : (
-      <div className="divide-y divide-white/5" onClick={() => setMenuUserId(null)}>
-        {conversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <p className="text-sm">Belum ada pesan</p>
-            <p className="text-xs mt-1 px-6 text-center">
-              Mulai chat dengan menekan tombol Message di profil orang
-            </p>
-          </div>
-        ) : (
-          conversations.map((conv) => (
-            <div
-              key={conv.userId}
-              className="relative flex items-center gap-2 px-4 py-3 active:bg-white/5"
-            >
+        <div className="divide-y divide-white/5" onClick={() => setMenuUserId(null)}>
+          {conversations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+              <p className="text-sm">Belum ada pesan</p>
+              <p className="text-xs mt-1 px-6 text-center">
+                Mulai chat dengan menekan tombol Message di profil orang
+              </p>
+            </div>
+          ) : (
+            conversations.map((conv) => (
               <div
-                className="flex flex-1 items-center gap-3 min-w-0 cursor-pointer"
-                onClick={() => router.push(`/inbox/chat?userId=${conv.userId}`)}
+                key={conv.userId}
+                className="relative flex items-center gap-2 px-4 py-3 active:bg-white/5"
               >
                 <div
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    router.push(`/@${conv.username}`)
-                  }}
-                  className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden shrink-0"
+                  className="flex flex-1 items-center gap-3 min-w-0 cursor-pointer"
+                  onClick={() => router.push(`/inbox/chat?userId=${conv.userId}`)}
                 >
-                  {conv.avatarUrl ? (
-                    <img src={conv.avatarUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-lg font-bold bg-vezao-gradient">
-                      {conv.username[0]?.toUpperCase()}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      router.push(`/@${conv.username}`)
+                    }}
+                    className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden shrink-0"
+                  >
+                    {conv.avatarUrl ? (
+                      <img src={conv.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-lg font-bold bg-vezao-gradient">
+                        {conv.username[0]?.toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p
+                        className={`text-sm truncate ${
+                          conv.hasUnread ? 'font-bold text-white' : 'font-semibold text-white'
+                        }`}
+                      >
+                        {conv.fullName}
+                      </p>
+                      <span
+                        className={`text-[11px] shrink-0 ml-2 ${
+                          conv.hasUnread ? 'text-white font-medium' : 'text-gray-500'
+                        }`}
+                      >
+                        {formatInboxTime(conv.lastMessageTime)}
+                      </span>
                     </div>
+                    <p
+                      className={`text-sm truncate mt-0.5 ${
+                        conv.hasUnread ? 'text-white font-medium' : 'text-gray-400'
+                      }`}
+                    >
+                      {formatLastMessage(conv.lastMessage)}
+                    </p>
+                  </div>
+
+                  {conv.hasUnread && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-vezao-gradient shrink-0" />
                   )}
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p
-                      className={`text-sm truncate ${
-                        conv.hasUnread ? 'font-bold text-white' : 'font-semibold text-white'
-                      }`}
-                    >
-                      {conv.fullName}
-                    </p>
-                    <span
-                      className={`text-[11px] shrink-0 ml-2 ${
-                        conv.hasUnread ? 'text-white font-medium' : 'text-gray-500'
-                      }`}
-                    >
-                      {formatInboxTime(conv.lastMessageTime)}
-                    </span>
-                  </div>
-                  <p
-                    className={`text-sm truncate mt-0.5 ${
-                      conv.hasUnread ? 'text-white font-medium' : 'text-gray-400'
-                    }`}
-                  >
-                    {formatLastMessage(conv.lastMessage)}
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setMenuUserId(menuUserId === conv.userId ? null : conv.userId)
+                  }}
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white shrink-0"
+                >
+                  ⋯
+                </button>
 
-                {conv.hasUnread && (
-                  <div className="w-2.5 h-2.5 rounded-full bg-vezao-gradient shrink-0" />
+                {menuUserId === conv.userId && (
+                  <div
+                    className="absolute right-3 top-12 z-30 bg-zinc-900 border border-white/10 rounded-xl py-1 shadow-xl min-w-[160px]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => {
+                        setMenuUserId(null)
+                        router.push(`/@${conv.username}`)
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/5"
+                    >
+                      Lihat profil
+                    </button>
+                    <button
+                      onClick={() => deleteChat(conv.userId)}
+                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/5"
+                    >
+                      Hapus chat
+                    </button>
+                    <button
+                      onClick={() => blockUser(conv.userId)}
+                      className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-white/5"
+                    >
+                      Blokir
+                    </button>
+                  </div>
                 )}
               </div>
-
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setMenuUserId(menuUserId === conv.userId ? null : conv.userId)
-                }}
-                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white shrink-0"
-              >
-                ⋯
-              </button>
-
-              {menuUserId === conv.userId && (
-                <div
-                  className="absolute right-3 top-12 z-30 bg-zinc-900 border border-white/10 rounded-xl py-1 shadow-xl min-w-[160px]"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() => {
-                      setMenuUserId(null)
-                      router.push(`/@${conv.username}`)
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/5"
-                  >
-                    Lihat profil
-                  </button>
-                  <button
-                    onClick={() => deleteChat(conv.userId)}
-                    className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/5"
-                  >
-                    Hapus chat
-                  </button>
-                  <button
-                    onClick={() => blockUser(conv.userId)}
-                    className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-white/5"
-                  >
-                    Blokir
-                  </button>
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
       )}
 
       <BottomNav />
