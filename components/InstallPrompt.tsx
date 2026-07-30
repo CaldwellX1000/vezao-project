@@ -66,8 +66,12 @@ export default function InstallPrompt() {
   return (
     <div className="fixed bottom-20 left-3 right-3 z-[90] max-w-[480px] mx-auto">
       <div className="bg-zinc-900 border border-white/15 rounded-2xl p-4 shadow-xl flex gap-3 items-start">
-        <div className="w-11 h-11 rounded-xl bg-vezao-gradient flex items-center justify-center text-white font-bold shrink-0">
-          V
+        <div className="w-11 h-11 rounded-xl overflow-hidden bg-zinc-800 shrink-0 border border-white/10">
+          <img
+            src="/icon-192.png"
+            alt="VEZAO"
+            className="w-full h-full object-cover"
+          />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white">Pasang VEZAO</p>
