@@ -31,6 +31,8 @@ export default function ProfilePage() {
   const [bio, setBio] = useState('')
   const [website, setWebsite] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [coverUrl, setCoverUrl] = useState<string | null>(null)
+  const [uploadingCover, setUploadingCover] = useState(false)
   const [videos, setVideos] = useState<Video[]>([])
   const [drafts, setDrafts] = useState<Video[]>([])
   const [likedVideos, setLikedVideos] = useState<Video[]>([])
@@ -59,6 +61,7 @@ export default function ProfilePage() {
   const [editWebsite, setEditWebsite] = useState('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const coverInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -145,7 +148,7 @@ const list = published || []
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('username, full_name, bio, avatar_url, website, is_private')
+        .select('username, full_name, bio, avatar_url, cover_url, website, is_private')
         .eq('id', user.id)
         .single()
 
@@ -154,6 +157,7 @@ const list = published || []
       const userBio = profile?.bio || ''
       const userWebsite = profile?.website || ''
       const avatar = profile?.avatar_url || null
+      const cover = profile?.cover_url || null
       const privateAcc = profile?.is_private || false
 
       setUsername(uname)
@@ -161,6 +165,7 @@ const list = published || []
       setBio(userBio)
       setWebsite(userWebsite)
       setAvatarUrl(avatar)
+      setCoverUrl(cover)
       setIsPrivate(privateAcc)
       setEditUsername(uname)
       setEditFullName(name)
@@ -387,6 +392,49 @@ const list = published || []
     setUploading(false)
   }
 
+  const handleUploadCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !userId) return
+
+    if (!file.type.startsWith('image/')) {
+      alert('File harus berupa gambar')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Ukuran gambar maksimal 5MB')
+      return
+    }
+
+    setUploadingCover(true)
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${userId}-cover-${Date.now()}.${fileExt}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, file, { upsert: true })
+
+    if (uploadError) {
+      alert('Gagal upload cover: ' + uploadError.message)
+      setUploadingCover(false)
+      return
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('avatars').getPublicUrl(fileName)
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ cover_url: publicUrl })
+      .eq('id', userId)
+
+    if (!updateError) setCoverUrl(publicUrl)
+    else alert('Gagal simpan cover: ' + updateError.message)
+
+    setUploadingCover(false)
+    if (coverInputRef.current) coverInputRef.current.value = ''
+  }
+
   const handleSave = async () => {
     if (!userId) return
     setSaving(true)
@@ -463,7 +511,32 @@ const list = published || []
   return (
     <div className="min-h-screen bg-black text-white pb-20 md:bg-zinc-950">
       <div className="w-full md:max-w-[480px] md:mx-auto md:min-h-screen md:bg-black md:border-x md:border-white/10">
-      <div className="h-28 bg-vezao-gradient" />
+      <div className="relative h-28 overflow-hidden">
+        {coverUrl ? (
+          <img
+            src={coverUrl}
+            alt="Cover"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-vezao-gradient" />
+        )}
+        <button
+          type="button"
+          onClick={() => coverInputRef.current?.click()}
+          disabled={uploadingCover}
+          className="absolute bottom-2 right-3 z-10 px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm text-[11px] font-medium border border-white/20"
+        >
+          {uploadingCover ? '...' : coverUrl ? 'Ganti sampul' : 'Tambah sampul'}
+        </button>
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleUploadCover}
+        />
+      </div>
 
       <div className="px-4 -mt-12">
         <div className="flex justify-between items-end">

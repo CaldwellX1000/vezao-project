@@ -82,6 +82,8 @@ export default function InboxPage() {
   const [tab, setTab] = useState<'messages' | 'activity'>('messages')
   const [notifications, setNotifications] = useState<NotifItem[]>([])
   const [loadingNotif, setLoadingNotif] = useState(false)
+  const [followedBack, setFollowedBack] = useState<Set<string>>(new Set())
+  const [actingId, setActingId] = useState<string | null>(null)
 
   const router = useRouter()
   const supabase = createClient()
@@ -215,6 +217,19 @@ export default function InboxPage() {
 
     setNotifications(list)
     setNotifUnread(list.filter((n) => !n.is_read).length)
+
+    // Siapa yang sudah kita follow → tombol "Following"
+    if (actorIds.length > 0) {
+      const { data: myFollows } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', userId)
+        .in('following_id', actorIds)
+      setFollowedBack(new Set((myFollows || []).map((f) => f.following_id)))
+    } else {
+      setFollowedBack(new Set())
+    }
+
     setLoadingNotif(false)
   }, [])
 
@@ -302,6 +317,35 @@ export default function InboxPage() {
 
     setConversations((prev) => prev.filter((c) => c.userId !== partnerId))
     setMenuUserId(null)
+  }
+
+  const handleFollowBack = async (n: NotifItem, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!currentUserId || actingId) return
+    setActingId(n.id)
+
+    const { error } = await supabase.from('follows').insert({
+      follower_id: currentUserId,
+      following_id: n.actor_id,
+    })
+
+    if (error && !String(error.message).toLowerCase().includes('duplicate')) {
+      alert('Gagal follow: ' + error.message)
+      setActingId(null)
+      return
+    }
+
+    await supabase.from('notifications').insert({
+      user_id: n.actor_id,
+      actor_id: currentUserId,
+      type: 'follow',
+      video_id: null,
+      message: null,
+      is_read: false,
+    })
+
+    setFollowedBack((prev) => new Set(prev).add(n.actor_id))
+    setActingId(null)
   }
 
   useEffect(() => {
@@ -441,59 +485,82 @@ export default function InboxPage() {
             </div>
           ) : (
             notifications.map((n) => (
-              <button
+              <div
                 key={n.id}
-                type="button"
-                onClick={async () => {
-                  if (!n.is_read) {
-                    await supabase
-                      .from('notifications')
-                      .update({ is_read: true })
-                      .eq('id', n.id)
-                    setNotifications((prev) =>
-                      prev.map((x) =>
-                        x.id === n.id ? { ...x, is_read: true } : x
-                      )
-                    )
-                    setNotifUnread((c) => Math.max(0, c - 1))
-                  }
-                  if (n.video_id) router.push(`/v/${n.video_id}`)
-                  else if (n.actor?.username)
-                    router.push(`/@${n.actor.username}`)
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-white/5 ${
+                className={`w-full flex items-center gap-3 px-4 py-3.5 ${
                   !n.is_read ? 'bg-white/[0.03]' : ''
                 }`}
               >
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 shrink-0">
-                  {n.actor?.avatar_url ? (
-                    <img
-                      src={n.actor.avatar_url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
-                      {(n.actor?.username || 'U')[0]?.toUpperCase()}
-                    </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!n.is_read) {
+                      await supabase
+                        .from('notifications')
+                        .update({ is_read: true })
+                        .eq('id', n.id)
+                      setNotifications((prev) =>
+                        prev.map((x) =>
+                          x.id === n.id ? { ...x, is_read: true } : x
+                        )
+                      )
+                      setNotifUnread((c) => Math.max(0, c - 1))
+                    }
+                    if (n.video_id) router.push(`/v/${n.video_id}`)
+                    else if (n.actor?.username)
+                      router.push(`/@${n.actor.username}`)
+                  }}
+                  className="flex flex-1 items-center gap-3 min-w-0 text-left active:opacity-80"
+                >
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+                    {n.actor?.avatar_url ? (
+                      <img
+                        src={n.actor.avatar_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
+                        {(n.actor?.username || 'U')[0]?.toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm ${
+                        !n.is_read ? 'font-semibold text-white' : 'text-gray-300'
+                      }`}
+                    >
+                      {notifText(n)}
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {formatInboxTime(n.created_at)}
+                    </p>
+                  </div>
+                  {!n.is_read && n.type !== 'follow' && (
+                    <div className="w-2 h-2 rounded-full bg-vezao-gradient shrink-0" />
                   )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-sm ${
-                      !n.is_read ? 'font-semibold text-white' : 'text-gray-300'
-                    }`}
-                  >
-                    {notifText(n)}
-                  </p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    {formatInboxTime(n.created_at)}
-                  </p>
-                </div>
-                {!n.is_read && (
-                  <div className="w-2 h-2 rounded-full bg-vezao-gradient shrink-0" />
+                </button>
+
+                {n.type === 'follow' && (
+                  <div className="shrink-0">
+                    {followedBack.has(n.actor_id) ? (
+                      <span className="px-3 py-1.5 rounded-full bg-zinc-800 border border-white/10 text-xs font-semibold text-gray-300">
+                        Following
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => handleFollowBack(n, e)}
+                        disabled={actingId === n.id}
+                        className="px-3 py-1.5 rounded-full bg-vezao-gradient text-xs font-semibold disabled:opacity-50"
+                      >
+                        {actingId === n.id ? '...' : 'Follow back'}
+                      </button>
+                    )}
+                  </div>
                 )}
-              </button>
+              </div>
             ))
           )}
         </div>

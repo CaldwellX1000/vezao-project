@@ -35,6 +35,7 @@ function UserProfileContent() {
   const [followersCount, setFollowersCount] = useState(0)
   const [isFollowing, setIsFollowing] = useState(false)
   const [isRequested, setIsRequested] = useState(false)
+  const [followsMe, setFollowsMe] = useState(false)
   const [isBlocked, setIsBlocked] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -194,6 +195,15 @@ function UserProfileContent() {
       const isFollower = !!followData
       setIsFollowing(isFollower)
 
+      // Apakah target follow kita? (untuk label Follow back)
+      const { data: reverseFollow } = await supabase
+        .from('follows')
+        .select('id')
+        .eq('follower_id', resolvedId)
+        .eq('following_id', user.id)
+        .maybeSingle()
+      setFollowsMe(!!reverseFollow)
+
       if (!isFollower) {
         const { data: req } = await supabase
           .from('follow_requests')
@@ -349,6 +359,8 @@ function UserProfileContent() {
     ? 'Following'
     : isRequested
     ? 'Requested'
+    : followsMe
+    ? 'Follow back'
     : 'Follow'
 
   const totalLikes = videos.reduce((sum, v) => sum + (v.likes_count || 0), 0)
