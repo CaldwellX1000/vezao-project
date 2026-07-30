@@ -33,6 +33,12 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [uploadingCover, setUploadingCover] = useState(false)
+  const [coverEditorOpen, setCoverEditorOpen] = useState(false)
+  const [coverSource, setCoverSource] = useState<string | null>(null)
+  const [coverPos, setCoverPos] = useState({ x: 0, y: 0 })
+  const [coverDrag, setCoverDrag] = useState<{ x: number; y: number } | null>(null)
+  const coverFrameRef = useRef<HTMLDivElement>(null)
+  const coverImgRef = useRef<HTMLImageElement>(null)
   const [videos, setVideos] = useState<Video[]>([])
   const [drafts, setDrafts] = useState<Video[]>([])
   const [likedVideos, setLikedVideos] = useState<Video[]>([])
@@ -392,47 +398,123 @@ const list = published || []
     setUploading(false)
   }
 
-  const handleUploadCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !userId) return
+    if (!file) return
 
     if (!file.type.startsWith('image/')) {
       alert('File harus berupa gambar')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Ukuran gambar maksimal 5MB')
+    if (file.size > 8 * 1024 * 1024) {
+      alert('Ukuran gambar maksimal 8MB')
       return
     }
+
+    const url = URL.createObjectURL(file)
+    setCoverSource(url)
+    setCoverPos({ x: 0, y: 0 })
+    setCoverEditorOpen(true)
+    if (coverInputRef.current) coverInputRef.current.value = ''
+  }
+
+  const handleCoverPointerDown = (e: React.PointerEvent) => {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setCoverDrag({ x: e.clientX - coverPos.x, y: e.clientY - coverPos.y })
+  }
+
+  const handleCoverPointerMove = (e: React.PointerEvent) => {
+    if (!coverDrag) return
+    setCoverPos({
+      x: e.clientX - coverDrag.x,
+      y: e.clientY - coverDrag.y,
+    })
+  }
+
+  const handleCoverPointerUp = (e: React.PointerEvent) => {
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {}
+    setCoverDrag(null)
+  }
+
+  const confirmCoverUpload = async () => {
+    if (!userId || !coverSource || !coverFrameRef.current || !coverImgRef.current) return
 
     setUploadingCover(true)
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${userId}-cover-${Date.now()}.${fileExt}`
 
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(fileName, file, { upsert: true })
+    try {
+      const frame = coverFrameRef.current
+      const img = coverImgRef.current
+      const frameW = frame.clientWidth
+      const frameH = frame.clientHeight
 
-    if (uploadError) {
-      alert('Gagal upload cover: ' + uploadError.message)
-      setUploadingCover(false)
-      return
+      const outW = 1200
+      const outH = Math.round((frameH / frameW) * outW)
+
+      const scale = Math.max(frameW / img.naturalWidth, frameH / img.naturalHeight)
+      const dispW = img.naturalWidth * scale
+      const dispH = img.naturalHeight * scale
+
+      const baseX = (frameW - dispW) / 2
+      const baseY = (frameH - dispH) / 2
+      const imgX = baseX + coverPos.x
+      const imgY = baseY + coverPos.y
+
+      const sx = -imgX / scale
+      const sy = -imgY / scale
+      const sw = frameW / scale
+      const sh = frameH / scale
+
+      const canvas = document.createElement('canvas')
+      canvas.width = outW
+      canvas.height = outH
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas tidak didukung')
+
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH)
+
+      const blob: Blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error('Gagal export'))),
+          'image/jpeg',
+          0.9
+        )
+      })
+
+      const fileName = `${userId}-cover-${Date.now()}.jpg`
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, blob, { upsert: true, contentType: 'image/jpeg' })
+
+      if (uploadError) {
+        alert('Gagal upload cover: ' + uploadError.message)
+        setUploadingCover(false)
+        return
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('avatars').getPublicUrl(fileName)
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ cover_url: publicUrl })
+        .eq('id', userId)
+
+      if (!updateError) {
+        setCoverUrl(publicUrl)
+        setCoverEditorOpen(false)
+        if (coverSource) URL.revokeObjectURL(coverSource)
+        setCoverSource(null)
+      } else {
+        alert('Gagal simpan cover: ' + updateError.message)
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Gagal proses gambar')
     }
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from('avatars').getPublicUrl(fileName)
-
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ cover_url: publicUrl })
-      .eq('id', userId)
-
-    if (!updateError) setCoverUrl(publicUrl)
-    else alert('Gagal simpan cover: ' + updateError.message)
-
     setUploadingCover(false)
-    if (coverInputRef.current) coverInputRef.current.value = ''
   }
 
   const handleRemoveCover = async () => {
@@ -564,7 +646,7 @@ const list = published || []
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={handleUploadCover}
+          onChange={handleCoverFileSelect}
         />
       </div>
 
@@ -1145,6 +1227,73 @@ const list = published || []
                 </svg>
               </div>
               <p className="text-sm font-medium">Tambah akun</p>
+            </button>
+          </div>
+        </div>
+      )}
+      {coverEditorOpen && coverSource && (
+        <div className="fixed inset-0 z-[80] bg-black/90 flex flex-col">
+          <div className="px-4 h-14 flex items-center justify-between border-b border-white/10">
+            <button
+              type="button"
+              onClick={() => {
+                setCoverEditorOpen(false)
+                if (coverSource) URL.revokeObjectURL(coverSource)
+                setCoverSource(null)
+                setCoverPos({ x: 0, y: 0 })
+              }}
+              className="text-sm text-gray-300"
+            >
+              Batal
+            </button>
+            <p className="text-sm font-semibold">Atur sampul</p>
+            <button
+              type="button"
+              onClick={confirmCoverUpload}
+              disabled={uploadingCover}
+              className="text-sm font-semibold text-purple-400 disabled:opacity-50"
+            >
+              {uploadingCover ? '...' : 'Simpan'}
+            </button>
+          </div>
+
+          <div className="flex-1 flex flex-col items-center justify-center px-4 gap-4">
+            <p className="text-xs text-gray-400 text-center">
+              Geser foto agar posisi pas (tidak terpotong)
+            </p>
+
+            <div
+              ref={coverFrameRef}
+              className="relative w-full max-w-md h-28 overflow-hidden rounded-xl border border-white/20 bg-zinc-900 touch-none cursor-grab active:cursor-grabbing"
+              onPointerDown={handleCoverPointerDown}
+              onPointerMove={handleCoverPointerMove}
+              onPointerUp={handleCoverPointerUp}
+              onPointerCancel={handleCoverPointerUp}
+            >
+              <img
+                ref={coverImgRef}
+                src={coverSource}
+                alt="Cover preview"
+                draggable={false}
+                className="absolute max-w-none pointer-events-none select-none"
+                style={{
+                  height: '100%',
+                  width: 'auto',
+                  left: '50%',
+                  top: '50%',
+                  transform: `translate(calc(-50% + ${coverPos.x}px), calc(-50% + ${coverPos.y}px))`,
+                  minWidth: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCoverPos({ x: 0, y: 0 })}
+              className="text-xs text-gray-400 underline"
+            >
+              Reset posisi
             </button>
           </div>
         </div>
