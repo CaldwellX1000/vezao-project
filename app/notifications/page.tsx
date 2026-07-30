@@ -108,6 +108,24 @@ function TypeIcon({ type }: { type: string }) {
       </svg>
     )
   }
+  if (type === 'mention') {
+    return (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        className="w-3 h-3 text-cyan-400"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"
+        />
+      </svg>
+    )
+  }
   if (type === 'follow' || type === 'follow_request') {
     return (
       <svg
@@ -293,6 +311,14 @@ export default function NotificationsPage() {
         <>
           <span className="font-semibold text-white">@{name}</span>
           {' membagikan videomu'}
+        </>
+      )
+    if (n.type === 'mention')
+      return (
+        <>
+          <span className="font-semibold text-white">@{name}</span>
+          {' mention kamu: '}
+          <span className="text-gray-400">{n.message || '...'}</span>
         </>
       )
     return n.message || 'Notifikasi baru'

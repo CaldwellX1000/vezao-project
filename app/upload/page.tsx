@@ -24,6 +24,12 @@ function UploadContent() {
   const [commentsEnabled, setCommentsEnabled] = useState(true)
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public')
   const [soundName, setSoundName] = useState('')
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [mentionResults, setMentionResults] = useState<
+    { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
+  >([])
+  const [showMentions, setShowMentions] = useState(false)
+  const [mentionLoading, setMentionLoading] = useState(false)
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
   const [recording, setRecording] = useState(false)
@@ -447,6 +453,50 @@ function UploadContent() {
     router.replace('/upload')
   }
 
+  const searchMentions = async (q: string) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    setMentionLoading(true)
+
+    const { data: follows } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', user.id)
+
+    const ids = follows?.map((f) => f.following_id) || []
+    if (ids.length === 0) {
+      setMentionResults([])
+      setMentionLoading(false)
+      return
+    }
+
+    let query = supabase
+      .from('profiles')
+      .select('id, username, full_name, avatar_url')
+      .in('id', ids)
+      .limit(8)
+
+    if (q.trim()) {
+      query = query.or(`username.ilike.%${q}%,full_name.ilike.%${q}%`)
+    }
+
+    const { data } = await query
+    setMentionResults(data || [])
+    setMentionLoading(false)
+  }
+
+  const insertMention = (username: string) => {
+    if (!username) return
+    const newCaption = caption.replace(/@([a-zA-Z0-9._]*)$/, `@${username} `)
+    setCaption(newCaption)
+    setShowMentions(false)
+    setMentionQuery('')
+    setMentionResults([])
+  }
+
   if (checkingAuth) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -646,17 +696,71 @@ function UploadContent() {
           </div>
         )}
 
-        <div>
+        <div className="relative">
           <label className="block text-xs text-gray-400 mb-2">Caption</label>
           <textarea
             value={caption}
-            onChange={(e) => setCaption(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value
+              setCaption(val)
+              const upToCursor = val.slice(0, e.target.selectionStart || val.length)
+              const match = upToCursor.match(/@([a-zA-Z0-9._]*)$/)
+              if (match) {
+                setMentionQuery(match[1] || '')
+                setShowMentions(true)
+                void searchMentions(match[1] || '')
+              } else {
+                setShowMentions(false)
+                setMentionQuery('')
+              }
+            }}
             rows={3}
             maxLength={150}
-            placeholder="Tulis caption... pakai #hashtag"
+            placeholder="Tulis caption... @teman #hashtag"
             className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
           />
           <p className="text-[11px] text-gray-500 text-right mt-1">{caption.length}/150</p>
+
+          {showMentions && (
+            <div className="mt-1 rounded-xl border border-white/10 bg-zinc-900 overflow-hidden max-h-48 overflow-y-auto z-20">
+              {mentionLoading ? (
+                <p className="text-xs text-gray-500 px-3 py-2">Mencari...</p>
+              ) : mentionResults.length === 0 ? (
+                <p className="text-xs text-gray-500 px-3 py-2">
+                  Tidak ada teman yang cocok
+                </p>
+              ) : (
+                mentionResults.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => insertMention(u.username || '')}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 text-left"
+                  >
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                      {u.avatar_url ? (
+                        <img
+                          src={u.avatar_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
+                          {(u.username || 'U')[0]?.toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">
+                        {u.full_name || u.username}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">@{u.username}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         <div>

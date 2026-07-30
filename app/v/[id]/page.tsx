@@ -75,6 +75,89 @@ function canEditComment(createdAt: string) {
   return Date.now() - new Date(createdAt).getTime() <= 30 * 60 * 1000
 }
 
+function renderTextWithMentions(
+  text: string,
+  onMention: (username: string) => void,
+  onHashtag?: (tag: string) => void
+) {
+  if (!text) return null
+  const parts = text.split(/(@[a-zA-Z0-9._]+|#[\w]+)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('@') && part.length > 1) {
+      const uname = part.slice(1)
+      return (
+        <span
+          key={i}
+          onClick={(e) => {
+            e.stopPropagation()
+            onMention(uname)
+          }}
+          className="text-blue-400 font-medium cursor-pointer"
+        >
+          {part}
+        </span>
+      )
+    }
+    if (part.startsWith('#') && onHashtag) {
+      return (
+        <span
+          key={i}
+          onClick={(e) => {
+            e.stopPropagation()
+            onHashtag(part.slice(1))
+          }}
+          className="text-blue-400 font-medium cursor-pointer"
+        >
+          {part}
+        </span>
+      )
+    }
+    return <span key={i}>{part}</span>
+  })
+}
+
+function extractMentions(text: string): string[] {
+  const matches = text.match(/@([a-zA-Z0-9._]+)/g) || []
+  return [...new Set(matches.map((m) => m.slice(1)))]
+}
+
+async function notifyMentions(
+  supabase: ReturnType<typeof createClient>,
+  opts: {
+    text: string
+    actorId: string
+    videoId: string | null
+    excludeUserIds?: string[]
+  }
+) {
+  const usernames = extractMentions(opts.text)
+  if (usernames.length === 0) return
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, username')
+    .in('username', usernames)
+
+  if (!profiles?.length) return
+
+  const exclude = new Set(opts.excludeUserIds || [])
+  exclude.add(opts.actorId)
+
+  const rows = profiles
+    .filter((p) => p.id && !exclude.has(p.id))
+    .map((p) => ({
+      user_id: p.id,
+      actor_id: opts.actorId,
+      type: 'mention',
+      video_id: opts.videoId,
+      message: opts.text.slice(0, 120),
+      is_read: false,
+    }))
+
+  if (rows.length === 0) return
+  await supabase.from('notifications').insert(rows)
+}
+
 export default function SingleVideoPage() {
   const params = useParams()
   const rawId = params?.id
@@ -104,6 +187,13 @@ export default function SingleVideoPage() {
   >([])
   const [loadingShareFriends, setLoadingShareFriends] = useState(false)
   const [sharingTo, setSharingTo] = useState<string | null>(null)
+    const [pullDistance, setPullDistance] = useState(0)
+  const [showMentions, setShowMentions] = useState(false)
+  const [mentionResults, setMentionResults] = useState<
+    { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
+  >([])
+  const [mentionLoading, setMentionLoading] = useState(false)
+
 
   const router = useRouter()
   const supabase = createClient()
@@ -160,7 +250,6 @@ export default function SingleVideoPage() {
         return
       }
 
-      // 1) Tampilkan dulu video dari URL — biar tidak ke video lain
       setVideos([startVideo as any])
       setLoading(false)
 
@@ -193,7 +282,6 @@ export default function SingleVideoPage() {
         return 0
       })
 
-      // 2) Start tetap index 0, sisanya di belakang
       setVideos([startVideo as any, ...rest])
 
       const { data: likesData } = await supabase
@@ -212,7 +300,6 @@ export default function SingleVideoPage() {
     load()
   }, [startVideoId])
 
-  // Play hanya video index 0 (= URL)
   useEffect(() => {
     if (videos.length === 0) return
     if (String(videos[0].id) !== String(startVideoId)) return
@@ -330,7 +417,6 @@ export default function SingleVideoPage() {
 
     if (isSaved) {
       await supabase.from('saves').delete().eq('user_id', userId).eq('video_id', videoId)
-
       const { error: rpcErr } = await supabase.rpc('decrement_saves', {
         video_id: videoId,
       })
@@ -341,7 +427,6 @@ export default function SingleVideoPage() {
           .update({ saves_count: Math.max(0, cur - 1) })
           .eq('id', videoId)
       }
-
       setSavedVideos((prev) => {
         const next = new Set(prev)
         next.delete(videoId)
@@ -362,7 +447,6 @@ export default function SingleVideoPage() {
         alert('Gagal simpan: ' + error.message)
         return
       }
-
       const { error: rpcErr } = await supabase.rpc('increment_saves', {
         video_id: videoId,
       })
@@ -373,7 +457,6 @@ export default function SingleVideoPage() {
           .update({ saves_count: cur + 1 })
           .eq('id', videoId)
       }
-
       setSavedVideos((prev) => new Set(prev).add(videoId))
       setVideos((prev) =>
         prev.map((v) =>
@@ -382,7 +465,6 @@ export default function SingleVideoPage() {
             : v
         )
       )
-
       const owner = videos.find((v) => v.id === videoId)
       if (owner && owner.user_id !== userId) {
         await supabase.from('notifications').insert({
@@ -485,7 +567,51 @@ export default function SingleVideoPage() {
         is_read: false,
       })
     }
+
+    await notifyMentions(supabase, {
+      text: content,
+      actorId: userId,
+      videoId: activeVideoId,
+      excludeUserIds: [
+        ...(replyTo ? [replyTo.user_id] : []),
+        ...(video ? [video.user_id] : []),
+      ],
+    })
+
     await openComments(activeVideoId)
+  }
+
+  const searchMentions = async (q: string) => {
+    if (!userId) return
+    setMentionLoading(true)
+    const { data: follows } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', userId)
+    const ids = follows?.map((f) => f.following_id) || []
+    if (ids.length === 0) {
+      setMentionResults([])
+      setMentionLoading(false)
+      return
+    }
+    let query = supabase
+      .from('profiles')
+      .select('id, username, full_name, avatar_url')
+      .in('id', ids)
+      .limit(8)
+    if (q.trim()) {
+      query = query.or(`username.ilike.%${q}%,full_name.ilike.%${q}%`)
+    }
+    const { data } = await query
+    setMentionResults(data || [])
+    setMentionLoading(false)
+  }
+
+  const insertMention = (username: string) => {
+    if (!username) return
+    setNewComment((prev) => prev.replace(/@([a-zA-Z0-9._]*)$/, `@${username} `))
+    setShowMentions(false)
+    setMentionResults([])
   }
 
   const toggleCommentLike = async (commentId: string) => {
@@ -595,6 +721,7 @@ export default function SingleVideoPage() {
       else el.pause()
     }
   }
+
   const togglePin = async (videoId: string) => {
     if (!userId) return
     const video = videos.find((v) => v.id === videoId)
@@ -655,6 +782,7 @@ export default function SingleVideoPage() {
     }
     setVideos(next)
   }
+
   const openShare = async (videoId: string) => {
     setShareVideoId(videoId)
     if (!userId) return
@@ -793,7 +921,6 @@ export default function SingleVideoPage() {
   return (
     <div className="fixed inset-0 z-0 bg-black">
       <div className="relative h-full w-full max-w-[480px] mx-auto bg-black text-white overflow-hidden">
-        {/* Back + Mute */}
         <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-3 pt-3 pointer-events-none">
           <button
             onClick={() => router.back()}
@@ -810,10 +937,7 @@ export default function SingleVideoPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <button
-            onClick={() => setIsMuted(!isMuted)}
-            className="pointer-events-auto"
-          >
+          <button onClick={() => setIsMuted(!isMuted)} className="pointer-events-auto">
             <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
               {isMuted ? (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
@@ -828,556 +952,631 @@ export default function SingleVideoPage() {
           </button>
         </div>
 
-        {/* Scroll videos — JANGAN tutup max-w di sini */}
         <div
           key={startVideoId}
           ref={containerRef}
           className="h-full overflow-y-scroll snap-y snap-mandatory"
         >
-      {videos.map((video, index) => {
-        const isLiked = likedVideos.has(video.id)
-        const isSaved = savedVideos.has(video.id)
-        return (
-          <div
-            key={`${video.id}-${index}`}
-            className="h-screen w-full snap-start relative flex items-center justify-center"
-          >
-            <video
-              ref={(el) => {
-                videoRefs.current[index] = el
-              }}
-              data-video-id={video.id}
-              src={video.video_url}
-              className="absolute inset-0 w-full h-full object-cover"
-              loop
-              muted={isMuted}
-              playsInline
-              preload={index < 2 ? 'auto' : 'metadata'}
-              onClick={(e) => handleTap(video.id, e.currentTarget)}
-            />
-            {video.is_pinned && (
-              <span className="absolute top-14 left-3 z-20 text-xs bg-black/60 px-2 py-1 rounded-full border border-white/10">
-                📌 Dipin
-              </span>
-            )}
-            {heartAnim === video.id && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-                <span className="text-7xl text-red-500 animate-ping">♥</span>
-              </div>
-            )}
-            <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
-            <div className="absolute bottom-8 left-4 right-20 text-white z-10">
+          {videos.map((video, index) => {
+            const isLiked = likedVideos.has(video.id)
+            const isSaved = savedVideos.has(video.id)
+            return (
               <div
-                className="flex items-center gap-2 mb-1.5 cursor-pointer"
-                onClick={() =>
-                  router.push(`/@${video.profiles?.username || video.user_id}`)
-                }
+                key={`${video.id}-${index}`}
+                className="h-screen w-full snap-start relative flex items-center justify-center"
               >
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 border border-white/20">
-                  {video.profiles?.avatar_url ? (
-                    <img
-                      src={video.profiles.avatar_url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
-                      {video.profiles?.username?.[0]?.toUpperCase() || 'U'}
-                    </div>
-                  )}
-                </div>
-                <p className="font-semibold text-sm">
-                  @{video.profiles?.username || 'user'}
-                </p>
-              </div>
-              <p className="text-sm opacity-90 line-clamp-3">{video.caption}</p>
-              <p
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const name =
-                    video.sound_name ||
-                    `Original sound - @${video.profiles?.username || 'user'}`
-                  router.push(`/sound?name=${encodeURIComponent(name)}`)
-                }}
-                className="text-[11px] text-white/70 mt-1 flex items-center gap-1 cursor-pointer max-w-[90%]"
-              >
-                <span>♪</span>
-                <span className="truncate">
-                  {video.sound_name ||
-                    `Original sound - @${video.profiles?.username || 'user'}`}
-                </span>
-              </p>
-              {video.created_at && (
-                <p className="text-[11px] text-white/50 mt-1">
-                  {formatDateTime(video.created_at)}
-                </p>
-              )}
-            </div>
-
-            <div className="absolute right-2 bottom-24 flex flex-col items-center gap-3 z-10">
-              <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
-                <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 ${
-                    isLiked ? 'bg-red-500/90' : 'bg-black/40 backdrop-blur-md'
-                  }`}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-5 h-5 text-white"
-                    viewBox="0 0 24 24"
-                    fill={isLiked ? 'currentColor' : 'none'}
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                    />
-                  </svg>
-                </div>
-                <span className="text-[10px] mt-0.5 text-white font-medium">
-                  {video.likes_count}
-                </span>
-              </button>
-
-              <button onClick={() => openComments(video.id)} className="flex flex-col items-center">
-                <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-5 h-5 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                    />
-                  </svg>
-                </div>
-                <span className="text-[10px] mt-0.5 text-white font-medium">
-                  {video.comments_count || 0}
-                </span>
-              </button>
-
-              <button onClick={() => toggleSave(video.id)} className="flex flex-col items-center">
-                <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className={`w-5 h-5 ${isSaved ? 'text-yellow-400' : 'text-white'}`}
-                    fill={isSaved ? 'currentColor' : 'none'}
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                    />
-                  </svg>
-                </div>
-                <span className="text-[10px] mt-0.5 text-white font-medium">
-                  {video.saves_count || 0}
-                </span>
-              </button>
-
-              <button onClick={() => openShare(video.id)} className="flex flex-col items-center">
-                <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-5 h-5 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"
-                    />
-                  </svg>
-                </div>
-                <span className="text-[10px] mt-0.5 text-white font-medium">
-                  {video.shares_count || 0}
-                </span>
-              </button>
-
-              <button onClick={() => setShowMore(video.id)}>
-                <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <span className="text-base leading-none">⋯</span>
-                </div>
-              </button>
-            </div>
-          </div>
-        )
-      })}
-        </div>
-
-      {/* comments / share / more */}
-      {showComments && (
-        <div className="fixed inset-0 z-[60] flex items-end">
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => {
-              setShowComments(false)
-              setEditingCommentId(null)
-              setReplyTo(null)
-            }}
-          />
-          <div className="relative w-full max-w-[480px] mx-auto bg-zinc-900 rounded-t-2xl max-h-[75vh] flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <h3 className="font-semibold">Comments</h3>
-              <button
-                onClick={() => {
-                  setShowComments(false)
-                  setEditingCommentId(null)
-                  setReplyTo(null)
-                }}
-                className="text-gray-400 text-lg"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-              {loadingComments ? (
-                <p className="text-center text-gray-500 py-8">Loading...</p>
-              ) : comments.filter((c) => !c.parent_id).length === 0 ? (
-                <p className="text-center text-gray-500 py-8">Belum ada komentar</p>
-              ) : (
-                comments
-                  .filter((c) => !c.parent_id)
-                  .map((c) => {
-                    const replies = comments.filter((r) => r.parent_id === c.id)
-                    const isOwn = c.user_id === userId
-                    return (
-                      <div key={c.id} className="space-y-2">
-                        <div className="flex gap-3">
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 shrink-0">
-                            {c.profiles?.avatar_url ? (
-                              <img
-                                src={c.profiles.avatar_url}
-                                alt=""
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
-                                {c.profiles?.username?.[0]?.toUpperCase() || 'U'}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold">
-                              @{c.profiles?.username || 'user'}
-                            </p>
-                            {editingCommentId === c.id ? (
-                              <div className="mt-1 space-y-2">
-                                <input
-                                  value={editCommentText}
-                                  onChange={(e) => setEditCommentText(e.target.value)}
-                                  className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                                  autoFocus
-                                />
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={saveEditComment}
-                                    className="text-xs text-purple-400 font-medium"
-                                  >
-                                    Simpan
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setEditingCommentId(null)
-                                      setEditCommentText('')
-                                    }}
-                                    className="text-xs text-gray-500"
-                                  >
-                                    Batal
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="text-sm text-gray-300">{c.content}</p>
-                            )}
-                            <div className="flex items-center gap-3 mt-1 flex-wrap">
-                              <span className="text-[11px] text-gray-500">
-                                {formatDateTime(c.created_at)}
-                              </span>
-                              <button
-                                onClick={() => {
-                                  setReplyTo(c)
-                                  setEditingCommentId(null)
-                                  setNewComment('')
-                                }}
-                                className="text-[11px] text-purple-400 font-medium"
-                              >
-                                Balas
-                              </button>
-                              <button
-                                onClick={() => toggleCommentLike(c.id)}
-                                className="flex items-center gap-1 text-[11px]"
-                              >
-                                <span
-                                  className={
-                                    likedComments.has(c.id)
-                                      ? 'text-red-500'
-                                      : 'text-gray-500'
-                                  }
-                                >
-                                  {likedComments.has(c.id) ? '♥' : '♡'}
-                                </span>
-                                {(c.likes_count || 0) > 0 && (
-                                  <span className="text-gray-500">{c.likes_count}</span>
-                                )}
-                              </button>
-                              {isOwn && editingCommentId !== c.id && (
-                                <>
-                                  {canEditComment(c.created_at) && (
-                                    <button
-                                      onClick={() => startEditComment(c)}
-                                      className="text-[11px] text-gray-400"
-                                    >
-                                      Edit
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={() => deleteComment(c)}
-                                    className="text-[11px] text-red-400"
-                                  >
-                                    Hapus
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        {replies.length > 0 && (
-                          <div className="ml-11 space-y-2 border-l border-white/10 pl-3">
-                            {replies.map((r) => {
-                              const isOwnReply = r.user_id === userId
-                              return (
-                                <div key={r.id} className="flex gap-2">
-                                  <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 shrink-0">
-                                    {r.profiles?.avatar_url ? (
-                                      <img
-                                        src={r.profiles.avatar_url}
-                                        alt=""
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-vezao-gradient">
-                                        {r.profiles?.username?.[0]?.toUpperCase() || 'U'}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold">
-                                      @{r.profiles?.username || 'user'}
-                                    </p>
-                                    <p className="text-xs text-gray-300">{r.content}</p>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[10px] text-gray-500">
-                                        {formatDateTime(r.created_at)}
-                                      </span>
-                                      {isOwnReply && (
-                                        <button
-                                          onClick={() => deleteComment(r)}
-                                          className="text-[10px] text-red-400"
-                                        >
-                                          Hapus
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })
-              )}
-            </div>
-            <div className="p-3 border-t border-white/10 space-y-2">
-              {replyTo && (
-                <div className="flex items-center justify-between px-1">
-                  <p className="text-xs text-gray-400">
-                    Membalas{' '}
-                    <span className="text-purple-400">
-                      @{replyTo.profiles?.username || 'user'}
-                    </span>
-                  </p>
-                  <button
-                    onClick={() => setReplyTo(null)}
-                    className="text-xs text-gray-500"
-                  >
-                    Batal
-                  </button>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <input
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder={
-                    replyTo
-                      ? `Balas @${replyTo.profiles?.username || 'user'}...`
-                      : 'Tulis komentar...'
-                  }
-                  className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                  onKeyDown={(e) => e.key === 'Enter' && submitComment()}
+                <video
+                  ref={(el) => {
+                    videoRefs.current[index] = el
+                  }}
+                  data-video-id={video.id}
+                  src={video.video_url}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loop
+                  muted={isMuted}
+                  playsInline
+                  preload={index < 2 ? 'auto' : 'metadata'}
+                  onClick={(e) => handleTap(video.id, e.currentTarget)}
                 />
-                <button
-                  onClick={submitComment}
-                  className="bg-vezao-gradient px-5 py-2.5 rounded-full text-sm font-medium"
-                >
-                  Kirim
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showMore && (
-        <div className="fixed inset-0 z-[70] flex items-end">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowMore(null)} />
-          <div className="relative w-full max-w-[480px] mx-auto bg-zinc-900 rounded-t-2xl p-4 pb-10">
-            <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-6" />
-            <button
-              onClick={async () => {
-                const url = `${window.location.origin}/v/${showMore}`
-                try {
-                  await navigator.clipboard.writeText(url)
-                  alert('Tautan disalin!')
-                } catch {
-                  prompt('Salin tautan:', url)
-                }
-                setShowMore(null)
-              }}
-              className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
-            >
-              Salin tautan
-            </button>
-            {(() => {
-              const v = videos.find((x) => x.id === showMore)
-              if (!v || v.user_id !== userId) return null
-              return (
-                <>
-                  <button
-                    onClick={() => togglePin(showMore)}
-                    className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
+                {video.is_pinned && (
+                  <span className="absolute top-14 left-3 z-20 text-xs bg-black/60 px-2 py-1 rounded-full border border-white/10">
+                    📌 Dipin
+                  </span>
+                )}
+                {heartAnim === video.id && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                    <span className="text-7xl text-red-500 animate-ping">♥</span>
+                  </div>
+                )}
+                <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
+                <div className="absolute bottom-8 left-4 right-20 text-white z-10">
+                  <div
+                    className="flex items-center gap-2 mb-1.5 cursor-pointer"
+                    onClick={() =>
+                      router.push(`/@${video.profiles?.username || video.user_id}`)
+                    }
                   >
-                    {v.is_pinned ? 'Unpin dari profil' : 'Pin ke profil'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowMore(null)
-                      router.push(`/upload?draft=${showMore}`)
-                    }}
-                    className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
-                  >
-                    Edit video
-                  </button>
-                  <button
-                    onClick={() => handleDeleteVideo(showMore)}
-                    className="w-full text-left px-4 py-3.5 text-sm text-red-400 hover:bg-white/5 rounded-xl"
-                  >
-                    Hapus video
-                  </button>
-                </>
-              )
-            })()}
-            <button
-              onClick={() => setShowMore(null)}
-              className="w-full text-center py-3 text-sm text-gray-400 mt-1"
-            >
-              Tutup
-            </button>
-          </div>
-        </div>
-      )}
-
-      {shareVideoId && (
-        <div className="fixed inset-0 z-[80] flex items-end">
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => setShareVideoId(null)}
-          />
-          <div className="relative w-full max-w-[480px] mx-auto bg-zinc-900 rounded-t-2xl p-4 pb-8 max-h-[75vh] flex flex-col">
-            <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-3" />
-            <h3 className="text-center font-semibold mb-1">Kirim video</h3>
-            <p className="text-center text-xs text-gray-400 mb-4">
-              Ke teman VEZAO atau app lain
-            </p>
-            <button
-              onClick={shareToOtherApps}
-              className="w-full flex items-center gap-3 px-3 py-3 mb-4 rounded-xl bg-zinc-800"
-            >
-              <div className="w-10 h-10 rounded-full bg-vezao-gradient flex items-center justify-center text-white font-bold">
-                ↗
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold">Bagikan ke app lain</p>
-                <p className="text-xs text-gray-400">WhatsApp, Instagram, dll</p>
-              </div>
-            </button>
-            <p className="text-xs text-gray-400 mb-2">Teman yang kamu follow</p>
-            <div className="flex-1 overflow-y-auto space-y-1 min-h-[120px]">
-              {loadingShareFriends ? (
-                <p className="text-center text-gray-500 py-6 text-sm">Loading...</p>
-              ) : shareFriends.length === 0 ? (
-                <p className="text-center text-gray-500 py-6 text-sm">
-                  Belum follow siapapun
-                </p>
-              ) : (
-                shareFriends.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => shareVideoToFriend(f.id)}
-                    disabled={sharingTo === f.id}
-                    className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white/5 disabled:opacity-50"
-                  >
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-700 shrink-0">
-                      {f.avatar_url ? (
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 border border-white/20">
+                      {video.profiles?.avatar_url ? (
                         <img
-                          src={f.avatar_url}
+                          src={video.profiles.avatar_url}
                           alt=""
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
-                          {(f.username || 'U')[0]?.toUpperCase()}
+                        <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
+                          {video.profiles?.username?.[0]?.toUpperCase() || 'U'}
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm font-semibold truncate">
-                        {f.full_name || f.username}
-                      </p>
-                      <p className="text-xs text-gray-400 truncate">@{f.username}</p>
+                    <p className="font-semibold text-sm">
+                      @{video.profiles?.username || 'user'}
+                    </p>
+                  </div>
+                  <p className="text-sm opacity-90 line-clamp-3">
+                    {renderTextWithMentions(
+                      video.caption || '',
+                      (uname) => router.push(`/@${uname}`),
+                      (tag) => router.push(`/hashtag?tag=${tag}`)
+                    )}
+                  </p>
+                  <p
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const name =
+                        video.sound_name ||
+                        `Original sound - @${video.profiles?.username || 'user'}`
+                      router.push(`/sound?name=${encodeURIComponent(name)}`)
+                    }}
+                    className="text-[11px] text-white/70 mt-1 flex items-center gap-1 cursor-pointer max-w-[90%]"
+                  >
+                    <span>♪</span>
+                    <span className="truncate">
+                      {video.sound_name ||
+                        `Original sound - @${video.profiles?.username || 'user'}`}
+                    </span>
+                  </p>
+                  {video.created_at && (
+                    <p className="text-[11px] text-white/50 mt-1">
+                      {formatDateTime(video.created_at)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="absolute right-2 bottom-24 flex flex-col items-center gap-3 z-10">
+                  <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
+                    <div
+                      className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 ${
+                        isLiked ? 'bg-red-500/90' : 'bg-black/40 backdrop-blur-md'
+                      }`}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-5 h-5 text-white"
+                        viewBox="0 0 24 24"
+                        fill={isLiked ? 'currentColor' : 'none'}
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                        />
+                      </svg>
                     </div>
-                    <span className="text-xs text-purple-400">
-                      {sharingTo === f.id ? '...' : 'Kirim'}
+                    <span className="text-[10px] mt-0.5 text-white font-medium">
+                      {video.likes_count}
                     </span>
                   </button>
-                ))
-              )}
-            </div>
-            <button
-              onClick={() => setShareVideoId(null)}
-              className="w-full mt-3 py-3 text-sm text-gray-400"
-            >
-              Batal
-            </button>
-          </div>
+
+                  <button onClick={() => openComments(video.id)} className="flex flex-col items-center">
+                    <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-5 h-5 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-[10px] mt-0.5 text-white font-medium">
+                      {video.comments_count || 0}
+                    </span>
+                  </button>
+
+                  <button onClick={() => toggleSave(video.id)} className="flex flex-col items-center">
+                    <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`w-5 h-5 ${isSaved ? 'text-yellow-400' : 'text-white'}`}
+                        fill={isSaved ? 'currentColor' : 'none'}
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-[10px] mt-0.5 text-white font-medium">
+                      {video.saves_count || 0}
+                    </span>
+                  </button>
+
+                  <button onClick={() => openShare(video.id)} className="flex flex-col items-center">
+                    <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-5 h-5 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-[10px] mt-0.5 text-white font-medium">
+                      {video.shares_count || 0}
+                    </span>
+                  </button>
+
+                  <button onClick={() => setShowMore(video.id)}>
+                    <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                      <span className="text-base leading-none">⋯</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         </div>
-      )}
+
+        {showComments && (
+          <div className="fixed inset-0 z-[60] flex items-end">
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={() => {
+                setShowComments(false)
+                setEditingCommentId(null)
+                setReplyTo(null)
+              }}
+            />
+            <div className="relative w-full max-w-[480px] mx-auto bg-zinc-900 rounded-t-2xl max-h-[75vh] flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                <h3 className="font-semibold">Comments</h3>
+                <button
+                  onClick={() => {
+                    setShowComments(false)
+                    setEditingCommentId(null)
+                    setReplyTo(null)
+                  }}
+                  className="text-gray-400 text-lg"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+                {loadingComments ? (
+                  <p className="text-center text-gray-500 py-8">Loading...</p>
+                ) : comments.filter((c) => !c.parent_id).length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">Belum ada komentar</p>
+                ) : (
+                  comments
+                    .filter((c) => !c.parent_id)
+                    .map((c) => {
+                      const replies = comments.filter((r) => r.parent_id === c.id)
+                      const isOwn = c.user_id === userId
+                      return (
+                        <div key={c.id} className="space-y-2">
+                          <div className="flex gap-3">
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                              {c.profiles?.avatar_url ? (
+                                <img
+                                  src={c.profiles.avatar_url}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
+                                  {c.profiles?.username?.[0]?.toUpperCase() || 'U'}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className="text-sm font-semibold cursor-pointer"
+                                onClick={() =>
+                                  router.push(`/@${c.profiles?.username || c.user_id}`)
+                                }
+                              >
+                                @{c.profiles?.username || 'user'}
+                              </p>
+                              {editingCommentId === c.id ? (
+                                <div className="mt-1 space-y-2">
+                                  <input
+                                    value={editCommentText}
+                                    onChange={(e) => setEditCommentText(e.target.value)}
+                                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                    autoFocus
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={saveEditComment}
+                                      className="text-xs text-purple-400 font-medium"
+                                    >
+                                      Simpan
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingCommentId(null)
+                                        setEditCommentText('')
+                                      }}
+                                      className="text-xs text-gray-500"
+                                    >
+                                      Batal
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-300">
+                                  {renderTextWithMentions(c.content, (uname) =>
+                                    router.push(`/@${uname}`)
+                                  )}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                <span className="text-[11px] text-gray-500">
+                                  {formatDateTime(c.created_at)}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setReplyTo(c)
+                                    setEditingCommentId(null)
+                                    setNewComment('')
+                                  }}
+                                  className="text-[11px] text-purple-400 font-medium"
+                                >
+                                  Balas
+                                </button>
+                                <button
+                                  onClick={() => toggleCommentLike(c.id)}
+                                  className="flex items-center gap-1 text-[11px]"
+                                >
+                                  <span
+                                    className={
+                                      likedComments.has(c.id)
+                                        ? 'text-red-500'
+                                        : 'text-gray-500'
+                                    }
+                                  >
+                                    {likedComments.has(c.id) ? '♥' : '♡'}
+                                  </span>
+                                  {(c.likes_count || 0) > 0 && (
+                                    <span className="text-gray-500">{c.likes_count}</span>
+                                  )}
+                                </button>
+                                {isOwn && editingCommentId !== c.id && (
+                                  <>
+                                    {canEditComment(c.created_at) && (
+                                      <button
+                                        onClick={() => startEditComment(c)}
+                                        className="text-[11px] text-gray-400"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => deleteComment(c)}
+                                      className="text-[11px] text-red-400"
+                                    >
+                                      Hapus
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {replies.length > 0 && (
+                            <div className="ml-11 space-y-2 border-l border-white/10 pl-3">
+                              {replies.map((r) => {
+                                const isOwnReply = r.user_id === userId
+                                return (
+                                  <div key={r.id} className="flex gap-2">
+                                    <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                                      {r.profiles?.avatar_url ? (
+                                        <img
+                                          src={r.profiles.avatar_url}
+                                          alt=""
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-vezao-gradient">
+                                          {r.profiles?.username?.[0]?.toUpperCase() || 'U'}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-semibold">
+                                        @{r.profiles?.username || 'user'}
+                                      </p>
+                                      <p className="text-xs text-gray-300">
+                                        {renderTextWithMentions(r.content, (uname) =>
+                                          router.push(`/@${uname}`)
+                                        )}
+                                      </p>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-[10px] text-gray-500">
+                                          {formatDateTime(r.created_at)}
+                                        </span>
+                                        {isOwnReply && (
+                                          <button
+                                            onClick={() => deleteComment(r)}
+                                            className="text-[10px] text-red-400"
+                                          >
+                                            Hapus
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })
+                )}
+              </div>
+              <div className="p-3 border-t border-white/10 space-y-2">
+                {replyTo && (
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-xs text-gray-400">
+                      Membalas{' '}
+                      <span className="text-purple-400">
+                        @{replyTo.profiles?.username || 'user'}
+                      </span>
+                    </p>
+                    <button
+                      onClick={() => setReplyTo(null)}
+                      className="text-xs text-gray-500"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {showMentions && (
+                    <div className="rounded-xl border border-white/10 bg-zinc-800 overflow-hidden max-h-40 overflow-y-auto">
+                      {mentionLoading ? (
+                        <p className="text-xs text-gray-500 px-3 py-2">Mencari...</p>
+                      ) : mentionResults.length === 0 ? (
+                        <p className="text-xs text-gray-500 px-3 py-2">
+                          Tidak ada teman yang cocok
+                        </p>
+                      ) : (
+                        mentionResults.map((u) => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => insertMention(u.username || '')}
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/5 text-left"
+                          >
+                            <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                              {u.avatar_url ? (
+                                <img
+                                  src={u.avatar_url}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-vezao-gradient">
+                                  {(u.username || 'U')[0]?.toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold truncate">
+                                {u.full_name || u.username}
+                              </p>
+                              <p className="text-[11px] text-gray-400 truncate">
+                                @{u.username}
+                              </p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      value={newComment}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setNewComment(val)
+                        const upToCursor = val.slice(
+                          0,
+                          e.target.selectionStart || val.length
+                        )
+                        const match = upToCursor.match(/@([a-zA-Z0-9._]*)$/)
+                        if (match) {
+                          setShowMentions(true)
+                          void searchMentions(match[1] || '')
+                        } else {
+                          setShowMentions(false)
+                        }
+                      }}
+                      placeholder={
+                        replyTo
+                          ? `Balas @${replyTo.profiles?.username || 'user'}...`
+                          : 'Tulis komentar... @teman'
+                      }
+                      className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      onKeyDown={(e) => e.key === 'Enter' && submitComment()}
+                    />
+                    <button
+                      onClick={submitComment}
+                      className="bg-vezao-gradient px-5 py-2.5 rounded-full text-sm font-medium"
+                    >
+                      Kirim
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showMore && (
+          <div className="fixed inset-0 z-[70] flex items-end">
+            <div className="absolute inset-0 bg-black/60" onClick={() => setShowMore(null)} />
+            <div className="relative w-full max-w-[480px] mx-auto bg-zinc-900 rounded-t-2xl p-4 pb-10">
+              <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-6" />
+              <button
+                onClick={async () => {
+                  const url = `${window.location.origin}/v/${showMore}`
+                  try {
+                    await navigator.clipboard.writeText(url)
+                    alert('Tautan disalin!')
+                  } catch {
+                    prompt('Salin tautan:', url)
+                  }
+                  setShowMore(null)
+                }}
+                className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
+              >
+                Salin tautan
+              </button>
+              {(() => {
+                const v = videos.find((x) => x.id === showMore)
+                if (!v || v.user_id !== userId) return null
+                return (
+                  <>
+                    <button
+                      onClick={() => togglePin(showMore)}
+                      className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
+                    >
+                      {v.is_pinned ? 'Unpin dari profil' : 'Pin ke profil'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMore(null)
+                        router.push(`/upload?draft=${showMore}`)
+                      }}
+                      className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
+                    >
+                      Edit video
+                    </button>
+                    <button
+                      onClick={() => handleDeleteVideo(showMore)}
+                      className="w-full text-left px-4 py-3.5 text-sm text-red-400 hover:bg-white/5 rounded-xl"
+                    >
+                      Hapus video
+                    </button>
+                  </>
+                )
+              })()}
+              <button
+                onClick={() => setShowMore(null)}
+                className="w-full text-center py-3 text-sm text-gray-400 mt-1"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
+
+        {shareVideoId && (
+          <div className="fixed inset-0 z-[80] flex items-end">
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setShareVideoId(null)}
+            />
+            <div className="relative w-full max-w-[480px] mx-auto bg-zinc-900 rounded-t-2xl p-4 pb-8 max-h-[75vh] flex flex-col">
+              <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-3" />
+              <h3 className="text-center font-semibold mb-1">Kirim video</h3>
+              <p className="text-center text-xs text-gray-400 mb-4">
+                Ke teman VEZAO atau app lain
+              </p>
+              <button
+                onClick={shareToOtherApps}
+                className="w-full flex items-center gap-3 px-3 py-3 mb-4 rounded-xl bg-zinc-800"
+              >
+                <div className="w-10 h-10 rounded-full bg-vezao-gradient flex items-center justify-center text-white font-bold">
+                  ↗
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold">Bagikan ke app lain</p>
+                  <p className="text-xs text-gray-400">WhatsApp, Instagram, dll</p>
+                </div>
+              </button>
+              <p className="text-xs text-gray-400 mb-2">Teman yang kamu follow</p>
+              <div className="flex-1 overflow-y-auto space-y-1 min-h-[120px]">
+                {loadingShareFriends ? (
+                  <p className="text-center text-gray-500 py-6 text-sm">Loading...</p>
+                ) : shareFriends.length === 0 ? (
+                  <p className="text-center text-gray-500 py-6 text-sm">
+                    Belum follow siapapun
+                  </p>
+                ) : (
+                  shareFriends.map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => shareVideoToFriend(f.id)}
+                      disabled={sharingTo === f.id}
+                      className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white/5 disabled:opacity-50"
+                    >
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                        {f.avatar_url ? (
+                          <img
+                            src={f.avatar_url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
+                            {(f.username || 'U')[0]?.toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="text-sm font-semibold truncate">
+                          {f.full_name || f.username}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">@{f.username}</p>
+                      </div>
+                      <span className="text-xs text-purple-400">
+                        {sharingTo === f.id ? '...' : 'Kirim'}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+              <button
+                onClick={() => setShareVideoId(null)}
+                className="w-full mt-3 py-3 text-sm text-gray-400"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

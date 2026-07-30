@@ -12,6 +12,12 @@ export default function StoryCreatePage() {
   const [message, setMessage] = useState('')
   const [caption, setCaption] = useState('')
   const [progress, setProgress] = useState(0)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [mentionResults, setMentionResults] = useState<
+    { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
+  >([])
+  const [showMentions, setShowMentions] = useState(false)
+  const [mentionLoading, setMentionLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -28,6 +34,49 @@ export default function StoryCreatePage() {
     setFile(f)
     setPreview(URL.createObjectURL(f))
     setMessage('')
+  }
+
+  const searchMentions = async (q: string) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    setMentionLoading(true)
+
+    const { data: follows } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', user.id)
+
+    const ids = follows?.map((f) => f.following_id) || []
+    if (ids.length === 0) {
+      setMentionResults([])
+      setMentionLoading(false)
+      return
+    }
+
+    let query = supabase
+      .from('profiles')
+      .select('id, username, full_name, avatar_url')
+      .in('id', ids)
+      .limit(8)
+
+    if (q.trim()) {
+      query = query.or(`username.ilike.%${q}%,full_name.ilike.%${q}%`)
+    }
+
+    const { data } = await query
+    setMentionResults(data || [])
+    setMentionLoading(false)
+  }
+
+  const insertMention = (username: string) => {
+    if (!username) return
+    setCaption((prev) => prev.replace(/@([a-zA-Z0-9._]*)$/, `@${username} `))
+    setShowMentions(false)
+    setMentionQuery('')
+    setMentionResults([])
   }
 
   const handleUpload = async () => {
@@ -170,14 +219,74 @@ export default function StoryCreatePage() {
 
         {preview && (
           <div className="w-full max-w-sm space-y-3">
-            <textarea
-              value={caption}
-              onChange={(e) => setCaption(e.target.value.slice(0, 120))}
-              placeholder="Tambah caption..."
-              rows={2}
-              className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
-            />
-            <p className="text-[11px] text-gray-500 text-right">{caption.length}/120</p>
+            <div className="relative">
+              <textarea
+                value={caption}
+                onChange={(e) => {
+                  const val = e.target.value.slice(0, 120)
+                  setCaption(val)
+                  const upToCursor = val.slice(0, e.target.selectionStart || val.length)
+                  const match = upToCursor.match(/@([a-zA-Z0-9._]*)$/)
+                  if (match) {
+                    setMentionQuery(match[1] || '')
+                    setShowMentions(true)
+                    void searchMentions(match[1] || '')
+                  } else {
+                    setShowMentions(false)
+                    setMentionQuery('')
+                  }
+                }}
+                placeholder="Tambah caption... @teman"
+                rows={2}
+                className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
+              />
+              <p className="text-[11px] text-gray-500 text-right mt-1">
+                {caption.length}/120
+              </p>
+
+              {showMentions && (
+                <div className="mt-1 rounded-xl border border-white/10 bg-zinc-900 overflow-hidden max-h-48 overflow-y-auto z-20">
+                  {mentionLoading ? (
+                    <p className="text-xs text-gray-500 px-3 py-2">Mencari...</p>
+                  ) : mentionResults.length === 0 ? (
+                    <p className="text-xs text-gray-500 px-3 py-2">
+                      Tidak ada teman yang cocok
+                    </p>
+                  ) : (
+                    mentionResults.map((u) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => insertMention(u.username || '')}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 text-left"
+                      >
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                          {u.avatar_url ? (
+                            <img
+                              src={u.avatar_url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-vezao-gradient">
+                              {(u.username || 'U')[0]?.toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">
+                            {u.full_name || u.username}
+                          </p>
+                          <p className="text-xs text-gray-400 truncate">
+                            @{u.username}
+                          </p>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
             <button
               onClick={() => {
                 setFile(null)
