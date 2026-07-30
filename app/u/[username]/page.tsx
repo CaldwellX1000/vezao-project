@@ -28,6 +28,8 @@ function ProfileByUsername() {
   const [bio, setBio] = useState('')
   const [website, setWebsite] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [coverUrl, setCoverUrl] = useState<string | null>(null)
+  const [followsMe, setFollowsMe] = useState(false)
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [followingCount, setFollowingCount] = useState(0)
@@ -103,14 +105,14 @@ function ProfileByUsername() {
       if (isUuid) {
         const { data } = await supabase
           .from('profiles')
-          .select('id, username, full_name, bio, avatar_url, website, is_private')
+          .select('id, username, full_name, bio, avatar_url, cover_url, website, is_private')
           .eq('id', usernameParam)
           .maybeSingle()
         byName = data
       } else {
         const { data } = await supabase
           .from('profiles')
-          .select('id, username, full_name, bio, avatar_url, website, is_private')
+          .select('id, username, full_name, bio, avatar_url, cover_url, website, is_private')
           .ilike('username', usernameParam)
           .maybeSingle()
         byName = data
@@ -136,6 +138,7 @@ function ProfileByUsername() {
       setBio(byName.bio || '')
       setWebsite(byName.website || '')
       setAvatarUrl(byName.avatar_url || null)
+      setCoverUrl((byName as any).cover_url || null)
       setIsPrivate(byName.is_private || false)
 
             const nowIso = new Date().toISOString()
@@ -178,6 +181,14 @@ function ProfileByUsername() {
 
       const isFollower = !!followData
       setIsFollowing(isFollower)
+
+      const { data: reverseFollow } = await supabase
+        .from('follows')
+        .select('id')
+        .eq('follower_id', resolvedId)
+        .eq('following_id', user.id)
+        .maybeSingle()
+      setFollowsMe(!!reverseFollow)
 
       if (!isFollower) {
         const { data: req } = await supabase
@@ -276,6 +287,8 @@ function ProfileByUsername() {
     ? 'Following'
     : isRequested
     ? 'Requested'
+    : followsMe
+    ? 'Follow back'
     : 'Follow'
 
   const totalLikes = videos.reduce((s, v) => s + (v.likes_count || 0), 0)
@@ -291,7 +304,17 @@ function ProfileByUsername() {
   return (
     <div className="min-h-screen bg-black text-white pb-20 md:bg-zinc-950">
       <div className="w-full md:max-w-[480px] md:mx-auto md:min-h-screen md:bg-black md:border-x md:border-white/10">
-      <div className="h-28 bg-vezao-gradient" />
+      <div className="relative h-28 overflow-hidden">
+        {coverUrl ? (
+          <img
+            src={coverUrl}
+            alt="Cover"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-vezao-gradient" />
+        )}
+      </div>
       <div className="px-4 -mt-12">
         <div className="flex justify-between items-end">
           <div
