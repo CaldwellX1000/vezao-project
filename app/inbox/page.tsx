@@ -493,7 +493,13 @@ export default function InboxPage() {
             </button>
           )}
         </div>
-        <div className="flex px-4">
+
+        {/* Story selalu di atas tab */}
+        <div className="pb-2">
+          <StoryBar />
+        </div>
+
+        <div className="flex px-4 border-t border-white/10">
           <button
             onClick={() => setTab('messages')}
             className={`flex-1 py-2.5 text-sm font-semibold relative ${
@@ -528,12 +534,6 @@ export default function InboxPage() {
           </button>
         </div>
       </div>
-
-      {tab === 'messages' && (
-        <div className="border-b border-white/10 pb-2">
-          <StoryBar />
-        </div>
-      )}
 
       {tab === 'activity' ? (
         <div className="divide-y divide-white/5">
