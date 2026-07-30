@@ -19,6 +19,7 @@ type VideoResult = {
   video_url: string
   thumbnail_url: string | null
   likes_count: number
+  views_count?: number | null
   user_id: string
   profiles: {
     username: string | null
@@ -96,12 +97,13 @@ setSuggested(list)
           video_url,
           thumbnail_url,
           likes_count,
+          views_count,
           user_id,
           visibility,
           profiles ( username, avatar_url )
         `)
         .eq('is_draft', false)
-        .order('likes_count', { ascending: false })
+        .order('views_count', { ascending: false })
         .limit(30)
 
       const filteredVids = (popular || []).filter((v: any) => {
@@ -153,13 +155,14 @@ setSuggested(list)
             video_url,
             thumbnail_url,
             likes_count,
+            views_count,
             user_id,
             visibility,
             profiles ( username, avatar_url )
           `)
           .eq('is_draft', false)
           .ilike('caption', `%${q}%`)
-          .order('likes_count', { ascending: false })
+          .order('views_count', { ascending: false })
           .limit(30)
 
         const filtered = (data || []).filter((v: any) => {
@@ -342,7 +345,7 @@ setSuggested(list)
                       />
                     )}
                     <div className="absolute bottom-1 left-1 text-[10px] text-white font-medium drop-shadow">
-                      ♥ {v.likes_count}
+                      ▶ {v.views_count || 0}
                     </div>
                   </div>
                 ))}
@@ -386,7 +389,7 @@ setSuggested(list)
                     />
                   )}
                   <div className="absolute bottom-1 left-1 text-[10px] text-white font-medium drop-shadow">
-                    ♥ {v.likes_count}
+                    ▶ {v.views_count || 0}
                   </div>
                 </div>
               ))}

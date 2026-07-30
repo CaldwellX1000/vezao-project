@@ -588,10 +588,7 @@ function ProfileByUsername() {
                 {video.is_pinned && (
                   <span className="absolute top-1 left-1 text-xs">📌</span>
                 )}
-                <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between gap-1 px-1 z-10">
-                  <span className="text-[10px] font-semibold text-white bg-black/50 rounded px-1 py-0.5">
-                    ♥ {video.likes_count}
-                  </span>
+                <div className="absolute bottom-1 left-1 z-10">
                   <span className="text-[10px] font-semibold text-white bg-black/50 rounded px-1 py-0.5">
                     ▶ {video.views_count || 0}
                   </span>
