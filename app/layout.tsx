@@ -19,9 +19,20 @@ const lexend = Lexend({
 
 export const metadata: Metadata = {
   title: "VEZAO",
-  description: "Short video platform",
+  description: "Video pendek VEZAO",
+  manifest: "/manifest.json",
+  themeColor: "#000000",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "VEZAO",
+  },
   icons: {
-    icon: "/icon.png",
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icon-192.png" }],
   },
 };
 
