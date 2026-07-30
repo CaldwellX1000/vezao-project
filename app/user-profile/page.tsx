@@ -29,6 +29,7 @@ function UserProfileContent() {
   const [bio, setBio] = useState('')
   const [website, setWebsite] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [followingCount, setFollowingCount] = useState(0)
@@ -159,7 +160,7 @@ function UserProfileContent() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('username, full_name, bio, avatar_url, website, is_private')
+        .select('username, full_name, bio, avatar_url, cover_url, website, is_private')
         .eq('id', resolvedId)
         .single()
 
@@ -169,6 +170,7 @@ function UserProfileContent() {
         setBio(profile.bio || '')
         setWebsite(profile.website || '')
         setAvatarUrl(profile.avatar_url || null)
+        setCoverUrl(profile.cover_url || null)
         setIsPrivate(profile.is_private || false)
       }
 
@@ -401,7 +403,17 @@ function UserProfileContent() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-20">
-      <div className="h-28 bg-vezao-gradient" />
+      <div className="relative h-28 overflow-hidden">
+        {coverUrl ? (
+          <img
+            src={coverUrl}
+            alt="Cover"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-vezao-gradient" />
+        )}
+      </div>
 
       <div className="px-4 -mt-12">
         <div className="flex justify-between items-end">
