@@ -20,7 +20,36 @@ type Notification = {
     avatar_url: string | null
   } | null
 }
+type NotifPrefs = {
+  likes: boolean
+  comments: boolean
+  follows: boolean
+  messages: boolean
+}
 
+const DEFAULT_NOTIF: NotifPrefs = {
+  likes: true,
+  comments: true,
+  follows: true,
+  messages: true,
+}
+
+function getNotifPrefs(): NotifPrefs {
+  try {
+    const raw = localStorage.getItem('vezao_notif_prefs')
+    if (raw) return { ...DEFAULT_NOTIF, ...JSON.parse(raw) }
+  } catch {}
+  return { ...DEFAULT_NOTIF }
+}
+
+function isNotifAllowed(type: string, prefs: NotifPrefs) {
+  const t = (type || '').toLowerCase()
+  if (t === 'like' || t === 'save') return prefs.likes
+  if (t === 'comment' || t === 'mention') return prefs.comments
+  if (t === 'follow' || t === 'follow_request') return prefs.follows
+  if (t === 'message') return prefs.messages
+  return true
+}
 function formatDateTime(dateStr: string) {
   const d = new Date(dateStr)
   const now = new Date()
@@ -203,10 +232,14 @@ export default function NotificationsPage() {
       .select('id, username, full_name, avatar_url')
       .in('id', actorIds)
 
-    const withActor = data.map((n) => ({
-      ...n,
-      actor: profiles?.find((p) => p.id === n.actor_id) || null,
-    }))
+    const prefs = getNotifPrefs()
+
+    const withActor = data
+      .filter((n) => isNotifAllowed(n.type, prefs))
+      .map((n) => ({
+        ...n,
+        actor: profiles?.find((p) => p.id === n.actor_id) || null,
+      }))
 
     setNotifications(withActor)
 
@@ -541,40 +574,6 @@ export default function NotificationsPage() {
       )}
 
       <BottomNav />
-        <button onClick={() => router.push('/')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Home</span>
-        </button>
-
-        <button onClick={() => router.push('/search')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Search</span>
-        </button>
-
-        <button onClick={() => router.push('/upload')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Upload</span>
-        </button>
-
-        <button onClick={() => router.push('/inbox')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Inbox</span>
-        </button>
-
-        <button onClick={() => router.push('/profile')} className="flex flex-col items-center gap-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          <span className="text-[11px] text-gray-400">Profile</span>
-        </button>
-      </div>
+    </div>
   )
 }

@@ -11,6 +11,37 @@ import {
   type StoredAccount,
 } from '@/lib/accounts'
 
+type NotifPrefs = {
+  likes: boolean
+  comments: boolean
+  follows: boolean
+  messages: boolean
+}
+
+const DEFAULT_NOTIF: NotifPrefs = {
+  likes: true,
+  comments: true,
+  follows: true,
+  messages: true,
+}
+
+function getNotifPrefs(): NotifPrefs {
+  try {
+    const raw = localStorage.getItem('vezao_notif_prefs')
+    if (raw) return { ...DEFAULT_NOTIF, ...JSON.parse(raw) }
+  } catch {}
+  return { ...DEFAULT_NOTIF }
+}
+
+function isNotifAllowed(type: string, prefs: NotifPrefs) {
+  const t = (type || '').toLowerCase()
+  if (t === 'like' || t === 'save') return prefs.likes
+  if (t === 'comment' || t === 'mention') return prefs.comments
+  if (t === 'follow' || t === 'follow_request') return prefs.follows
+  if (t === 'message') return prefs.messages
+  return true
+}
+
 type Video = {
   id: string
   caption: string | null
@@ -144,13 +175,16 @@ const list = published || []
 
       setInboxUnread(msgCount || 0)
 
-      const { count } = await supabase
+      const { data: unreadRows } = await supabase
         .from('notifications')
-        .select('*', { count: 'exact', head: true })
+        .select('id, type')
         .eq('user_id', user.id)
         .eq('is_read', false)
 
-      setUnreadCount(count || 0)
+      const prefs = getNotifPrefs()
+      setUnreadCount(
+        (unreadRows || []).filter((n) => isNotifAllowed(n.type, prefs)).length
+      )
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -262,13 +296,16 @@ const list = published || []
       } = await supabase.auth.getUser()
       if (!user) return
 
-      const { count } = await supabase
+      const { data: unreadRows } = await supabase
         .from('notifications')
-        .select('*', { count: 'exact', head: true })
+        .select('id, type')
         .eq('user_id', user.id)
         .eq('is_read', false)
 
-      setUnreadCount(count || 0)
+      const prefs = getNotifPrefs()
+      setUnreadCount(
+        (unreadRows || []).filter((n) => isNotifAllowed(n.type, prefs)).length
+      )
 
       const { count: msgCount } = await supabase
         .from('messages')
