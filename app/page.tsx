@@ -358,6 +358,19 @@ export default function FeedPage() {
       })
     }
 
+    const tryPlay = (el: HTMLVideoElement) => {
+      el.muted = isMuted
+      const p = el.play()
+      if (p && typeof p.then === 'function') {
+        p.catch(() => {
+          el.muted = true
+          el.play().catch(() => {})
+        })
+      }
+      const vid = el.dataset.videoId
+      if (vid) registerView(vid)
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         let bestEntry: IntersectionObserverEntry | null = null
@@ -370,19 +383,13 @@ export default function FeedPage() {
             bestEntry = entry
           }
         }
-        if (bestEntry && bestEntry.intersectionRatio >= 0.55) {
+        if (bestEntry && bestEntry.intersectionRatio >= 0.4) {
           const el = bestEntry.target as HTMLVideoElement
           pauseAllExcept(el)
-          el.muted = isMuted
-          el.play().catch(() => {
-            el.muted = true
-            el.play().catch(() => {})
-          })
-          const vid = el.dataset.videoId
-          if (vid) registerView(vid)
+          tryPlay(el)
         }
       },
-      { threshold: [0.25, 0.55, 0.7, 0.9] }
+      { threshold: [0.15, 0.4, 0.6, 0.85] }
     )
 
     const t = setTimeout(() => {
@@ -392,15 +399,9 @@ export default function FeedPage() {
       const first = videoRefs.current[0]
       if (first) {
         pauseAllExcept(first)
-        first.muted = isMuted
-        first.play().catch(() => {
-          first.muted = true
-          first.play().catch(() => {})
-        })
-        const vid = first.dataset.videoId
-        if (vid) registerView(vid)
+        tryPlay(first)
       }
-    }, 150)
+    }, 80)
 
     return () => {
       clearTimeout(t)
@@ -1050,7 +1051,7 @@ export default function FeedPage() {
                   loop
                   muted={isMuted}
                   playsInline
-                  preload={index < 2 ? 'auto' : 'metadata'}
+                  preload={index < 4 ? 'auto' : 'metadata'}
                   onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
                   onTimeUpdate={(e) => {
                     const v = e.currentTarget

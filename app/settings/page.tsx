@@ -159,6 +159,14 @@ export default function SettingsPage() {
             </button>
 
             <button
+              onClick={() => router.push('/profile?tab=liked')}
+              className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5 border-b border-white/5"
+            >
+              <span className="text-sm font-medium">Video tersimpan / liked</span>
+              <span className="text-gray-500 text-lg">›</span>
+            </button>
+
+            <button
               onClick={handleLogout}
               className="w-full px-4 py-3.5 text-left text-sm text-red-400 font-medium active:bg-white/5"
             >
