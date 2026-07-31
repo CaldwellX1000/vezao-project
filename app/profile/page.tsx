@@ -756,43 +756,55 @@ const list = published || []
                 </svg>
               </button>
 
-              {showMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                  <div className="absolute right-0 top-11 z-50 w-44 bg-zinc-900 border border-white/10 rounded-xl overflow-hidden shadow-xl">
-                    <button
-                      onClick={handleShareProfile}
-                      className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                    >
-                      Share profil
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowMenu(false)
-                        router.push('/settings')
-                      }}
-                      className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                    >
-                      Settings
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowMenu(false)
-                        router.push('/blocked')
-                      }}
-                      className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                    >
-                      Daftar diblokir
-                    </button>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-white/5"
-                    >
-                      Log out
-                    </button>
-                  </div>
-                </>
-              )}
+ {showMenu && (
+  <>
+    <div
+      className="fixed inset-0 z-40"
+      onClick={() => setShowMenu(false)}
+    />
+    <div className="absolute right-0 top-11 z-50 w-44 bg-zinc-900 border border-white/10 rounded-xl py-1 shadow-xl overflow-hidden">
+      <button
+        onClick={handleShareProfile}
+        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
+      >
+        Share profil
+      </button>
+      <button
+        onClick={() => {
+          setShowMenu(false)
+          router.push('/settings')
+        }}
+        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
+      >
+        Settings
+      </button>
+      <button
+        onClick={() => {
+          setShowMenu(false)
+          router.push('/analytics')
+        }}
+        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
+      >
+        Analytics
+      </button>
+      <button
+        onClick={() => {
+          setShowMenu(false)
+          router.push('/blocked')
+        }}
+        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
+      >
+        Daftar diblokir
+      </button>
+      <button
+        onClick={handleLogout}
+        className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-white/5"
+      >
+        Log out
+      </button>
+    </div>
+  </>
+)}
             </div>
           </div>
         </div>

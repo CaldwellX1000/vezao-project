@@ -37,7 +37,11 @@ function shuffleArray<T>(arr: T[]): T[] {
   }
   return a
 }
-
+function extractTags(caption: string | null): string[] {
+  if (!caption) return []
+  const matches = caption.match(/#[\w]+/g) || []
+  return matches.map((t) => t.slice(1).toLowerCase())
+}
 export default function SearchPage() {
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<Tab>('users')
@@ -46,6 +50,7 @@ export default function SearchPage() {
   const [hashtags, setHashtags] = useState<string[]>([])
   const [suggested, setSuggested] = useState<Profile[]>([])
   const [suggestedVideos, setSuggestedVideos] = useState<VideoResult[]>([])
+  const [trendingTags, setTrendingTags] = useState<{ tag: string; count: number }[]>([])
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
@@ -126,7 +131,33 @@ export default function SearchPage() {
         return vis !== 'private'
       })
       // tetap dari video ber-views tinggi, tapi urutan diacak
-      setSuggestedVideos(shuffleArray(filteredVids).slice(0, 18) as any)
+            setSuggestedVideos(shuffleArray(filteredVids).slice(0, 18) as any)
+
+      const { data: recentForTags } = await supabase
+        .from('videos')
+        .select('caption, visibility')
+        .eq('is_draft', false)
+        .order('created_at', { ascending: false })
+        .limit(150)
+
+      const tagCount: Record<string, number> = {}
+      ;(recentForTags || []).forEach((row: any) => {
+        const vis = String(row.visibility ?? 'public')
+          .toLowerCase()
+          .replace(/['"]/g, '')
+          .trim()
+        if (vis === 'private') return
+        extractTags(row.caption).forEach((tag) => {
+          tagCount[tag] = (tagCount[tag] || 0) + 1
+        })
+      })
+
+      setTrendingTags(
+        Object.entries(tagCount)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 20)
+          .map(([tag, count]) => ({ tag, count }))
+      )
     }
     checkAuth()
   }, [])
@@ -327,17 +358,21 @@ export default function SearchPage() {
           <div className="flex justify-center py-12">
             <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
           </div>
-) : !searched ? (
+        ) : !searched ? (
           tab === 'users' && suggested.length > 0 ? (
             <div>
-              <p className="text-sm font-semibold text-gray-400 mb-2 px-2">Suggested accounts</p>
+              <p className="text-sm font-semibold text-gray-400 mb-2 px-2">
+                Suggested accounts
+              </p>
               <div className="space-y-1">
                 {suggested.map((u) => renderUserRow(u, true))}
               </div>
             </div>
           ) : tab === 'videos' && suggestedVideos.length > 0 ? (
             <div>
-              <p className="text-sm font-semibold text-gray-400 mb-2 px-2">Popular videos</p>
+              <p className="text-sm font-semibold text-gray-400 mb-2 px-2">
+                Popular videos
+              </p>
               <div className="grid grid-cols-3 gap-[2px]">
                 {suggestedVideos.map((v) => (
                   <div
@@ -346,7 +381,11 @@ export default function SearchPage() {
                     className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer"
                   >
                     {v.thumbnail_url ? (
-                      <img src={v.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                      <img
+                        src={v.thumbnail_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <video
                         src={v.video_url}
@@ -358,6 +397,32 @@ export default function SearchPage() {
                     )}
                     <div className="absolute bottom-1 left-1 text-[10px] text-white font-medium drop-shadow">
                       ▶ {v.views_count || 0}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : tab === 'hashtags' && trendingTags.length > 0 ? (
+            <div>
+              <p className="text-sm font-semibold text-gray-400 mb-2 px-2">
+                Trending
+              </p>
+              <div className="space-y-1">
+                {trendingTags.map((t, i) => (
+                  <div
+                    key={t.tag}
+                    onClick={() => router.push(`/hashtag?tag=${t.tag}`)}
+                    className="flex items-center gap-3 py-3 active:bg-white/5 rounded-xl px-2 cursor-pointer"
+                  >
+                    <span className="text-sm text-gray-500 w-5 text-center shrink-0">
+                      {i + 1}
+                    </span>
+                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg font-bold text-purple-400 shrink-0">
+                      #
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm">#{t.tag}</p>
+                      <p className="text-xs text-gray-500">{t.count} video</p>
                     </div>
                   </div>
                 ))}
@@ -390,7 +455,11 @@ export default function SearchPage() {
                   className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer"
                 >
                   {v.thumbnail_url ? (
-                    <img src={v.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={v.thumbnail_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <video
                       src={v.video_url}

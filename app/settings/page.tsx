@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { useTheme } from '@/components/ThemeProvider'
 
 type NotifPrefs = {
   likes: boolean
@@ -53,6 +54,7 @@ export default function SettingsPage() {
 
   const router = useRouter()
   const supabase = createClient()
+  const { theme, setTheme } = useTheme()
 
   useEffect(() => {
     const load = async () => {
@@ -288,6 +290,45 @@ export default function SettingsPage() {
           <p className="text-[10px] text-gray-600 mt-2 px-1">
             Preferensi disimpan di perangkat ini (nanti bisa disambung server).
           </p>
+        </section>
+
+        {/* Tampilan */}
+        <section>
+          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 px-1">
+            Tampilan
+          </p>
+          <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-white/5">
+            <div className="px-4 py-3.5 flex items-center justify-between gap-3">
+              <div className="text-left pr-2">
+                <p className="text-sm font-medium">Mode tampilan</p>
+                <p className="text-xs text-gray-500 mt-0.5">Gelap atau cerah</p>
+              </div>
+              <div className="flex rounded-full bg-zinc-800 p-0.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setTheme('dark')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                    theme === 'dark'
+                      ? 'bg-vezao-gradient text-white'
+                      : 'text-gray-400'
+                  }`}
+                >
+                  Gelap
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme('light')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                    theme === 'light'
+                      ? 'bg-vezao-gradient text-white'
+                      : 'text-gray-400'
+                  }`}
+                >
+                  Cerah
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* Admin + tentang */}

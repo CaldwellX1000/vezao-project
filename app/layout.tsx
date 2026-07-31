@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Lexend } from "next/font/google";
 import "./globals.css";
 import InstallPrompt from "@/components/InstallPrompt";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,6 +18,8 @@ const lexend = Lexend({
   subsets: ["latin"],
   variable: "--font-lexend",
 });
+
+
 
 export const metadata: Metadata = {
   title: "VEZAO",
@@ -48,8 +51,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${lexend.variable} h-full antialiased`}
     >
       <body className={`${lexend.className} min-h-full flex flex-col`}>
-        {children}
-        <InstallPrompt />
+        <ThemeProvider>
+          {children}
+          <InstallPrompt />
+        </ThemeProvider>
       </body>
     </html>
   );
