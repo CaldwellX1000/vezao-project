@@ -43,7 +43,15 @@ async function notifyMentions(
   if (rows.length === 0) return
   await supabase.from('notifications').insert(rows)
 }
-
+const VIDEO_FILTERS = [
+  { id: 'none', label: 'Normal', css: 'none' },
+  { id: 'bw', label: 'B&W', css: 'grayscale(1)' },
+  { id: 'sepia', label: 'Sepia', css: 'sepia(0.85)' },
+  { id: 'warm', label: 'Warm', css: 'sepia(0.35) saturate(1.35)' },
+  { id: 'cool', label: 'Cool', css: 'hue-rotate(195deg) saturate(1.15)' },
+  { id: 'vivid', label: 'Vivid', css: 'contrast(1.2) saturate(1.45)' },
+  { id: 'soft', label: 'Soft', css: 'brightness(1.08) contrast(0.92)' },
+] as const
 function UploadContent() {
   const searchParams = useSearchParams()
   const draftId = searchParams.get('draft')
@@ -67,6 +75,7 @@ function UploadContent() {
     { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
   >([])
   const [showMentions, setShowMentions] = useState(false)
+    const [videoFilter, setVideoFilter] = useState<string>('none')
   const [mentionLoading, setMentionLoading] = useState(false)
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
@@ -262,7 +271,10 @@ function UploadContent() {
             resolve(null)
             return
           }
+          ctx.filter =
+            VIDEO_FILTERS.find((f) => f.id === videoFilter)?.css || 'none'
           ctx.drawImage(v, 0, 0, w, h)
+          ctx.filter = 'none'
           const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
           setCoverPreview(dataUrl)
           resolve(dataUrl)
@@ -493,6 +505,7 @@ function UploadContent() {
 
   const resetAll = () => {
     stopCamera()
+        setVideoFilter('none')
     setFile(null)
     setPreview(null)
     setCoverPreview(null)
@@ -554,6 +567,9 @@ function UploadContent() {
     setMentionQuery('')
     setMentionResults([])
   }
+
+  const activeFilterCss =
+    VIDEO_FILTERS.find((f) => f.id === videoFilter)?.css || 'none'
 
   if (checkingAuth) {
     return (
@@ -713,12 +729,41 @@ function UploadContent() {
               ref={previewVideoRef}
               src={preview}
               className="w-full h-full object-cover"
+              style={{ filter: activeFilterCss }}
               muted
               playsInline
               controls={!!editingDraftId}
               onLoadedMetadata={onPreviewLoaded}
             />
           )}
+        </div>
+        <div>
+          <p className="text-xs text-gray-400 mb-2">Filter</p>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {VIDEO_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => {
+                  setVideoFilter(f.id)
+                  // refresh cover dengan filter baru
+                  if (previewVideoRef.current && duration > 0) {
+                    void captureFrameAt(coverTime || 1)
+                  }
+                }}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                  videoFilter === f.id
+                    ? 'bg-vezao-gradient border-transparent text-white'
+                    : 'bg-zinc-900 border-white/10 text-gray-300'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-500 mt-1.5">
+            Filter di preview & cover. File video tetap original.
+          </p>
         </div>
 
         {duration > 0 && (
