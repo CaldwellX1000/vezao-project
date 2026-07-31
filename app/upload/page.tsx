@@ -43,6 +43,137 @@ async function notifyMentions(
   if (rows.length === 0) return
   await supabase.from('notifications').insert(rows)
 }
+/** Compress ke max lebar 720px, bitrate ~2.5Mbps. Gagal → file asli. */
+async function compressVideo(
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<File> {
+  // Sudah kecil → skip
+  if (file.size < 6 * 1024 * 1024) {
+    onProgress?.(100)
+    return file
+  }
+
+  return new Promise((resolve) => {
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'auto'
+    const url = URL.createObjectURL(file)
+    video.src = url
+
+    const fail = () => {
+      URL.revokeObjectURL(url)
+      resolve(file)
+    }
+
+    video.onerror = fail
+
+    video.onloadedmetadata = async () => {
+      try {
+        let w = video.videoWidth
+        let h = video.videoHeight
+        if (!w || !h) {
+          fail()
+          return
+        }
+
+        const maxW = 720
+        if (w > maxW) {
+          h = Math.round((h * maxW) / w)
+          w = maxW
+        }
+
+        // Sudah ≤720p dan tidak terlalu besar
+        if (video.videoWidth <= 720 && file.size < 12 * 1024 * 1024) {
+          URL.revokeObjectURL(url)
+          onProgress?.(100)
+          resolve(file)
+          return
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          fail()
+          return
+        }
+
+        const canvasStream = canvas.captureStream(30)
+
+        // Coba ambil audio dari video asli
+        try {
+          const raw: MediaStream | undefined =
+            (video as any).captureStream?.() ||
+            (video as any).mozCaptureStream?.()
+          raw?.getAudioTracks().forEach((t) => canvasStream.addTrack(t))
+        } catch {
+          /* tanpa audio tetap oke */
+        }
+
+        const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+          ? 'video/webm;codecs=vp9,opus'
+          : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+          ? 'video/webm;codecs=vp8,opus'
+          : 'video/webm'
+
+        const recorder = new MediaRecorder(canvasStream, {
+          mimeType: mime,
+          videoBitsPerSecond: 2_500_000,
+        })
+        const chunks: Blob[] = []
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data)
+        }
+
+        recorder.onstop = () => {
+          canvasStream.getTracks().forEach((t) => t.stop())
+          URL.revokeObjectURL(url)
+          const blob = new Blob(chunks, { type: mime })
+          // Kalau hasil malah lebih besar, pakai asli
+          if (blob.size === 0 || blob.size >= file.size * 0.98) {
+            resolve(file)
+            return
+          }
+          onProgress?.(100)
+          resolve(
+            new File([blob], `cicipy-${Date.now()}.webm`, { type: mime })
+          )
+        }
+
+        recorder.start(200)
+        video.currentTime = 0
+        await video.play()
+
+        const draw = () => {
+          if (video.ended || video.paused) return
+          ctx.drawImage(video, 0, 0, w, h)
+          if (onProgress && video.duration) {
+            onProgress(
+              Math.min(90, Math.round((video.currentTime / video.duration) * 90))
+            )
+          }
+          requestAnimationFrame(draw)
+        }
+        draw()
+
+        video.onended = () => {
+          try {
+            recorder.stop()
+          } catch {
+            fail()
+          }
+        }
+      } catch {
+        fail()
+      }
+    }
+  })
+}
+
 const VIDEO_FILTERS = [
   { id: 'none', label: 'Normal', css: 'none' },
   { id: 'bw', label: 'B&W', css: 'grayscale(1)' },
@@ -168,8 +299,8 @@ function UploadContent() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facing,
-          width: { ideal: 1080 },
-          height: { ideal: 1920 },
+          width: { ideal: 720 },
+          height: { ideal: 1280 },
         },
         audio: true,
       })
@@ -416,7 +547,7 @@ function UploadContent() {
 
     setUploading(true)
     setProgress(5)
-    setMessage('')
+    setMessage('Menyiapkan video...')
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -425,14 +556,21 @@ function UploadContent() {
         return
       }
 
-      const fileExt = file.name.split('.').pop() || 'webm'
+      // Compress ke ~720p sebelum upload
+      const uploadFile = await compressVideo(file, (pct) => {
+        setProgress(Math.max(5, Math.min(40, Math.round(pct * 0.4))))
+        setMessage('Menyiapkan video...')
+      })
+
+      const fileExt = uploadFile.name.split('.').pop() || 'webm'
       const fileName = `${user.id}/${Date.now()}.${fileExt}`
 
-      setProgress(20)
+      setProgress(45)
+      setMessage('Mengupload...')
 
       const { error: uploadError } = await supabase.storage
         .from('videos')
-        .upload(fileName, file)
+        .upload(fileName, uploadFile)
 
       if (uploadError) throw uploadError
 
