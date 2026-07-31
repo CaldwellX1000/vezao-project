@@ -151,9 +151,21 @@ export default function LoginPage() {
         if (error) throw error
         setMessage('Link reset password sudah dikirim ke email. Cek inbox/spam.')
       } else if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+                const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        await persistCurrentSession(supabase)
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('is_banned')
+            .eq('id', user.id)
+            .single()
+          if (prof?.is_banned) {
+            await supabase.auth.signOut()
+            throw new Error('Akun ini di-ban. Hubungi support.')
+          }
+        }
         router.push('/')
       } else {
         if (!email.trim()) {

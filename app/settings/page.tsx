@@ -8,6 +8,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [isPrivate, setIsPrivate] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [email, setEmail] = useState<string | null>(null)
   const [username, setUsername] = useState('')
 
@@ -28,13 +29,14 @@ export default function SettingsPage() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('username, is_private')
+        .select('username, is_private, is_admin')
         .eq('id', user.id)
         .single()
 
       if (profile) {
         setUsername(profile.username || '')
         setIsPrivate(!!profile.is_private)
+        setIsAdmin(!!profile.is_admin)
       }
       setLoading(false)
     }
@@ -150,6 +152,15 @@ export default function SettingsPage() {
             Lainnya
           </p>
           <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-white/5">
+            {isAdmin && (
+              <button
+                onClick={() => router.push('/admin')}
+                className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5 border-b border-white/5"
+              >
+                <span className="text-sm font-medium text-purple-400">Admin Panel</span>
+                <span className="text-gray-500 text-lg">›</span>
+              </button>
+            )}
             <button
               onClick={() => router.push('/profile')}
               className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5 border-b border-white/5"

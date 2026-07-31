@@ -181,7 +181,37 @@ export default function SingleVideoPage() {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editCommentText, setEditCommentText] = useState('')
   const [showMore, setShowMore] = useState<string | null>(null)
+  const [reportVideoId, setReportVideoId] = useState<string | null>(null)
   const [shareVideoId, setShareVideoId] = useState<string | null>(null)
+
+  const REPORT_REASONS = [
+    'Spam',
+    'Konten tidak pantas',
+    'Kekerasan atau berbahaya',
+    'Pelecehan atau bullying',
+    'Informasi palsu',
+    'Lainnya',
+  ]
+
+  const submitReport = async (reason: string) => {
+    if (!userId || !reportVideoId) return
+    const video = videos.find((v) => v.id === reportVideoId)
+    if (!video) {
+      alert('Video tidak ditemukan')
+      return
+    }
+    const { error } = await supabase.from('reports').insert({
+      video_id: reportVideoId,
+      reporter_id: userId,
+      reported_user_id: video.user_id,
+      reason,
+      video_url: video.video_url,
+      status: 'open',
+    })
+    setReportVideoId(null)
+    if (error) alert('Gagal report: ' + error.message)
+    else alert('Laporan terkirim. Terima kasih.')
+  }
   const [shareFriends, setShareFriends] = useState<
     { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
   >([])
@@ -1465,31 +1495,44 @@ export default function SingleVideoPage() {
               </button>
               {(() => {
                 const v = videos.find((x) => x.id === showMore)
-                if (!v || v.user_id !== userId) return null
+                if (!v) return null
+                if (v.user_id === userId) {
+                  return (
+                    <>
+                      <button
+                        onClick={() => togglePin(showMore)}
+                        className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
+                      >
+                        {v.is_pinned ? 'Unpin dari profil' : 'Pin ke profil'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowMore(null)
+                          router.push(`/upload?draft=${showMore}`)
+                        }}
+                        className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
+                      >
+                        Edit video
+                      </button>
+                      <button
+                        onClick={() => handleDeleteVideo(showMore)}
+                        className="w-full text-left px-4 py-3.5 text-sm text-red-400 hover:bg-white/5 rounded-xl"
+                      >
+                        Hapus video
+                      </button>
+                    </>
+                  )
+                }
                 return (
-                  <>
-                    <button
-                      onClick={() => togglePin(showMore)}
-                      className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
-                    >
-                      {v.is_pinned ? 'Unpin dari profil' : 'Pin ke profil'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowMore(null)
-                        router.push(`/upload?draft=${showMore}`)
-                      }}
-                      className="w-full text-left px-4 py-3.5 text-sm hover:bg-white/5 rounded-xl"
-                    >
-                      Edit video
-                    </button>
-                    <button
-                      onClick={() => handleDeleteVideo(showMore)}
-                      className="w-full text-left px-4 py-3.5 text-sm text-red-400 hover:bg-white/5 rounded-xl"
-                    >
-                      Hapus video
-                    </button>
-                  </>
+                  <button
+                    onClick={() => {
+                      setReportVideoId(showMore)
+                      setShowMore(null)
+                    }}
+                    className="w-full text-left px-4 py-3.5 text-sm text-orange-400 hover:bg-white/5 rounded-xl"
+                  >
+                    Report
+                  </button>
                 )
               })()}
               <button
@@ -1497,6 +1540,36 @@ export default function SingleVideoPage() {
                 className="w-full text-center py-3 text-sm text-gray-400 mt-1"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        )}
+
+        {reportVideoId && (
+          <div className="fixed inset-0 z-[80] flex items-end">
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setReportVideoId(null)}
+            />
+            <div className="relative w-full max-w-[480px] mx-auto bg-zinc-900 rounded-t-2xl p-4 pb-8">
+              <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-4" />
+              <h3 className="text-center font-semibold mb-4">Laporkan video</h3>
+              <div className="space-y-1">
+                {REPORT_REASONS.map((reason) => (
+                  <button
+                    key={reason}
+                    onClick={() => submitReport(reason)}
+                    className="w-full text-left px-4 py-3 rounded-xl text-sm hover:bg-white/5"
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setReportVideoId(null)}
+                className="w-full mt-3 py-3 text-sm text-gray-400"
+              >
+                Batal
               </button>
             </div>
           </div>

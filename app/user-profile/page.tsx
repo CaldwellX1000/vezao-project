@@ -39,6 +39,30 @@ function UserProfileContent() {
   const [followsMe, setFollowsMe] = useState(false)
   const [isBlocked, setIsBlocked] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [showReportUser, setShowReportUser] = useState(false)
+
+  const REPORT_REASONS = [
+    'Spam',
+    'Konten tidak pantas',
+    'Kekerasan atau berbahaya',
+    'Pelecehan atau bullying',
+    'Informasi palsu',
+    'Lainnya',
+  ]
+
+  const submitUserReport = async (reason: string) => {
+    if (!currentUserId || !targetUserId) return
+    const { error } = await supabase.from('reports').insert({
+      reporter_id: currentUserId,
+      reported_user_id: targetUserId,
+      video_id: null,
+      reason,
+      status: 'open',
+    })
+    setShowReportUser(false)
+    if (error) alert('Gagal report: ' + error.message)
+    else alert('Terima kasih. Laporan sudah dikirim.')
+  }
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [isPrivate, setIsPrivate] = useState(false)
   const [hasStory, setHasStory] = useState(false)
@@ -528,23 +552,11 @@ function UserProfileContent() {
                         {isBlocked ? 'Unblock' : 'Block'}
                       </button>
                       <button
-                        onClick={async () => {
+                        onClick={() => {
                           setShowMenu(false)
-                          if (!currentUserId || !targetUserId) return
-                          const reason = prompt('Alasan report (opsional):')
-                          if (reason === null) return
-
-                          const { error } = await supabase.from('reports').insert({
-                            reporter_id: currentUserId,
-                            reported_user_id: targetUserId,
-                            video_id: null,
-                            reason: reason || null,
-                          })
-
-                          if (error) alert('Gagal report: ' + error.message)
-                          else alert('Terima kasih. Laporan sudah dikirim.')
+                          setShowReportUser(true)
                         }}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-white border-t border-white/5"
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-orange-400 border-t border-white/5"
                       >
                         Report
                       </button>
@@ -695,6 +707,36 @@ function UserProfileContent() {
           </div>
         )}
       </div>
+      {showReportUser && (
+        <div className="fixed inset-0 z-[80] flex items-end">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowReportUser(false)}
+          />
+          <div className="relative w-full bg-zinc-900 rounded-t-2xl p-4 pb-8">
+            <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-4" />
+            <h3 className="text-center font-semibold mb-1">Laporkan akun</h3>
+            <p className="text-center text-xs text-gray-400 mb-4">@{username}</p>
+            <div className="space-y-1">
+              {REPORT_REASONS.map((reason) => (
+                <button
+                  key={reason}
+                  onClick={() => submitUserReport(reason)}
+                  className="w-full text-left px-4 py-3 rounded-xl text-sm hover:bg-white/5"
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowReportUser(false)}
+              className="w-full mt-3 py-3 text-sm text-gray-400"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
 
       <BottomNav />
     </div>
