@@ -1062,17 +1062,18 @@ const userPausedRef = useRef<Set<string>>(new Set())
                   loop
                   muted={isMuted}
                   playsInline
-                  preload={index < 2 ? 'auto' : 'metadata'}
+                  preload={index === 0 ? 'auto' : 'metadata'}
                   onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
                   onTimeUpdate={(e) => {
-                    const v = e.currentTarget
-                    if (!v.duration || !isFinite(v.duration)) return
-                    const pct = Math.min(100, (v.currentTime / v.duration) * 100)
-                    setProgressMap((prev) => {
-                      if (Math.abs((prev[video.id] || 0) - pct) < 0.4) return prev
-                      return { ...prev, [video.id]: pct }
-                    })
-                  }}
+  const v = e.currentTarget
+  if (!v.duration || !isFinite(v.duration)) return
+  const pct = Math.min(100, (v.currentTime / v.duration) * 100)
+  setProgressMap((prev) => {
+    // update hanya kalau berubah ≥ 2% → jauh lebih sedikit re-render
+    if (Math.abs((prev[video.id] || 0) - pct) < 2) return prev
+    return { ...prev, [video.id]: pct }
+  })
+}}
                   onEnded={() => {
                     setProgressMap((prev) => ({ ...prev, [video.id]: 0 }))
                   }}
