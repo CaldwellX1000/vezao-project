@@ -697,12 +697,6 @@ const list = published || []
             >
               Edit
             </button>
-            <button
-              onClick={handleShareProfile}
-              className="px-4 py-1.5 bg-zinc-800 border border-white/10 text-white text-sm font-semibold rounded-full"
-            >
-              Share
-            </button>
 
             <div className="relative">
               <button
