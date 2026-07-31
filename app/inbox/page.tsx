@@ -18,6 +18,7 @@ type Conversation = {
 
 function formatLastMessage(content: string) {
   if (content.startsWith('__VIDEO__:')) return 'Membagikan video'
+  if (content.startsWith('__IMAGE__:')) return 'mengirim foto'
   if (content.startsWith('__STORY__:')) {
     const text = content.split('\n').slice(1).join(' ').trim()
     return text

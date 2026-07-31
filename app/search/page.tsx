@@ -29,6 +29,15 @@ type VideoResult = {
 
 type Tab = 'users' | 'videos' | 'hashtags'
 
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 export default function SearchPage() {
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<Tab>('users')
@@ -83,11 +92,13 @@ export default function SearchPage() {
         .neq('id', user.id)
         .limit(40)
 
-      const list = (profiles || [])
-        .filter((p) => !blockedSet.has(p.id) && !followSet.has(p.id))
-        .slice(0, 12)
+      const list = shuffleArray(
+        (profiles || []).filter(
+          (p) => !blockedSet.has(p.id) && !followSet.has(p.id)
+        )
+      ).slice(0, 12)
 
-setSuggested(list)
+      setSuggested(list)
 
       const { data: popular } = await supabase
         .from('videos')
@@ -114,7 +125,8 @@ setSuggested(list)
           .trim()
         return vis !== 'private'
       })
-      setSuggestedVideos(filteredVids as any)
+      // tetap dari video ber-views tinggi, tapi urutan diacak
+      setSuggestedVideos(shuffleArray(filteredVids).slice(0, 18) as any)
     }
     checkAuth()
   }, [])
@@ -143,7 +155,7 @@ setSuggested(list)
         const filtered = (data || []).filter(
           (u) => u.id !== currentUserId && !blockedUsers.has(u.id)
         )
-        setUsers(filtered)
+        setUsers(shuffleArray(filtered))
       }
 
       if (tab === 'videos') {
@@ -173,7 +185,7 @@ setSuggested(list)
             .trim()
           return vis !== 'private'
         })
-        setVideos(filtered as any)
+        setVideos(shuffleArray(filtered) as any)
       }
 
       if (tab === 'hashtags') {

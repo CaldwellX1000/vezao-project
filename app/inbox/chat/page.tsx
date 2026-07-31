@@ -32,6 +32,13 @@ function parseVideoId(content: string): string | null {
   return null
 }
 
+function parseImageUrl(content: string): string | null {
+  if (content.startsWith('__IMAGE__:')) {
+    return content.replace('__IMAGE__:', '').trim() || null
+  }
+  return null
+}
+
 function parseStoryReply(content: string): { storyId: string; text: string } | null {
   if (!content.startsWith('__STORY__:')) return null
   const lines = content.split('\n')
@@ -96,6 +103,8 @@ function ChatContent() {
 
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
+  const [sendingImage, setSendingImage] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -114,6 +123,7 @@ function ChatContent() {
 
   const canEditMessage = (msg: Message) => {
     if (parseVideoId(msg.content)) return false
+    if (parseImageUrl(msg.content)) return false
     if (parseStoryReply(msg.content)) return false
     const ageMs = Date.now() - new Date(msg.created_at).getTime()
     return ageMs <= 30 * 60 * 1000
@@ -443,6 +453,70 @@ function ChatContent() {
     }
 
     setSending(false)
+  }
+
+  const sendImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !currentUserId || !partnerId) return
+
+    if (!file.type.startsWith('image/')) {
+      alert('Hanya gambar')
+      return
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      alert('Gambar maksimal 8MB')
+      return
+    }
+
+    const blocked = await checkBlocked(currentUserId, partnerId)
+    if (blocked) {
+      alert('Tidak bisa kirim. Akun ini diblokir.')
+      return
+    }
+
+    setSendingImage(true)
+    try {
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${currentUserId}/${Date.now()}.${ext}`
+
+      const { error: upErr } = await supabase.storage
+        .from('chat-media')
+        .upload(path, file, { contentType: file.type })
+
+      if (upErr) throw upErr
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('chat-media').getPublicUrl(path)
+
+      const content = `__IMAGE__:${publicUrl}`
+
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          sender_id: currentUserId,
+          receiver_id: partnerId,
+          content,
+          is_read: false,
+        })
+        .select('*')
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        setMessages((prev) => [...prev, data])
+        setTimeout(
+          () => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }),
+          50
+        )
+      }
+    } catch (err: any) {
+      alert(err.message || 'Gagal kirim gambar')
+    } finally {
+      setSendingImage(false)
+    }
   }
 
   const startEdit = (msg: Message) => {
@@ -787,7 +861,29 @@ function ChatContent() {
                             : 'bg-zinc-800 text-white rounded-bl-md'
                         } ${editingMsgId === msg.id ? 'ring-1 ring-purple-400' : ''}`}
                       >
-                        {msg.content}
+                        {(() => {
+  const imageUrl = parseImageUrl(msg.content)
+  const videoId = parseVideoId(msg.content)
+
+  if (imageUrl) {
+    return (
+      <a href={imageUrl} target="_blank" rel="noreferrer" className="block">
+        <img
+          src={imageUrl}
+          alt="gambar"
+          className="max-w-[220px] max-h-[280px] rounded-xl object-cover"
+        />
+      </a>
+    )
+  }
+
+  if (videoId) {
+    // biarkan render shared video yang sudah ada
+    // ... kode video card lama
+  }
+
+  return <span>{msg.content}</span>
+})()}
                       </div>
                       {menuMsgId === msg.id && isMe && (
                         <div className="absolute right-0 top-full mt-1 z-20 bg-zinc-800 border border-white/10 rounded-xl py-1 shadow-xl min-w-[140px]">
@@ -837,6 +933,41 @@ function ChatContent() {
           </div>
         )}
         <div className="flex items-center gap-2">
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={sendImage}
+          />
+          {!editingMsgId && (
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={sendingImage || sending}
+              className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 disabled:opacity-50"
+              title="Kirim gambar"
+            >
+              {sendingImage ? (
+                <span className="text-xs text-gray-400">...</span>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+              )}
+            </button>
+          )}
           <input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}

@@ -180,6 +180,7 @@ export default function FeedPage() {
   const [showMore, setShowMore] = useState<string | null>(null)
   const [reportVideoId, setReportVideoId] = useState<string | null>(null)
   const [shareVideoId, setShareVideoId] = useState<string | null>(null)
+  const [progressMap, setProgressMap] = useState<Record<string, number>>({})
   const [shareFriends, setShareFriends] = useState<
     { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
   >([])
@@ -1051,7 +1052,28 @@ export default function FeedPage() {
                   playsInline
                   preload={index < 2 ? 'auto' : 'metadata'}
                   onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
+                  onTimeUpdate={(e) => {
+                    const v = e.currentTarget
+                    if (!v.duration || !isFinite(v.duration)) return
+                    const pct = Math.min(100, (v.currentTime / v.duration) * 100)
+                    setProgressMap((prev) => {
+                      if (Math.abs((prev[video.id] || 0) - pct) < 0.4) return prev
+                      return { ...prev, [video.id]: pct }
+                    })
+                  }}
+                  onEnded={() => {
+                    setProgressMap((prev) => ({ ...prev, [video.id]: 0 }))
+                  }}
                 />
+
+                {/* Progress bar short */}
+                <div className="absolute top-0 left-0 right-0 z-20 h-[2.5px] bg-white/25 pointer-events-none">
+                  <div
+                    className="h-full bg-white"
+                    style={{ width: `${progressMap[video.id] || 0}%` }}
+                  />
+                </div>
+
                 {heartAnim === video.id && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
                     <span className="text-7xl text-red-500 animate-ping">♥</span>
