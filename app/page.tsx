@@ -201,6 +201,7 @@ export default function FeedPage() {
   const startYRef = useRef(0)
   const isPullingRef = useRef(false)
   const viewedIdsRef = useRef<Set<string>>(new Set())
+const userPausedRef = useRef<Set<string>>(new Set())
 
   const videos =
     feedTab === 'foryou'
@@ -359,6 +360,9 @@ export default function FeedPage() {
     }
 
     const tryPlay = (el: HTMLVideoElement) => {
+      const vid = el.dataset.videoId
+      if (vid && userPausedRef.current.has(vid)) return
+
       el.muted = isMuted
       const p = el.play()
       if (p && typeof p.then === 'function') {
@@ -367,7 +371,6 @@ export default function FeedPage() {
           el.play().catch(() => {})
         })
       }
-      const vid = el.dataset.videoId
       if (vid) registerView(vid)
     }
 
@@ -555,10 +558,18 @@ export default function FeedPage() {
       if (!likedVideos.has(videoId)) toggleLike(videoId)
       setHeartAnim(videoId)
       setTimeout(() => setHeartAnim(null), 800)
+      // double-tap like: biarkan video tetap play
+      userPausedRef.current.delete(videoId)
+      if (videoEl.paused) videoEl.play().catch(() => {})
     } else {
       lastTapRef.current = { time: now, videoId }
-      if (videoEl.paused) videoEl.play().catch(() => {})
-      else videoEl.pause()
+      if (videoEl.paused) {
+        userPausedRef.current.delete(videoId)
+        videoEl.play().catch(() => {})
+      } else {
+        userPausedRef.current.add(videoId)
+        videoEl.pause()
+      }
     }
   }
 
@@ -1051,7 +1062,7 @@ export default function FeedPage() {
                   loop
                   muted={isMuted}
                   playsInline
-                  preload={index < 4 ? 'auto' : 'metadata'}
+                  preload={index < 2 ? 'auto' : 'metadata'}
                   onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
                   onTimeUpdate={(e) => {
                     const v = e.currentTarget
