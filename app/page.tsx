@@ -154,7 +154,15 @@ async function notifyMentions(
     }))
 
   if (rows.length === 0) return
-  await supabase.from('notifications').insert(rows)
+  for (const row of rows) {
+    await insertNotification(supabase, {
+      user_id: row.user_id,
+      actor_id: row.actor_id,
+      type: row.type,
+      video_id: row.video_id,
+      message: row.message,
+    })
+  }
 }
 
 export default function FeedPage() {

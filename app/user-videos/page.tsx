@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { insertNotification } from '@/lib/notify'
 
 type Video = {
   id: string
@@ -266,13 +267,11 @@ function UserVideosContent() {
       )
       const video = videos.find((v) => v.id === videoId)
       if (video && video.user_id !== currentUserId) {
-        await supabase.from('notifications').insert({
+        await insertNotification(supabase, {
           user_id: video.user_id,
           actor_id: currentUserId,
           type: 'like',
           video_id: videoId,
-          message: null,
-          is_read: false,
         })
       }
     }
@@ -317,6 +316,15 @@ function UserVideosContent() {
             : v
         )
       )
+      const owner = videos.find((v) => v.id === videoId)
+      if (owner && owner.user_id !== currentUserId) {
+        await insertNotification(supabase, {
+          user_id: owner.user_id,
+          actor_id: currentUserId,
+          type: 'save',
+          video_id: videoId,
+        })
+      }
     }
   }
 
@@ -398,22 +406,20 @@ function UserVideosContent() {
 
     const video = videos.find((v) => v.id === activeVideoId)
     if (parentId && replyTo && replyTo.user_id !== currentUserId) {
-      await supabase.from('notifications').insert({
+      await insertNotification(supabase, {
         user_id: replyTo.user_id,
         actor_id: currentUserId,
         type: 'comment',
         video_id: activeVideoId,
         message: content,
-        is_read: false,
       })
     } else if (!parentId && video && video.user_id !== currentUserId) {
-      await supabase.from('notifications').insert({
+      await insertNotification(supabase, {
         user_id: video.user_id,
         actor_id: currentUserId,
         type: 'comment',
         video_id: activeVideoId,
         message: content,
-        is_read: false,
       })
     }
 

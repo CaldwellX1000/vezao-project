@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
+import { insertNotification } from '@/lib/notify'
 
 type Video = {
   id: string
@@ -275,13 +276,10 @@ function ProfileByUsername() {
       })
       if (!error) {
         setIsRequested(true)
-        await supabase.from('notifications').insert({
+        await insertNotification(supabase, {
           user_id: targetUserId,
           actor_id: currentUserId,
           type: 'follow_request',
-          video_id: null,
-          message: null,
-          is_read: false,
         })
       }
       return
@@ -296,13 +294,10 @@ function ProfileByUsername() {
       setFollowersCount((p) => p + 1)
       setCanViewVideos(true)
       await loadVideos(targetUserId, currentUserId, true)
-      await supabase.from('notifications').insert({
+      await insertNotification(supabase, {
         user_id: targetUserId,
         actor_id: currentUserId,
         type: 'follow',
-        video_id: null,
-        message: null,
-        is_read: false,
       })
     }
   }
