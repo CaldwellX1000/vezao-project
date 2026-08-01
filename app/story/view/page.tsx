@@ -433,6 +433,9 @@ function StoryViewContent() {
   return (
     <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
       <div className="relative w-full max-w-[480px] h-full bg-black overflow-hidden">
+        {/* Gradient atas */}
+        <div className="absolute top-0 left-0 right-0 h-28 z-20 bg-gradient-to-b from-black/70 to-transparent pointer-events-none" />
+
         {/* Progress */}
         <div className="absolute top-2 left-2 right-2 z-30 flex gap-1">
           {stories.map((_, i) => (
@@ -512,7 +515,7 @@ function StoryViewContent() {
             </button>
           )}
           <button
-            onClick={() => router.back()}
+            onClick={exitStory}
             className="w-8 h-8 flex items-center justify-center text-white text-xl pointer-events-auto"
           >
             ✕

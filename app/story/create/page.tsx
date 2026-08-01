@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { insertNotification } from '@/lib/notify'
 
 function extractMentions(text: string): string[] {
   const matches = text.match(/@([a-zA-Z0-9._]+)/g) || []
@@ -39,7 +40,15 @@ async function notifyMentions(
     }))
 
   if (rows.length === 0) return
-  await supabase.from('notifications').insert(rows)
+  for (const row of rows) {
+    await insertNotification(supabase, {
+      user_id: row.user_id,
+      actor_id: row.actor_id,
+      type: 'mention',
+      video_id: row.video_id,
+      message: row.message,
+    })
+  }
 }
 
 export default function StoryCreatePage() {
