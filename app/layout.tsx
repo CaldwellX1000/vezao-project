@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Lexend } from "next/font/google";
 import "./globals.css";
 import InstallPrompt from "@/components/InstallPrompt";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import PushPrompt from '@/components/PushPrompt'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,6 +55,7 @@ export default function RootLayout({
         <ThemeProvider>
           {children}
           <InstallPrompt />
+          <PushPrompt />
         </ThemeProvider>
       </body>
     </html>
