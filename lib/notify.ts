@@ -21,20 +21,31 @@ export async function canNotify(
   return !data || data.length === 0
 }
 
-function pushBodyForType(type: string) {
+function pushBodyForType(
+  type: string,
+  actorName: string,
+  message?: string | null
+) {
+  const name = actorName || 'Seseorang'
+  const preview = (message || '').trim().slice(0, 80)
+
   switch (type) {
     case 'like':
-      return 'Seseorang menyukai videomu'
+      return `${name} menyukai videomu`
     case 'comment':
-      return 'Komentar baru di videomu'
+      return preview ? `${name}: ${preview}` : `${name} mengomentari videomu`
+    case 'mention':
+      return preview ? `${name} menyebutmu: ${preview}` : `${name} menyebutmu`
     case 'follow':
-      return 'Ada follower baru'
+      return `${name} mulai mengikuti kamu`
     case 'follow_request':
-      return 'Permintaan follow baru'
+      return `${name} meminta mengikuti kamu`
     case 'save':
-      return 'Videomu disimpan seseorang'
+      return `${name} menyimpan videomu`
+    case 'share':
+      return `${name} membagikan videomu`
     default:
-      return 'Ada aktivitas baru'
+      return `${name} — aktivitas baru di VEZAO`
   }
 }
 
@@ -65,7 +76,20 @@ export async function insertNotification(
     return
   }
 
-  // Web Push (fire-and-forget)
+  // Nama actor untuk teks push
+  let actorName = 'Seseorang'
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username, full_name')
+      .eq('id', row.actor_id)
+      .maybeSingle()
+
+    if (profile?.username) actorName = `@${profile.username}`
+    else if (profile?.full_name) actorName = profile.full_name
+  } catch {}
+
+  // Web Push
   try {
     if (typeof window !== 'undefined') {
       void fetch('/api/push/send', {
@@ -74,8 +98,8 @@ export async function insertNotification(
         body: JSON.stringify({
           user_id: row.user_id,
           title: 'VEZAO',
-          body: pushBodyForType(row.type),
-          url: row.video_id ? `/v/${row.video_id}` : '/',
+          body: pushBodyForType(row.type, actorName, row.message),
+          url: row.video_id ? `/v/${row.video_id}` : '/notifications',
         }),
       })
     }
