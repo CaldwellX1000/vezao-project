@@ -908,13 +908,11 @@ const userPausedRef = useRef<Set<string>>(new Set())
 
     const owner = allVideos.find((v) => v.id === shareVideoId)
     if (owner && owner.user_id !== userId) {
-      await supabase.from('insertNotification').insert({
+      await insertNotification(supabase, {
         user_id: owner.user_id,
         actor_id: userId,
         type: 'share',
         video_id: shareVideoId,
-        message: null,
-        is_read: false,
       })
     }
 
@@ -944,14 +942,12 @@ const userPausedRef = useRef<Set<string>>(new Set())
       }
       const owner = allVideos.find((v) => v.id === shareVideoId)
       if (owner && owner.user_id !== userId) {
-        await supabase.from('insertNotification').insert({
-          user_id: owner.user_id,
-          actor_id: userId,
-          type: 'share',
-          video_id: shareVideoId,
-          message: null,
-          is_read: false,
-        })
+              await insertNotification(supabase, {
+        user_id: owner.user_id,
+        actor_id: userId,
+        type: 'share',
+        video_id: shareVideoId,
+      })
       }
     }
 
@@ -1000,8 +996,21 @@ const userPausedRef = useRef<Set<string>>(new Set())
 
   if (loading) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center md:bg-zinc-950">
-        <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+      <div className="h-screen w-full bg-black">
+        <div className="h-screen w-full max-w-[480px] mx-auto bg-black relative overflow-hidden">
+          <div className="h-full w-full bg-zinc-900 animate-pulse" />
+          <div className="absolute bottom-28 left-4 right-20 space-y-2">
+            <div className="h-4 w-28 bg-zinc-700/80 rounded animate-pulse" />
+            <div className="h-3 w-48 bg-zinc-800 rounded animate-pulse" />
+            <div className="h-3 w-36 bg-zinc-800 rounded animate-pulse" />
+          </div>
+          <div className="absolute right-3 bottom-36 space-y-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="w-10 h-10 rounded-full bg-zinc-700/80 animate-pulse" />
+            ))}
+          </div>
+          <BottomNav />
+        </div>
       </div>
     )
   }
@@ -1057,8 +1066,24 @@ const userPausedRef = useRef<Set<string>>(new Set())
           )}
 
           {videos.length === 0 ? (
-            <div className="h-screen flex items-center justify-center text-gray-400 text-sm">
-              {feedTab === 'following' ? 'Follow seseorang untuk lihat video' : 'Belum ada video'}
+            <div className="h-[100dvh] flex flex-col items-center justify-center px-6 text-center pb-16">
+              <div className="text-4xl mb-3">🎬</div>
+              <p className="font-semibold text-sm text-white mb-1">
+                {feedTab === 'following' ? 'Following masih kosong' : 'Belum ada video'}
+              </p>
+              <p className="text-xs text-gray-500 mb-5 max-w-[260px]">
+                {feedTab === 'following'
+                  ? 'Follow akun lain biar video mereka muncul di sini'
+                  : 'Jadilah yang pertama upload di VEZAO'}
+              </p>
+              <button
+                onClick={() =>
+                  router.push(feedTab === 'following' ? '/search' : '/upload')
+                }
+                className="bg-vezao-gradient px-6 py-2.5 rounded-full text-sm font-semibold"
+              >
+                {feedTab === 'following' ? 'Cari orang' : 'Upload Video'}
+              </button>
             </div>
           ) : (
             videos.map((video, index) => (

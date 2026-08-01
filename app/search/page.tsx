@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
+import { insertNotification } from '@/lib/notify'
 
 type Profile = {
   id: string
@@ -264,13 +265,10 @@ export default function SearchPage() {
     if (!error) {
       setFollowingIds((prev) => new Set(prev).add(targetId))
       setSuggested((prev) => prev.filter((p) => p.id !== targetId))
-      await supabase.from('notifications').insert({
+      await insertNotification(supabase, {
         user_id: targetId,
         actor_id: currentUserId,
         type: 'follow',
-        video_id: null,
-        message: null,
-        is_read: false,
       })
     }
   }
@@ -355,8 +353,16 @@ export default function SearchPage() {
 
       <div className="px-4 pt-4">
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          <div className="space-y-3 pt-2">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="flex items-center gap-3 px-2">
+                <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-32 bg-zinc-800 rounded animate-pulse" />
+                  <div className="h-3 w-20 bg-zinc-800 rounded animate-pulse" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : !searched ? (
           tab === 'users' && suggested.length > 0 ? (
@@ -437,7 +443,10 @@ export default function SearchPage() {
           )
         ) : tab === 'users' ? (
           users.length === 0 ? (
-            <p className="text-center text-gray-500 text-sm pt-16">Tidak ditemukan</p>
+            <div className="flex flex-col items-center pt-16 px-6 text-center">
+              <p className="text-sm font-medium text-white mb-1">Tidak ditemukan</p>
+              <p className="text-xs text-gray-500">Coba username atau nama lain</p>
+            </div>
           ) : (
             <div className="space-y-1">
               {users.map((user) => renderUserRow(user, true))}
@@ -445,7 +454,10 @@ export default function SearchPage() {
           )
         ) : tab === 'videos' ? (
           videos.length === 0 ? (
-            <p className="text-center text-gray-500 text-sm pt-16">Tidak ditemukan</p>
+            <div className="flex flex-col items-center pt-16 px-6 text-center">
+              <p className="text-sm font-medium text-white mb-1">Video tidak ditemukan</p>
+              <p className="text-xs text-gray-500">Coba kata di caption lain</p>
+            </div>
           ) : (
             <div className="grid grid-cols-3 gap-[2px]">
               {videos.map((v) => (
@@ -477,7 +489,10 @@ export default function SearchPage() {
             </div>
           )
         ) : hashtags.length === 0 ? (
-          <p className="text-center text-gray-500 text-sm pt-16">Tidak ditemukan</p>
+          <div className="flex flex-col items-center pt-16 px-6 text-center">
+            <p className="text-sm font-medium text-white mb-1">Hashtag tidak ditemukan</p>
+            <p className="text-xs text-gray-500">Coba tanpa tanda #</p>
+          </div>
         ) : (
           <div className="space-y-1">
             {hashtags.map((tag) => (

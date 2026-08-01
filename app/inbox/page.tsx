@@ -388,13 +388,10 @@ export default function InboxPage() {
       .update({ is_read: true, type: 'follow' })
       .eq('id', n.id)
 
-    await supabase.from('notifications').insert({
+    await insertNotification(supabase, {
       user_id: n.actor_id,
       actor_id: currentUserId,
       type: 'follow',
-      video_id: null,
-      message: null,
-      is_read: false,
     })
 
     setNotifications((prev) =>
@@ -441,13 +438,10 @@ export default function InboxPage() {
       return
     }
 
-    await supabase.from('notifications').insert({
+    await insertNotification(supabase, {
       user_id: n.actor_id,
       actor_id: currentUserId,
       type: 'follow',
-      video_id: null,
-      message: null,
-      is_read: false,
     })
 
     setFollowedBack((prev) => new Set(prev).add(n.actor_id))
@@ -477,7 +471,7 @@ export default function InboxPage() {
     if (!currentUserId) return
 
     const channel = supabase
-      .channel('inbox-messages')
+      .channel(`inbox-realtime-${currentUserId}`)
       .on(
         'postgres_changes',
         {
@@ -489,18 +483,31 @@ export default function InboxPage() {
           loadConversations(currentUserId)
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        () => {
+          loadNotifications(currentUserId)
+        }
+      )
       .subscribe()
 
+    // Backup ringan kalau realtime putus
     const interval = setInterval(() => {
       loadConversations(currentUserId)
       loadNotifications(currentUserId)
-    }, 5000)
+    }, 15000)
 
     return () => {
       supabase.removeChannel(channel)
       clearInterval(interval)
     }
-  }, [currentUserId, loadConversations])
+  }, [currentUserId, loadConversations, loadNotifications])
 
   if (loading) {
     return (
