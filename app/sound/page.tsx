@@ -80,6 +80,14 @@ function SoundContent() {
           <p className="text-xs text-gray-400">Sound</p>
           <p className="text-sm font-semibold truncate">🎵 {name}</p>
         </div>
+        <button
+          onClick={() =>
+            router.push(`/upload?sound=${encodeURIComponent(name.trim())}`)
+          }
+          className="shrink-0 text-xs font-semibold bg-vezao-gradient px-3 py-1.5 rounded-full"
+        >
+          Gunakan
+        </button>
       </div>
 
       {loading ? (

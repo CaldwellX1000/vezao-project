@@ -208,6 +208,10 @@ function UploadContent() {
   const [showMentions, setShowMentions] = useState(false)
     const [videoFilter, setVideoFilter] = useState<string>('none')
   const [mentionLoading, setMentionLoading] = useState(false)
+    const [soundQuery, setSoundQuery] = useState('')
+  const [soundResults, setSoundResults] = useState<string[]>([])
+  const [showSoundSuggest, setShowSoundSuggest] = useState(false)
+  const [soundLoading, setSoundLoading] = useState(false)
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
   const [recording, setRecording] = useState(false)
@@ -237,7 +241,10 @@ function UploadContent() {
         router.replace('/login')
         return
       }
-
+      const soundParam = searchParams.get('sound')
+      if (soundParam) {
+        setSoundName(soundParam.slice(0, 80))
+      }
       if (draftId) {
         const { data: draft } = await supabase
           .from('videos')
@@ -510,7 +517,9 @@ function UploadContent() {
             is_draft: asDraft,
             comments_enabled: commentsEnabled,
             visibility: visibility,
-            sound_name: soundName.trim() || null,
+            sound_name:
+  soundName.trim() ||
+  `Original sound - @${(await supabase.from('profiles').select('username').eq('id', user.id).single()).data?.username || 'user'}`,
           })
           .eq('id', editingDraftId)
           .eq('user_id', user.id)
@@ -615,7 +624,9 @@ function UploadContent() {
           is_draft: asDraft,
           comments_enabled: commentsEnabled,
           visibility: visibility,
-          sound_name: soundName.trim() || null,
+          sound_name:
+  soundName.trim() ||
+  `Original sound - @${(await supabase.from('profiles').select('username').eq('id', user.id).single()).data?.username || 'user'}`,
         })
         .select('id')
         .single()
@@ -661,7 +672,32 @@ function UploadContent() {
     setMode('choose')
     router.replace('/upload')
   }
+  const searchSounds = async (q: string) => {
+    const query = q.trim()
+    if (query.length < 1) {
+      setSoundResults([])
+      return
+    }
+    setSoundLoading(true)
+    const { data } = await supabase
+      .from('videos')
+      .select('sound_name')
+      .eq('is_draft', false)
+      .not('sound_name', 'is', null)
+      .ilike('sound_name', `%${query}%`)
+      .limit(30)
 
+    const unique = [
+      ...new Set(
+        (data || [])
+          .map((r) => r.sound_name)
+          .filter((s): s is string => !!s && s.trim().length > 0)
+      ),
+    ].slice(0, 8)
+
+    setSoundResults(unique)
+    setSoundLoading(false)
+  }
   const searchMentions = async (q: string) => {
     const {
       data: { user },
@@ -1004,14 +1040,63 @@ function UploadContent() {
           )}
         </div>
 
-        <div>
+        <div className="relative">
           <label className="block text-xs text-gray-400 mb-2">Musik / suara (opsional)</label>
           <input
             value={soundName}
-            onChange={(e) => setSoundName(e.target.value.slice(0, 80))}
-            placeholder="Contoh: Original sound - @username"
+            onChange={(e) => {
+              const val = e.target.value.slice(0, 80)
+              setSoundName(val)
+              setSoundQuery(val)
+              if (val.trim().length >= 1) {
+                setShowSoundSuggest(true)
+                void searchSounds(val)
+              } else {
+                setShowSoundSuggest(false)
+                setSoundResults([])
+              }
+            }}
+            onFocus={() => {
+              if (soundName.trim().length >= 1) {
+                setShowSoundSuggest(true)
+                void searchSounds(soundName)
+              }
+            }}
+            onBlur={() => {
+              // delay biar klik suggestion sempat
+              setTimeout(() => setShowSoundSuggest(false), 200)
+            }}
+            placeholder="Cari atau ketik nama sound..."
             className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
           />
+
+          {showSoundSuggest && (
+            <div className="absolute left-0 right-0 mt-1 z-30 rounded-xl border border-white/10 bg-zinc-900 overflow-hidden max-h-48 overflow-y-auto shadow-xl">
+              {soundLoading ? (
+                <p className="text-xs text-gray-500 px-3 py-2">Mencari...</p>
+              ) : soundResults.length === 0 ? (
+                <p className="text-xs text-gray-500 px-3 py-2">
+                  Belum ada sound cocok — pakai nama yang kamu ketik
+                </p>
+              ) : (
+                soundResults.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setSoundName(s)
+                      setShowSoundSuggest(false)
+                    }}
+                    className="w-full text-left px-3 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2"
+                  >
+                    <span className="text-purple-400">♪</span>
+                    <span className="truncate">{s}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {/* Izinkan komentar */}
