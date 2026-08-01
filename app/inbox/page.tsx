@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import StoryBar from '@/components/StoryBar'
+import { insertNotification } from '@/lib/notify'
 
 type Conversation = {
   userId: string
@@ -14,6 +15,7 @@ type Conversation = {
   lastMessage: string
   lastMessageTime: string
   hasUnread: boolean
+  unreadCount: number
 }
 
 function formatLastMessage(content: string) {
@@ -155,12 +157,12 @@ export default function InboxPage() {
           (m.sender_id === partnerId && m.receiver_id === userId)
       )
 
-      const hasUnread = messages.some(
+      const unreadCount = messages.filter(
         (m) =>
           m.sender_id === partnerId &&
           m.receiver_id === userId &&
           m.is_read === false
-      )
+      ).length
 
       if (profile && lastMsg) {
         convList.push({
@@ -170,7 +172,8 @@ export default function InboxPage() {
           avatarUrl: profile.avatar_url,
           lastMessage: formatLastMessage(lastMsg.content),
           lastMessageTime: lastMsg.created_at,
-          hasUnread,
+          hasUnread: unreadCount > 0,
+          unreadCount,
         })
       }
     })
@@ -185,6 +188,40 @@ export default function InboxPage() {
 
   const loadNotifications = useCallback(async (userId: string) => {
     setLoadingNotif(true)
+
+    // Blokir 2 arah → user B tidak muncul di notif A (dan sebaliknya)
+    const { data: myBlocks } = await supabase
+      .from('blocks')
+      .select('blocker_id, blocked_id')
+      .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`)
+
+    const blockedSet = new Set<string>()
+    ;(myBlocks || []).forEach((b) => {
+      if (b.blocker_id === userId) blockedSet.add(b.blocked_id)
+      if (b.blocked_id === userId) blockedSet.add(b.blocker_id)
+    })
+
+    // Preferensi Settings (localStorage)
+    let prefs = {
+      likes: true,
+      comments: true,
+      follows: true,
+      messages: true,
+    }
+    try {
+      const raw = localStorage.getItem('vezao_notif_prefs')
+      if (raw) prefs = { ...prefs, ...JSON.parse(raw) }
+    } catch {}
+
+    const allowed = (type: string) => {
+      const t = (type || '').toLowerCase()
+      if (t === 'like' || t === 'save' || t === 'share') return prefs.likes
+      if (t === 'comment' || t === 'mention') return prefs.comments
+      if (t === 'follow' || t === 'follow_request') return prefs.follows
+      if (t === 'message') return prefs.messages
+      return true
+    }
+
     const { data } = await supabase
       .from('notifications')
       .select(
@@ -194,7 +231,7 @@ export default function InboxPage() {
       )
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(80)
 
     if (!data || data.length === 0) {
       setNotifications([])
@@ -203,13 +240,20 @@ export default function InboxPage() {
       return
     }
 
-    const actorIds = [...new Set(data.map((n) => n.actor_id))]
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, username, full_name, avatar_url')
-      .in('id', actorIds)
+    const filtered = data.filter(
+      (n) => !blockedSet.has(n.actor_id) && allowed(n.type)
+    )
 
-    const list: NotifItem[] = data.map((n) => ({
+    const actorIds = [...new Set(filtered.map((n) => n.actor_id))]
+    const { data: profiles } =
+      actorIds.length > 0
+        ? await supabase
+            .from('profiles')
+            .select('id, username, full_name, avatar_url')
+            .in('id', actorIds)
+        : { data: [] as any[] }
+
+    const list: NotifItem[] = filtered.map((n) => ({
       ...n,
       actor: profiles?.find((p) => p.id === n.actor_id) || null,
     }))
@@ -509,8 +553,8 @@ export default function InboxPage() {
           >
             Pesan
             {totalUnread > 0 && (
-              <span className="ml-1 text-[10px] text-purple-400">
-                {totalUnread}
+              <span className="ml-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-vezao-gradient text-[10px] font-bold text-white inline-flex items-center justify-center align-middle">
+                {totalUnread > 99 ? '99+' : totalUnread}
               </span>
             )}
             {tab === 'messages' && (
@@ -525,9 +569,7 @@ export default function InboxPage() {
           >
             Aktivitas
             {notifUnread > 0 && (
-              <span className="ml-1 text-[10px] text-purple-400">
-                {notifUnread}
-              </span>
+              <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-vezao-gradient align-middle" />
             )}
             {tab === 'activity' && (
               <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-white rounded-full" />
@@ -691,13 +733,20 @@ export default function InboxPage() {
                       >
                         {conv.fullName}
                       </p>
-                      <span
-                        className={`text-[11px] shrink-0 ml-2 ${
-                          conv.hasUnread ? 'text-white font-medium' : 'text-gray-500'
-                        }`}
-                      >
-                        {formatInboxTime(conv.lastMessageTime)}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <span
+                          className={`text-[11px] ${
+                            conv.hasUnread ? 'text-white font-medium' : 'text-gray-500'
+                          }`}
+                        >
+                          {formatInboxTime(conv.lastMessageTime)}
+                        </span>
+                        {conv.unreadCount > 0 && (
+                          <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-vezao-gradient text-[10px] font-bold flex items-center justify-center text-white">
+                            {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p
                       className={`text-sm truncate mt-0.5 ${
@@ -707,10 +756,6 @@ export default function InboxPage() {
                       {formatLastMessage(conv.lastMessage)}
                     </p>
                   </div>
-
-                  {conv.hasUnread && (
-                    <div className="w-2.5 h-2.5 rounded-full bg-vezao-gradient shrink-0" />
-                  )}
                 </div>
 
                 <button

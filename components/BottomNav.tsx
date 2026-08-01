@@ -8,16 +8,15 @@ export default function BottomNav() {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
-  const [inboxUnread, setInboxUnread] = useState(0)
+  const [inboxHasAlert, setInboxHasAlert] = useState(false)
 
-  useEffect(() => {
+   useEffect(() => {
     const load = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) return
 
-      // Ambil daftar yang diblokir (2 arah)
       const { data: myBlocks } = await supabase
         .from('blocks')
         .select('blocker_id, blocked_id')
@@ -29,25 +28,41 @@ export default function BottomNav() {
         if (b.blocked_id === user.id) blockedSet.add(b.blocker_id)
       })
 
-      // Pesan unread (exclude yang diblokir)
       const { data: unreadMsgs } = await supabase
         .from('messages')
         .select('id, sender_id')
         .eq('receiver_id', user.id)
         .eq('is_read', false)
 
-      const msgUnread = (unreadMsgs || []).filter(
-        (m) => !blockedSet.has(m.sender_id)
-      ).length
+      const hasChat = (unreadMsgs || []).some((m) => !blockedSet.has(m.sender_id))
 
-      // Notifikasi sistem (like, follow, komentar, dll.)
-      const { count: notifCount } = await supabase
+      const { data: notifs } = await supabase
         .from('notifications')
-        .select('*', { count: 'exact', head: true })
+        .select('id, type, actor_id, is_read')
         .eq('user_id', user.id)
         .eq('is_read', false)
+        .limit(40)
 
-      setInboxUnread(msgUnread + (notifCount || 0))
+      let prefs = { likes: true, comments: true, follows: true, messages: true }
+      try {
+        const raw = localStorage.getItem('vezao_notif_prefs')
+        if (raw) prefs = { ...prefs, ...JSON.parse(raw) }
+      } catch {}
+
+      const allowed = (type: string) => {
+        const t = (type || '').toLowerCase()
+        if (t === 'like' || t === 'save' || t === 'share') return prefs.likes
+        if (t === 'comment' || t === 'mention') return prefs.comments
+        if (t === 'follow' || t === 'follow_request') return prefs.follows
+        if (t === 'message') return prefs.messages
+        return true
+      }
+
+      const hasNotif = (notifs || []).some(
+        (n) => !blockedSet.has(n.actor_id) && allowed(n.type)
+      )
+
+      setInboxHasAlert(hasChat || hasNotif)
     }
 
     load()
@@ -64,7 +79,7 @@ export default function BottomNav() {
     isActive(path) ? 'text-white' : 'text-gray-400'
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t border-white/10 h-16 flex items-center justify-around z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t border-white/10 h-16 flex items-center justify-around z-50">
       <button onClick={() => router.push('/')} className="flex flex-col items-center gap-0.5">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -134,10 +149,8 @@ export default function BottomNav() {
               d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
             />
           </svg>
-          {inboxUnread > 0 && (
-            <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-vezao-gradient text-[10px] font-bold flex items-center justify-center text-white">
-              {inboxUnread > 99 ? '99+' : inboxUnread}
-            </span>
+          {inboxHasAlert && (
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-vezao-gradient" />
           )}
         </div>
         <span className={`text-[11px] ${itemClass('/inbox')}`}>Inbox</span>

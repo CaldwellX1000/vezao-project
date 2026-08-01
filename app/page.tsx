@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
+import { insertNotification } from '@/lib/notify'
 
 type Video = {
   id: string
@@ -496,13 +497,11 @@ const userPausedRef = useRef<Set<string>>(new Set())
       )
       const video = allVideos.find((v) => v.id === videoId)
       if (video && video.user_id !== userId) {
-        await supabase.from('notifications').insert({
+        await insertNotification(supabase, {
           user_id: video.user_id,
           actor_id: userId,
           type: 'like',
           video_id: videoId,
-          message: null,
-          is_read: false,
         })
       }
     }
@@ -560,13 +559,11 @@ const userPausedRef = useRef<Set<string>>(new Set())
       )
       const owner = allVideos.find((v) => v.id === videoId)
       if (owner && owner.user_id !== userId) {
-        await supabase.from('notifications').insert({
+                await insertNotification(supabase, {
           user_id: owner.user_id,
           actor_id: userId,
           type: 'save',
           video_id: videoId,
-          message: null,
-          is_read: false,
         })
       }
     }
@@ -615,13 +612,10 @@ const userPausedRef = useRef<Set<string>>(new Set())
         .insert({ follower_id: userId, following_id: targetUserId })
       if (error) return
       setFollowing((prev) => new Set(prev).add(targetUserId))
-      await supabase.from('notifications').insert({
+      await insertNotification(supabase, {
         user_id: targetUserId,
         actor_id: userId,
         type: 'follow',
-        video_id: null,
-        message: null,
-        is_read: false,
       })
     }
   }
@@ -687,22 +681,20 @@ const userPausedRef = useRef<Set<string>>(new Set())
 
     const video = allVideos.find((v) => v.id === activeVideoId)
     if (parentId && replyTo && replyTo.user_id !== userId) {
-      await supabase.from('notifications').insert({
+      await insertNotification(supabase, {
         user_id: replyTo.user_id,
         actor_id: userId,
         type: 'comment',
         video_id: activeVideoId,
         message: content,
-        is_read: false,
       })
     } else if (!parentId && video && video.user_id !== userId) {
-      await supabase.from('notifications').insert({
+      await insertNotification(supabase, {
         user_id: video.user_id,
         actor_id: userId,
         type: 'comment',
         video_id: activeVideoId,
         message: content,
-        is_read: false,
       })
     }
 
@@ -916,7 +908,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
 
     const owner = allVideos.find((v) => v.id === shareVideoId)
     if (owner && owner.user_id !== userId) {
-      await supabase.from('notifications').insert({
+      await supabase.from('insertNotification').insert({
         user_id: owner.user_id,
         actor_id: userId,
         type: 'share',
@@ -952,7 +944,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
       }
       const owner = allVideos.find((v) => v.id === shareVideoId)
       if (owner && owner.user_id !== userId) {
-        await supabase.from('notifications').insert({
+        await supabase.from('insertNotification').insert({
           user_id: owner.user_id,
           actor_id: userId,
           type: 'share',
