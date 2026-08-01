@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/components/ThemeProvider'
+import PushEnable from '@/components/PushEnable'
 
 type NotifPrefs = {
   likes: boolean
@@ -251,6 +252,9 @@ export default function SettingsPage() {
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 px-1">
             Notifikasi
           </p>
+          <div className="mb-3">
+            <PushEnable />
+          </div>
           <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-white/5">
             {(
               [
