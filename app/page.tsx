@@ -192,6 +192,10 @@ export default function FeedPage() {
     { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
   >([])
   const [mentionLoading, setMentionLoading] = useState(false)
+  const [displayCount, setDisplayCount] = useState(5)
+  const [loadingMore, setLoadingMore] = useState(false)
+
+  const PAGE_SIZE = 5
 
   const router = useRouter()
   const supabase = createClient()
@@ -203,10 +207,13 @@ export default function FeedPage() {
   const viewedIdsRef = useRef<Set<string>>(new Set())
 const userPausedRef = useRef<Set<string>>(new Set())
 
-  const videos =
+  const filteredVideos =
     feedTab === 'foryou'
       ? allVideos.filter((v) => !blockedUsers.has(v.user_id))
       : allVideos.filter((v) => following.has(v.user_id) && !blockedUsers.has(v.user_id))
+
+  const videos = filteredVideos.slice(0, displayCount)
+  const hasMore = displayCount < filteredVideos.length
 
   const REPORT_REASONS = [
     'Spam',
@@ -246,6 +253,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
       `)
       .eq('is_draft', false)
       .order('created_at', { ascending: false })
+      .limit(40)
 
     const filtered = (videosData || []).filter((v: any) => {
       if (blockedSet.has(v.user_id)) return false
@@ -303,6 +311,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
     }
 
     setAllVideos(ranked as any)
+    setDisplayCount(PAGE_SIZE)
 
     const { data: likesData } = await supabase.from('likes').select('video_id').eq('user_id', uid)
     if (likesData) setLikedVideos(new Set(likesData.map((l) => l.video_id)))
@@ -347,6 +356,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     videoRefs.current = []
+    setDisplayCount(PAGE_SIZE)
   }, [feedTab])
 
   useEffect(() => {
@@ -390,6 +400,12 @@ const userPausedRef = useRef<Set<string>>(new Set())
           const el = bestEntry.target as HTMLVideoElement
           pauseAllExcept(el)
           tryPlay(el)
+
+          // Load more kalau user sudah di 2 video terakhir
+          const idx = videoRefs.current.findIndex((v) => v === el)
+          if (idx >= 0 && idx >= videos.length - 2) {
+            loadMore()
+          }
         }
       },
       { threshold: [0.15, 0.4, 0.6, 0.85] }
@@ -411,7 +427,13 @@ const userPausedRef = useRef<Set<string>>(new Set())
       observer.disconnect()
     }
   }, [videos, isMuted, feedTab])
-
+  const loadMore = () => {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
+    // sedikit delay biar UI sempat tampil (opsional)
+    setDisplayCount((c) => c + PAGE_SIZE)
+    setLoadingMore(false)
+  }
   const handleRefresh = async () => {
     if (!userId || refreshing) return
     setRefreshing(true)
@@ -1016,7 +1038,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
 
         <button
           onClick={() => setIsMuted(!isMuted)}
-          className="absolute top-3 right-3 z-40 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10"
+          className="absolute top-3 right-3 z-40 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center border border-white/10"
         >
           {isMuted ? (
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1164,7 +1186,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
                   <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 ${
-                        likedVideos.has(video.id) ? 'bg-red-500/90' : 'bg-black/40 backdrop-blur-md'
+                        likedVideos.has(video.id) ? 'bg-red-500/90' : 'bg-black/50'
                       }`}
                     >
                       <svg
@@ -1191,7 +1213,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
                     onClick={() => openComments(video.id)}
                     className="flex flex-col items-center"
                   >
-                    <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                    <div className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center border border-white/10">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="w-5 h-5 text-white"
@@ -1213,7 +1235,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
                   </button>
 
                   <button onClick={() => toggleSave(video.id)} className="flex flex-col items-center">
-                    <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                    <div className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center border border-white/10">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className={`w-5 h-5 ${
@@ -1237,7 +1259,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
                   </button>
 
                   <button onClick={() => openShare(video.id)} className="flex flex-col items-center">
-                    <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                    <div className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center border border-white/10">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="w-5 h-5 text-white"
@@ -1259,7 +1281,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
                   </button>
 
                   <button onClick={() => setShowMore(video.id)}>
-                    <div className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                    <div className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center border border-white/10">
                       <span className="text-base leading-none">⋯</span>
                     </div>
                   </button>
