@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import { insertNotification } from '@/lib/notify'
 
 type Video = {
   id: string
@@ -438,6 +439,15 @@ export default function SingleVideoPage() {
           v.id === videoId ? { ...v, likes_count: v.likes_count + 1 } : v
         )
       )
+      const owner = videos.find((v) => v.id === videoId)
+      if (owner && owner.user_id !== userId) {
+        await insertNotification(supabase, {
+          user_id: owner.user_id,
+          actor_id: userId,
+          type: 'like',
+          video_id: videoId,
+        })
+      }
     }
   }
 
@@ -497,13 +507,11 @@ export default function SingleVideoPage() {
       )
       const owner = videos.find((v) => v.id === videoId)
       if (owner && owner.user_id !== userId) {
-        await supabase.from('notifications').insert({
+        await insertNotification(supabase, {
           user_id: owner.user_id,
           actor_id: userId,
           type: 'save',
           video_id: videoId,
-          message: null,
-          is_read: false,
         })
       }
     }
@@ -579,22 +587,20 @@ export default function SingleVideoPage() {
 
     const video = videos.find((v) => v.id === activeVideoId)
     if (parentId && replyTo && replyTo.user_id !== userId) {
-      await supabase.from('notifications').insert({
+      await insertNotification(supabase, {
         user_id: replyTo.user_id,
         actor_id: userId,
         type: 'comment',
         video_id: activeVideoId,
         message: content,
-        is_read: false,
       })
     } else if (!parentId && video && video.user_id !== userId) {
-      await supabase.from('notifications').insert({
+      await insertNotification(supabase, {
         user_id: video.user_id,
         actor_id: userId,
         type: 'comment',
         video_id: activeVideoId,
         message: content,
-        is_read: false,
       })
     }
 
@@ -869,13 +875,11 @@ export default function SingleVideoPage() {
 
     const owner = videos.find((v) => v.id === shareVideoId)
     if (owner && userId && owner.user_id !== userId) {
-      await supabase.from('notifications').insert({
+      await insertNotification(supabase, {
         user_id: owner.user_id,
         actor_id: userId,
         type: 'share',
         video_id: shareVideoId,
-        message: null,
-        is_read: false,
       })
     }
 
