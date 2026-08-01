@@ -206,7 +206,9 @@ export default function FeedPage() {
   const startYRef = useRef(0)
   const isPullingRef = useRef(false)
   const viewedIdsRef = useRef<Set<string>>(new Set())
-const userPausedRef = useRef<Set<string>>(new Set())
+  const userPausedRef = useRef<Set<string>>(new Set())
+  const watchAccRef = useRef<Record<string, number>>({}) // ms tertonton
+  const notInterestedRef = useRef<Set<string>>(new Set())
 
   const filteredVideos =
     feedTab === 'foryou'
@@ -238,6 +240,28 @@ const userPausedRef = useRef<Set<string>>(new Set())
     })
     setBlockedUsers(blockedSet)
 
+        const { data: ni } = await supabase
+      .from('video_not_interested')
+      .select('video_id')
+      .eq('user_id', uid)
+    const niSet = new Set((ni || []).map((r) => r.video_id))
+    notInterestedRef.current = niSet
+
+    // Sinyal tonton user ini (untuk ranking)
+    const { data: myViews } = await supabase
+      .from('video_views')
+      .select('video_id, watch_ms, completed')
+      .eq('user_id', uid)
+      .limit(200)
+
+    const watchMap = new Map<string, { watch_ms: number; completed: boolean }>()
+    ;(myViews || []).forEach((r) => {
+      watchMap.set(r.video_id, {
+        watch_ms: r.watch_ms || 0,
+        completed: !!r.completed,
+      })
+    })
+
     const { data: followData } = await supabase
       .from('follows')
       .select('following_id')
@@ -258,6 +282,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
 
     const filtered = (videosData || []).filter((v: any) => {
       if (blockedSet.has(v.user_id)) return false
+      if (niSet.has(v.id)) return false
       const vis = String(v.visibility ?? 'public').toLowerCase().replace(/['"]/g, '').trim()
       if (vis === 'private') return false
       if (v.user_id === uid) return true
@@ -268,20 +293,51 @@ const userPausedRef = useRef<Set<string>>(new Set())
       return true
     })
 
+    const creatorBoost = new Map<string, number>()
+    ;(myViews || []).forEach((r) => {
+      const vid = filtered.find((x: any) => x.id === r.video_id)
+      if (!vid) return
+      const add =
+        (r.completed ? 6 : 0) +
+        Math.min(8, Math.floor((r.watch_ms || 0) / 3000))
+      if (add > 0) {
+        creatorBoost.set(
+          vid.user_id,
+          Math.min(20, (creatorBoost.get(vid.user_id) || 0) + add)
+        )
+      }
+    })
+
     const scoreVideo = (v: any, isFollower: boolean) => {
       const likes = v.likes_count || 0
       const comments = v.comments_count || 0
       const saves = v.saves_count || 0
       const shares = v.shares_count || 0
       const views = v.views_count || 0
-      const engagement =
-        likes * 3 + comments * 4 + saves * 5 + shares * 6 + Math.log10(views + 1) * 2
+
+      let score =
+        likes * 3 +
+        comments * 4 +
+        saves * 5 +
+        shares * 6 +
+        Math.log10(views + 1) * 2
+
       const ageHours =
         (Date.now() - new Date(v.created_at).getTime()) / (1000 * 60 * 60)
-      const freshness = Math.max(0, 72 - ageHours) * 0.8
-      const followBoost = isFollower ? 8 : 0
-      const jitter = Math.random() * 40
-      return engagement + freshness + followBoost + jitter
+      score += Math.max(0, 72 - ageHours) * 0.8
+
+      if (isFollower) score += 10
+
+      const w = watchMap.get(v.id)
+      if (w) {
+        if (w.watch_ms < 1500) score -= 25
+        else if (w.completed) score -= 8
+        else if (w.watch_ms > 5000) score -= 4
+      }
+
+      score += creatorBoost.get(v.user_id) || 0
+      score += Math.random() * 25
+      return score
     }
 
     const scored = filtered.map((v: any) => ({
@@ -324,6 +380,7 @@ const userPausedRef = useRef<Set<string>>(new Set())
   const registerView = async (videoId: string) => {
     if (viewedIdsRef.current.has(videoId)) return
     viewedIdsRef.current.add(videoId)
+
     const { error } = await supabase.rpc('increment_views', { video_id: videoId })
     if (error) {
       const video = allVideos.find((v) => v.id === videoId)
@@ -336,6 +393,27 @@ const userPausedRef = useRef<Set<string>>(new Set())
       prev.map((v) =>
         v.id === videoId ? { ...v, views_count: (v.views_count || 0) + 1 } : v
       )
+    )
+  }
+
+  const flushWatch = async (videoId: string, durationSec?: number) => {
+    if (!userId) return
+    const ms = watchAccRef.current[videoId] || 0
+    if (ms < 400) return
+
+    const completed =
+      typeof durationSec === 'number' && durationSec > 0
+        ? ms / 1000 >= durationSec * 0.85
+        : false
+
+    await supabase.from('video_views').upsert(
+      {
+        user_id: userId,
+        video_id: videoId,
+        watch_ms: Math.round(ms),
+        completed,
+      },
+      { onConflict: 'user_id,video_id' }
     )
   }
 
@@ -1103,18 +1181,24 @@ const userPausedRef = useRef<Set<string>>(new Set())
                   playsInline
                   preload={index === 0 ? 'auto' : 'metadata'}
                   onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
-                  onTimeUpdate={(e) => {
-  const v = e.currentTarget
-  if (!v.duration || !isFinite(v.duration)) return
-  const pct = Math.min(100, (v.currentTime / v.duration) * 100)
-  setProgressMap((prev) => {
-    // update hanya kalau berubah ≥ 2% → jauh lebih sedikit re-render
-    if (Math.abs((prev[video.id] || 0) - pct) < 2) return prev
-    return { ...prev, [video.id]: pct }
-  })
-}}
-                  onEnded={() => {
+                                    onTimeUpdate={(e) => {
+                    const v = e.currentTarget
+                    if (!v.duration || !isFinite(v.duration)) return
+                    const pct = Math.min(100, (v.currentTime / v.duration) * 100)
+                    setProgressMap((prev) => {
+                      if (Math.abs((prev[video.id] || 0) - pct) < 2) return prev
+                      return { ...prev, [video.id]: pct }
+                    })
+                    // akumulasi watch ~ tiap ~250ms browser fire
+                    watchAccRef.current[video.id] =
+                      (watchAccRef.current[video.id] || 0) + 250
+                  }}
+                  onPause={() => {
+                    void flushWatch(video.id)
+                  }}
+                  onEnded={(e) => {
                     setProgressMap((prev) => ({ ...prev, [video.id]: 0 }))
+                    void flushWatch(video.id, e.currentTarget.duration)
                   }}
                 />
 
@@ -1700,18 +1784,38 @@ const userPausedRef = useRef<Set<string>>(new Set())
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={() => {
-                      setReportVideoId(showMore)
-                      setShowMore(null)
-                    }}
-                    className="flex flex-col items-center gap-1"
-                  >
-                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
-                      🚩
-                    </div>
-                    <span className="text-xs text-orange-400">Report</span>
-                  </button>
+                  <>
+                    <button
+                      onClick={async () => {
+                        if (!userId || !showMore) return
+                        await supabase.from('video_not_interested').upsert({
+                          user_id: userId,
+                          video_id: showMore,
+                        })
+                        notInterestedRef.current.add(showMore)
+                        setAllVideos((prev) => prev.filter((v) => v.id !== showMore))
+                        setShowMore(null)
+                      }}
+                      className="flex flex-col items-center gap-1"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
+                        👎
+                      </div>
+                      <span className="text-xs">Tidak tertarik</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setReportVideoId(showMore)
+                        setShowMore(null)
+                      }}
+                      className="flex flex-col items-center gap-1"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
+                        🚩
+                      </div>
+                      <span className="text-xs text-orange-400">Report</span>
+                    </button>
+                  </>
                 )}
 
                 <button
