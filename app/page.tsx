@@ -202,6 +202,7 @@ export default function FeedPage() {
   >([])
   const [mentionLoading, setMentionLoading] = useState(false)
   const [displayCount, setDisplayCount] = useState(5)
+  const [activeIndex, setActiveIndex] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
 
   const PAGE_SIZE = 5
@@ -488,10 +489,12 @@ export default function FeedPage() {
           pauseAllExcept(el)
           tryPlay(el)
 
-          // Load more kalau user sudah di 2 video terakhir
           const idx = videoRefs.current.findIndex((v) => v === el)
-          if (idx >= 0 && idx >= videos.length - 2) {
-            loadMore()
+          if (idx >= 0) {
+            setActiveIndex(idx)
+            if (idx >= videos.length - 2) {
+              loadMore()
+            }
           }
         }
       },
@@ -514,6 +517,18 @@ export default function FeedPage() {
       observer.disconnect()
     }
   }, [videos, isMuted, feedTab])
+    useEffect(() => {
+    videoRefs.current.forEach((v, i) => {
+      if (!v) return
+      const shouldHave =
+        i === activeIndex || i === activeIndex + 1
+      if (!shouldHave && v.getAttribute('src')) {
+        v.pause()
+        v.removeAttribute('src')
+        v.load()
+      }
+    })
+  }, [activeIndex, videos])
   const loadMore = () => {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
@@ -1182,12 +1197,22 @@ export default function FeedPage() {
                     videoRefs.current[index] = el
                   }}
                   data-video-id={video.id}
-                  src={video.video_url}
+                  src={
+                    index === activeIndex || index === activeIndex + 1
+                      ? video.video_url
+                      : undefined
+                  }
                   className="absolute inset-0 w-full h-full object-cover"
                   loop
                   muted={isMuted}
                   playsInline
-                  preload={index === 0 ? 'auto' : 'metadata'}
+                  preload={
+                    index === activeIndex
+                      ? 'auto'
+                      : index === activeIndex + 1
+                      ? 'metadata'
+                      : 'none'
+                  }
                   onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
                                     onTimeUpdate={(e) => {
                     const v = e.currentTarget

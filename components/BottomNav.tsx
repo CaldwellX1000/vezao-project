@@ -66,8 +66,18 @@ export default function BottomNav() {
     }
 
     load()
-    const interval = setInterval(load, 5000)
-    return () => clearInterval(interval)
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') load()
+    }, 30000)
+
+    const onFocus = () => load()
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [])
 
   const isActive = (path: string) => {

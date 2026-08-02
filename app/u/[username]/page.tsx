@@ -588,9 +588,20 @@ function ProfileByUsername() {
                 className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer"
               >
                 {video.thumbnail_url ? (
-                  <img src={video.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                  <img
+                    src={video.thumbnail_url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
                 ) : (
-                  <video src={video.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                  <video
+                    src={video.video_url}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                    preload="none"
+                  />
                 )}
                 {video.is_pinned && (
                   <span className="absolute top-1 left-1 text-xs">📌</span>

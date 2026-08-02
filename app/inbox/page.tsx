@@ -497,11 +497,13 @@ export default function InboxPage() {
       )
       .subscribe()
 
-    // Backup ringan kalau realtime putus
+    // Backup kalau realtime putus / tab aktif
     const interval = setInterval(() => {
-      loadConversations(currentUserId)
-      loadNotifications(currentUserId)
-    }, 15000)
+      if (document.visibilityState === 'visible') {
+        loadConversations(currentUserId)
+        loadNotifications(currentUserId)
+      }
+    }, 60000)
 
     return () => {
       supabase.removeChannel(channel)

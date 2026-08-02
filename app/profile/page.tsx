@@ -995,7 +995,7 @@ const list = published || []
         </button>
       </div>
 
-      <div className="px-1 pt-1">
+            <div className="px-1 pt-1">
         {displayVideos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
             <div className="w-16 h-16 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-2xl mb-4">
@@ -1052,6 +1052,7 @@ const list = published || []
                     src={video.thumbnail_url}
                     alt=""
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                 ) : (
                   <video
@@ -1059,7 +1060,7 @@ const list = published || []
                     className="w-full h-full object-cover"
                     muted
                     playsInline
-                    preload="metadata"
+                    preload="none"
                   />
                 )}
 
@@ -1090,7 +1091,7 @@ const list = published || []
                       }}
                       className="absolute inset-0 cursor-pointer"
                     />
-{activeTab === 'videos' && video.is_pinned === true && (
+                    {activeTab === 'videos' && video.is_pinned === true && (
                       <span className="absolute top-1 left-1 text-xs z-10 drop-shadow pointer-events-none">
                         📌
                       </span>
