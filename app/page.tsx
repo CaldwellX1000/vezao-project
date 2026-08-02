@@ -405,15 +405,24 @@ export default function FeedPage() {
     )
   }
 
+  const flushedWatchRef = useRef<Set<string>>(new Set())
+
   const flushWatch = async (videoId: string, durationSec?: number) => {
     if (!userId) return
     const ms = watchAccRef.current[videoId] || 0
     if (ms < 400) return
 
+    // Jangan spam upsert: max 1x per video per session (kecuali completed)
     const completed =
       typeof durationSec === 'number' && durationSec > 0
         ? ms / 1000 >= durationSec * 0.85
         : false
+
+    const key = `${videoId}:${completed ? 'done' : 'partial'}`
+    if (!completed && flushedWatchRef.current.has(videoId)) return
+    if (completed && flushedWatchRef.current.has(key)) return
+    flushedWatchRef.current.add(videoId)
+    if (completed) flushedWatchRef.current.add(key)
 
     await supabase.from('video_views').upsert(
       {
