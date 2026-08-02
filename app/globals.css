@@ -89,3 +89,7 @@ html.light .snap-y,
 html.light .snap-start {
   background-color: #000 !important;
 }
+.feed-item {
+  content-visibility: auto;
+  contain-intrinsic-size: 100dvh;
+}

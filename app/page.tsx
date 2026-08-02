@@ -398,11 +398,6 @@ export default function FeedPage() {
         .update({ views_count: (video?.views_count || 0) + 1 })
         .eq('id', videoId)
     }
-    setAllVideos((prev) =>
-      prev.map((v) =>
-        v.id === videoId ? { ...v, views_count: (v.views_count || 0) + 1 } : v
-      )
-    )
   }
 
   const flushedWatchRef = useRef<Set<string>>(new Set())
@@ -1199,7 +1194,7 @@ export default function FeedPage() {
             videos.map((video, index) => (
               <div
                 key={video.id}
-                className="h-[100dvh] w-full snap-start relative flex items-center justify-center"
+                className="h-[100dvh] w-full snap-start relative flex items-center justify-center feed-item"
               >
                 <video
                   ref={(el) => {
@@ -1226,14 +1221,16 @@ export default function FeedPage() {
                                     onTimeUpdate={(e) => {
                     const v = e.currentTarget
                     if (!v.duration || !isFinite(v.duration)) return
-                    const pct = Math.min(100, (v.currentTime / v.duration) * 100)
-                    setProgressMap((prev) => {
-                      if (Math.abs((prev[video.id] || 0) - pct) < 2) return prev
-                      return { ...prev, [video.id]: pct }
-                    })
-                    // akumulasi watch ~ tiap ~250ms browser fire
+                    // watch tetap di ref (tanpa re-render)
                     watchAccRef.current[video.id] =
                       (watchAccRef.current[video.id] || 0) + 250
+                    // progress UI: update jarang (setiap ~8%)
+                    const pct = Math.min(100, (v.currentTime / v.duration) * 100)
+                    setProgressMap((prev) => {
+                      const old = prev[video.id] || 0
+                      if (Math.abs(old - pct) < 8) return prev
+                      return { ...prev, [video.id]: pct }
+                    })
                   }}
                   onPause={() => {
                     void flushWatch(video.id)
