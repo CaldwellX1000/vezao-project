@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { insertNotification } from '@/lib/notify'
+import { toast } from '@/lib/toast'
 
 type Video = {
   id: string
@@ -643,7 +644,7 @@ export default function FeedPage() {
         .from('saves')
         .insert({ user_id: userId, video_id: videoId })
       if (error) {
-        alert('Gagal simpan: ' + error.message)
+        toast('Gagal simpan: ' + error.message, 'error')
         return
       }
       const { error: rpcErr } = await supabase.rpc('increment_saves', { video_id: videoId })
@@ -769,7 +770,7 @@ export default function FeedPage() {
       parent_id: parentId,
     })
     if (error) {
-      alert('Gagal kirim komentar: ' + error.message)
+      toast('Gagal kirim komentar: ' + error.message, 'error')
       return
     }
 
@@ -904,7 +905,7 @@ export default function FeedPage() {
       .eq('id', editingCommentId)
       .eq('user_id', userId)
     if (error) {
-      alert('Gagal edit: ' + error.message)
+      toast('Gagal edit: ' + error.message, 'error')
       return
     }
     setComments((prev) =>
@@ -923,7 +924,7 @@ export default function FeedPage() {
     const idsToDelete = [comment.id, ...replyIds]
     const { error } = await supabase.from('comments').delete().in('id', idsToDelete)
     if (error) {
-      alert('Gagal hapus: ' + error.message)
+      toast('Gagal hapus: ' + error.message, 'error')
       return
     }
     for (let i = 0; i < idsToDelete.length; i++) {
@@ -950,7 +951,7 @@ export default function FeedPage() {
       .eq('id', videoId)
       .eq('user_id', userId)
     if (error) {
-      alert('Gagal hapus: ' + error.message)
+      toast('Gagal hapus: ' + error.message, 'error')
       return
     }
     setShowMore(null)
@@ -991,7 +992,7 @@ export default function FeedPage() {
     })
     setSharingTo(null)
     if (error) {
-      alert('Gagal kirim video: ' + error.message)
+      toast('Gagal kirim video: ' + error.message, 'error')
       return
     }
     const video = allVideos.find((v) => v.id === shareVideoId)
@@ -1021,7 +1022,7 @@ export default function FeedPage() {
       })
     }
 
-    alert('Video terkirim!')
+    toast('Video terkirim!', 'success')
     setShareVideoId(null)
   }
 
@@ -1065,7 +1066,7 @@ export default function FeedPage() {
     } else {
       try {
         await navigator.clipboard.writeText(url)
-        alert('Tautan disalin')
+        toast('Tautan disalin', 'success')
         await bumpShare()
         setShareVideoId(null)
       } catch {
@@ -1079,7 +1080,7 @@ export default function FeedPage() {
 
     const video = allVideos.find((v) => v.id === reportVideoId)
     if (!video) {
-      alert('Video tidak ditemukan')
+      toast('Video tidak ditemukan', 'error')
       return
     }
 
@@ -1092,10 +1093,10 @@ export default function FeedPage() {
     })
 
     if (error) {
-      alert('Gagal report: ' + error.message)
+      toast('Gagal report: ' + error.message, 'error')
       return
     }
-    alert('Laporan terkirim. Terima kasih.')
+    toast('Laporan terkirim. Terima kasih.', 'success')
     setReportVideoId(null)
   }
 
@@ -1784,7 +1785,7 @@ export default function FeedPage() {
                     const url = `${window.location.origin}/v/${showMore}`
                     try {
                       await navigator.clipboard.writeText(url)
-                      alert('Tautan disalin!')
+                      toast('Tautan disalin!', 'success')
                     } catch {
                       prompt('Salin tautan:', url)
                     }

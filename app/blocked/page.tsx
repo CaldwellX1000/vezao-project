@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
+import { toast } from '@/lib/toast'
 
 type BlockedUser = {
   id: string
@@ -72,7 +73,7 @@ export default function BlockedPage() {
     setActingId(null)
 
     if (error) {
-      alert('Gagal buka blokir: ' + error.message)
+      toast('Gagal buka blokir: ' + error.message, 'error')
       return
     }
 

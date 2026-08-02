@@ -72,22 +72,34 @@ function SoundContent() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-20">
-      <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10 px-4 h-14 flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-lg font-bold">
-          ←
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs text-gray-400">Sound</p>
-          <p className="text-sm font-semibold truncate">🎵 {name}</p>
+      <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10">
+        <div className="px-4 h-14 flex items-center gap-3">
+          <button onClick={() => router.back()} className="text-lg font-bold">
+            ←
+          </button>
+          <h1 className="text-lg font-bold flex-1">Sound</h1>
         </div>
-        <button
-          onClick={() =>
-            router.push(`/upload?sound=${encodeURIComponent(name.trim())}`)
-          }
-          className="shrink-0 text-xs font-semibold bg-vezao-gradient px-3 py-1.5 rounded-full"
-        >
-          Gunakan
-        </button>
+        <div className="px-4 pb-4 flex items-center gap-3">
+          <div className="w-14 h-14 rounded-xl bg-vezao-gradient flex items-center justify-center text-2xl shrink-0">
+            🎵
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-sm leading-snug line-clamp-2">
+              {name || 'Original sound'}
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {loading ? '...' : `${videos.length} video`}
+            </p>
+          </div>
+          <button
+            onClick={() =>
+              router.push(`/upload?sound=${encodeURIComponent(name.trim())}`)
+            }
+            className="shrink-0 text-xs font-semibold bg-vezao-gradient px-4 py-2 rounded-full"
+          >
+            Gunakan
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -95,15 +107,24 @@ function SoundContent() {
           <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
         </div>
       ) : videos.length === 0 ? (
-        <p className="text-center text-gray-500 py-16 text-sm">
-          Belum ada video dengan sound ini
-        </p>
+        <div className="flex flex-col items-center justify-center pt-24 text-gray-400 gap-2 px-6">
+          <div className="text-4xl">🎵</div>
+          <p className="text-sm font-medium">Belum ada video</p>
+          <p className="text-xs text-gray-600 text-center">
+            Jadilah yang pertama pakai sound ini
+          </p>
+          <button
+            onClick={() =>
+              router.push(`/upload?sound=${encodeURIComponent(name.trim())}`)
+            }
+            className="mt-3 text-xs font-semibold bg-vezao-gradient px-5 py-2 rounded-full text-white"
+          >
+            Buat video
+          </button>
+        </div>
       ) : (
         <>
-          <p className="px-4 py-3 text-xs text-gray-400">
-            {videos.length} video
-          </p>
-          <div className="grid grid-cols-3 gap-[2px] px-1">
+          <div className="grid grid-cols-3 gap-[2px] px-1 pt-2">
             {videos.map((v) => (
               <div
                 key={v.id}
@@ -125,8 +146,13 @@ function SoundContent() {
                     preload="metadata"
                   />
                 )}
-                <div className="absolute bottom-1 left-1 text-[10px] text-white bg-black/50 rounded px-1">
-                  ♥ {v.likes_count}
+                <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between gap-1 px-0.5">
+                  <span className="text-[10px] font-semibold text-white bg-black/50 rounded px-1 py-0.5">
+                    ♥ {v.likes_count}
+                  </span>
+                  <span className="text-[10px] font-semibold text-white bg-black/50 rounded px-1 py-0.5">
+                    ▶ {v.views_count || 0}
+                  </span>
                 </div>
               </div>
             ))}

@@ -10,6 +10,7 @@ import {
   removeAccount,
   type StoredAccount,
 } from '@/lib/accounts'
+import { toast } from '@/lib/toast'
 
 type NotifPrefs = {
   likes: boolean
@@ -335,7 +336,7 @@ const list = published || []
       refresh_token: account.refresh_token,
     })
     if (error) {
-      alert('Gagal ganti akun. Silakan login ulang akun ini.')
+      toast('Gagal ganti akun. Silakan login ulang akun ini.', 'error')
       removeAccount(account.id)
       setAccounts(getAccounts())
       return
@@ -357,7 +358,7 @@ const list = published || []
     if (!error) {
       setDrafts((prev) => prev.filter((d) => d.id !== videoId))
     } else {
-      alert('Gagal hapus: ' + error.message)
+      toast('Gagal hapus: ' + error.message, 'error')
     }
   }
 
@@ -367,7 +368,7 @@ const list = published || []
     if (!currentlyPinned) {
       const pinnedCount = videos.filter((v) => v.is_pinned).length
       if (pinnedCount >= 3) {
-        alert('Maksimal 3 video yang bisa di-pin')
+                toast('Maksimal 3 video yang bisa di-pin', 'error')
         return
       }
     }
@@ -379,7 +380,7 @@ const list = published || []
       .eq('user_id', userId)
 
     if (error) {
-      alert('Gagal: ' + error.message)
+            toast('Gagal: ' + error.message, 'error')
       return
     }
 
@@ -400,11 +401,11 @@ const list = published || []
     if (!file || !userId) return
 
     if (!file.type.startsWith('image/')) {
-      alert('File harus berupa gambar')
+      toast('File harus berupa gambar', 'error')
       return
     }
     if (file.size > 3 * 1024 * 1024) {
-      alert('Ukuran gambar maksimal 3MB')
+      toast('Ukuran gambar maksimal 3MB', 'error')
       return
     }
 
@@ -417,7 +418,7 @@ const list = published || []
       .upload(fileName, file, { upsert: true })
 
     if (uploadError) {
-      alert('Gagal upload: ' + uploadError.message)
+      toast('Gagal upload: ' + uploadError.message, 'error')
       setUploading(false)
       return
     }
@@ -440,11 +441,11 @@ const list = published || []
     if (!file) return
 
     if (!file.type.startsWith('image/')) {
-      alert('File harus berupa gambar')
+      toast('File harus berupa gambar', 'error')
       return
     }
     if (file.size > 8 * 1024 * 1024) {
-      alert('Ukuran gambar maksimal 8MB')
+      toast('Ukuran gambar maksimal 8MB', 'error')
       return
     }
 
@@ -525,7 +526,7 @@ const list = published || []
         .upload(fileName, blob, { upsert: true, contentType: 'image/jpeg' })
 
       if (uploadError) {
-        alert('Gagal upload cover: ' + uploadError.message)
+        toast('Gagal upload cover: ' + uploadError.message, 'error')
         setUploadingCover(false)
         return
       }
@@ -545,10 +546,10 @@ const list = published || []
         if (coverSource) URL.revokeObjectURL(coverSource)
         setCoverSource(null)
       } else {
-        alert('Gagal simpan cover: ' + updateError.message)
+        toast('Gagal simpan cover: ' + updateError.message, 'error')
       }
     } catch (err: any) {
-      alert(err?.message || 'Gagal proses gambar')
+      toast(err?.message || 'Gagal proses gambar', 'error')
     }
 
     setUploadingCover(false)
@@ -565,7 +566,7 @@ const list = published || []
       .eq('id', userId)
 
     if (error) {
-      alert('Gagal hapus sampul: ' + error.message)
+      toast('Gagal hapus sampul: ' + error.message, 'error')
     } else {
       setCoverUrl(null)
     }
@@ -595,7 +596,7 @@ const list = published || []
       setIsPrivate(editIsPrivate)
       setEditing(false)
     } else {
-      alert('Gagal menyimpan: ' + error.message)
+      toast('Gagal menyimpan: ' + error.message, 'error')
     }
     setSaving(false)
   }
@@ -614,7 +615,7 @@ const list = published || []
       } catch {}
     } else {
       await navigator.clipboard.writeText(url)
-      alert('Link profil berhasil disalin!')
+      toast('Link profil berhasil disalin!', 'success')
     }
   }
 

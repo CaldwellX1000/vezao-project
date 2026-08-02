@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from '@/lib/toast'
 
 type Message = {
   id: string
@@ -259,7 +260,7 @@ function ChatContent() {
 
       const blocked = await checkBlocked(user.id, partnerId)
       if (blocked) {
-        alert('Tidak bisa chat. Akun ini diblokir.')
+        toast('Tidak bisa chat. Akun ini diblokir.', 'error')
         router.replace('/inbox')
         return
       }
@@ -380,7 +381,7 @@ function ChatContent() {
         },
       ])
       setNewMessage('')
-      alert('Tidak bisa kirim pesan. Akun ini diblokir.')
+      toast('Tidak bisa kirim pesan. Akun ini diblokir.', 'error')
       return
     }
 
@@ -390,7 +391,7 @@ function ChatContent() {
     if (editingMsgId) {
       const target = messages.find((m) => m.id === editingMsgId)
       if (!target || !canEditMessage(target)) {
-        alert('Pesan hanya bisa diedit dalam 30 menit setelah dikirim')
+        toast('Pesan hanya bisa diedit dalam 30 menit setelah dikirim', 'error')
         setEditingMsgId(null)
         setNewMessage('')
         setSending(false)
@@ -406,7 +407,7 @@ function ChatContent() {
         .single()
 
       if (error || !data) {
-        alert('Gagal edit pesan. Cek policy UPDATE di tabel messages.')
+        toast('Gagal edit pesan', 'error')
         console.error('Edit error:', error)
       } else {
         setMessages((prev) =>
@@ -447,7 +448,7 @@ function ChatContent() {
     if (error) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId))
       setNewMessage(content)
-      alert('Gagal mengirim pesan')
+      toast('Gagal mengirim pesan', 'error')
     } else if (data) {
       setMessages((prev) => prev.map((m) => (m.id === tempId ? data : m)))
     }
@@ -461,17 +462,17 @@ function ChatContent() {
     if (!file || !currentUserId || !partnerId) return
 
     if (!file.type.startsWith('image/')) {
-      alert('Hanya gambar')
+      toast('Hanya gambar', 'error')
       return
     }
     if (file.size > 8 * 1024 * 1024) {
-      alert('Gambar maksimal 8MB')
+      toast('Gambar maksimal 8MB', 'error')
       return
     }
 
     const blocked = await checkBlocked(currentUserId, partnerId)
     if (blocked) {
-      alert('Tidak bisa kirim. Akun ini diblokir.')
+      toast('Tidak bisa kirim. Akun ini diblokir.', 'error')
       return
     }
 
@@ -513,7 +514,7 @@ function ChatContent() {
         )
       }
     } catch (err: any) {
-      alert(err.message || 'Gagal kirim gambar')
+      toast(err.message || 'Gagal kirim gambar', 'error')
     } finally {
       setSendingImage(false)
     }
@@ -521,7 +522,7 @@ function ChatContent() {
 
   const startEdit = (msg: Message) => {
     if (!canEditMessage(msg)) {
-      alert('Pesan hanya bisa diedit dalam 30 menit setelah dikirim')
+      toast('Pesan hanya bisa diedit dalam 30 menit setelah dikirim', 'error')
       setMenuMsgId(null)
       return
     }
@@ -545,7 +546,7 @@ function ChatContent() {
       .eq('id', msgId)
 
     if (error) {
-      alert('Gagal hapus: ' + error.message)
+      toast('Gagal hapus: ' + error.message, 'error')
       console.error(error)
       return
     }
@@ -564,7 +565,7 @@ function ChatContent() {
 
     const msg = messages.find((m) => m.id === msgId)
     if (!msg || !canDeleteForEveryone(msg)) {
-      alert('Hapus untuk semua hanya untuk pesan kamu sendiri dalam 30 menit')
+      toast('Hapus untuk semua hanya untuk pesan kamu dalam 30 menit', 'error')
       setDeleteConfirmId(null)
       return
     }
@@ -576,7 +577,7 @@ function ChatContent() {
       .eq('sender_id', currentUserId)
 
     if (error) {
-      alert('Gagal hapus untuk semua: ' + error.message)
+      toast('Gagal hapus untuk semua: ' + error.message, 'error')
       console.error(error)
       return
     }

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { insertNotification } from '@/lib/notify'
+import { toast } from '@/lib/toast'
 
 type Video = {
   id: string
@@ -198,7 +199,7 @@ export default function SingleVideoPage() {
     if (!userId || !reportVideoId) return
     const video = videos.find((v) => v.id === reportVideoId)
     if (!video) {
-      alert('Video tidak ditemukan')
+    toast('Video tidak ditemukan', 'error')
       return
     }
     const { error } = await supabase.from('reports').insert({
@@ -210,8 +211,8 @@ export default function SingleVideoPage() {
       status: 'open',
     })
     setReportVideoId(null)
-    if (error) alert('Gagal report: ' + error.message)
-    else alert('Laporan terkirim. Terima kasih.')
+    if (error) toast('Gagal report: ' + error.message, 'error')
+    else toast('Laporan terkirim. Terima kasih.', 'success')
   }
   const [shareFriends, setShareFriends] = useState<
     { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
@@ -484,7 +485,7 @@ export default function SingleVideoPage() {
         .from('saves')
         .insert({ user_id: userId, video_id: videoId })
       if (error) {
-        alert('Gagal simpan: ' + error.message)
+        toast('Gagal simpan: ' + error.message, 'error')
         return
       }
       const { error: rpcErr } = await supabase.rpc('increment_saves', {
@@ -520,7 +521,7 @@ export default function SingleVideoPage() {
   const openComments = async (videoId: string) => {
     const video = videos.find((v) => v.id === videoId)
     if (video && video.comments_enabled === false) {
-      alert('Komentar dinonaktifkan untuk video ini')
+      toast('Komentar dinonaktifkan untuk video ini', 'error')
       return
     }
     setActiveVideoId(videoId)
@@ -568,7 +569,7 @@ export default function SingleVideoPage() {
       parent_id: parentId,
     })
     if (error) {
-      alert('Gagal kirim komentar: ' + error.message)
+      toast('Gagal kirim komentar: ' + error.message, 'error')
       return
     }
 
@@ -705,7 +706,7 @@ export default function SingleVideoPage() {
       .eq('id', editingCommentId)
       .eq('user_id', userId!)
     if (error) {
-      alert('Gagal edit: ' + error.message)
+      toast('Gagal edit: ' + error.message, 'error')
       return
     }
     setComments((prev) =>
@@ -724,7 +725,7 @@ export default function SingleVideoPage() {
     const idsToDelete = [comment.id, ...replyIds]
     const { error } = await supabase.from('comments').delete().in('id', idsToDelete)
     if (error) {
-      alert('Gagal hapus: ' + error.message)
+      toast('Gagal hapus: ' + error.message, 'error')
       return
     }
     const removeCount = idsToDelete.length
@@ -774,7 +775,7 @@ export default function SingleVideoPage() {
         .eq('is_draft', false)
 
       if ((count || 0) >= 3) {
-        alert('Maksimal 3 video yang bisa di-pin')
+        toast('Maksimal 3 video yang bisa di-pin', 'error')
         return
       }
     }
@@ -786,7 +787,7 @@ export default function SingleVideoPage() {
       .eq('user_id', userId)
 
     if (error) {
-      alert('Gagal: ' + error.message)
+      toast('Gagal: ' + error.message, 'error')
       return
     }
 
@@ -807,7 +808,7 @@ export default function SingleVideoPage() {
       .eq('id', videoId)
       .eq('user_id', userId)
     if (error) {
-      alert('Gagal hapus: ' + error.message)
+      toast('Gagal hapus: ' + error.message, 'error')
       return
     }
     setShowMore(null)
@@ -853,7 +854,7 @@ export default function SingleVideoPage() {
     })
     setSharingTo(null)
     if (error) {
-      alert('Gagal kirim video: ' + error.message)
+      toast('Gagal kirim video: ' + error.message, 'error')
       return
     }
     const video = videos.find((v) => v.id === shareVideoId)
@@ -883,7 +884,7 @@ export default function SingleVideoPage() {
       })
     }
 
-    alert('Video terkirim!')
+    toast('Video terkirim!', 'success')
     setShareVideoId(null)
   }
 
@@ -914,7 +915,7 @@ export default function SingleVideoPage() {
     } else {
       try {
         await navigator.clipboard.writeText(url)
-        alert('Tautan disalin')
+        toast('Tautan disalin', 'success')
         const video = videos.find((v) => v.id === shareVideoId)
         const nextCount = (video?.shares_count || 0) + 1
         setVideos((prev) =>
@@ -1487,7 +1488,7 @@ export default function SingleVideoPage() {
                   const url = `${window.location.origin}/v/${showMore}`
                   try {
                     await navigator.clipboard.writeText(url)
-                    alert('Tautan disalin!')
+                    toast('Tautan disalin!', 'success')
                   } catch {
                     prompt('Salin tautan:', url)
                   }

@@ -4,6 +4,7 @@ import "./globals.css";
 import InstallPrompt from "@/components/InstallPrompt";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import PushPrompt from '@/components/PushPrompt'
+import ToastHost from '@/components/ToastHost'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,6 +55,7 @@ export default function RootLayout({
       <body className={`${lexend.className} min-h-full flex flex-col`}>
         <ThemeProvider>
           {children}
+<ToastHost />
           <InstallPrompt />
           <PushPrompt />
         </ThemeProvider>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -40,7 +41,7 @@ export default function PushEnable() {
 
       const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       if (!key) {
-        alert('VAPID public key belum di-set')
+        toast('VAPID public key belum di-set', 'error')
         return
       }
 
@@ -56,24 +57,27 @@ export default function PushEnable() {
 
       if (!user || !json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return
 
-      const { error } = await supabase.from('push_subscriptions').upsert(
-        {
-          user_id: user.id,
-          endpoint: json.endpoint,
-          p256dh: json.keys.p256dh,
-          auth: json.keys.auth,
-        },
-        { onConflict: 'user_id,endpoint' }
-      )
+      await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('endpoint', json.endpoint)
+
+      const { error } = await supabase.from('push_subscriptions').insert({
+        user_id: user.id,
+        endpoint: json.endpoint,
+        p256dh: json.keys.p256dh,
+        auth: json.keys.auth,
+      })
 
       if (error) {
-        alert('Gagal simpan: ' + error.message)
+        toast('Gagal simpan: ' + error.message, 'error')
         return
       }
       setStatus('on')
-      alert('Notifikasi aktif')
+      toast('Notifikasi aktif', 'success')
     } catch (e: any) {
-      alert(e?.message || 'Gagal aktifkan notifikasi')
+      toast(e?.message || 'Gagal aktifkan notifikasi', 'error')
     }
   }
 

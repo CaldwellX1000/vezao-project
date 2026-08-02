@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { insertNotification } from '@/lib/notify'
+import { toast } from '@/lib/toast'
 
 type Video = {
   id: string
@@ -304,7 +305,7 @@ function UserVideosContent() {
         .from('saves')
         .insert({ user_id: currentUserId, video_id: videoId })
       if (error) {
-        alert('Gagal simpan: ' + error.message)
+        toast('Gagal simpan: ' + error.message, 'error')
         return
       }
       await supabase.rpc('increment_saves', { video_id: videoId })
@@ -388,7 +389,7 @@ function UserVideosContent() {
       parent_id: parentId,
     })
     if (error) {
-      alert('Gagal kirim komentar: ' + error.message)
+      toast('Gagal kirim komentar: ' + error.message, 'error')
       return
     }
 
@@ -467,7 +468,7 @@ function UserVideosContent() {
 
   const startEditComment = (c: Comment) => {
     if (!canEditComment(c.created_at)) {
-      alert('Komentar hanya bisa diedit dalam 30 menit')
+      toast('Komentar hanya bisa diedit dalam 30 menit', 'error')
       return
     }
     setEditingCommentId(c.id)
@@ -483,7 +484,7 @@ function UserVideosContent() {
       .eq('id', editingCommentId)
       .eq('user_id', currentUserId)
     if (error) {
-      alert('Gagal edit: ' + error.message)
+      toast('Gagal edit: ' + error.message, 'error')
       return
     }
     setComments((prev) =>
@@ -504,7 +505,7 @@ function UserVideosContent() {
 
     const { error } = await supabase.from('comments').delete().in('id', idsToDelete)
     if (error) {
-      alert('Gagal hapus: ' + error.message)
+      toast('Gagal hapus: ' + error.message, 'error')
       return
     }
 
@@ -532,13 +533,13 @@ function UserVideosContent() {
       } catch {}
     } else {
       await navigator.clipboard.writeText(url)
-      alert('Link berhasil disalin!')
+      toast('Link berhasil disalin!', 'success')
     }
   }
 
   const handleDelete = async (videoId: string) => {
     if (!currentUserId || currentUserId !== userId) {
-      alert('Kamu hanya bisa menghapus video milik sendiri')
+      toast('Kamu hanya bisa menghapus video milik sendiri', 'error')
       return
     }
     if (!confirm('Yakin ingin menghapus video ini?')) return
@@ -548,7 +549,7 @@ function UserVideosContent() {
       .eq('id', videoId)
       .eq('user_id', currentUserId)
     if (error) {
-      alert('Gagal menghapus: ' + error.message)
+      toast('Gagal menghapus: ' + error.message, 'error')
       return
     }
     setVideos((prev) => prev.filter((v) => v.id !== videoId))
@@ -564,7 +565,7 @@ function UserVideosContent() {
     if (!currentlyPinned) {
       const pinnedCount = videos.filter((v) => v.is_pinned).length
       if (pinnedCount >= 3) {
-        alert('Maksimal 3 video yang bisa di-pin')
+        toast('Maksimal 3 video yang bisa di-pin', 'error')
         return
       }
     }
@@ -574,7 +575,7 @@ function UserVideosContent() {
       .eq('id', videoId)
       .eq('user_id', currentUserId)
     if (error) {
-      alert('Gagal: ' + error.message)
+      toast('Gagal: ' + error.message, 'error')
       return
     }
     setVideos((prev) =>
@@ -763,7 +764,7 @@ function UserVideosContent() {
               <button
                 onClick={() => {
                   if (video.comments_enabled === false) {
-                    alert('Komentar dimatikan untuk video ini')
+                    toast('Komentar dimatikan untuk video ini', 'error')
                     return
                   }
                   openComments(video.id)
@@ -834,7 +835,7 @@ function UserVideosContent() {
                   const url = `${window.location.origin}/v/${showMore}`
                   try {
                     await navigator.clipboard.writeText(url)
-                    alert('Tautan disalin!')
+                    toast('Tautan disalin!', 'success')
                   } catch {
                     prompt('Salin tautan:', url)
                   }
@@ -883,8 +884,8 @@ function UserVideosContent() {
                       video_id: showMore,
                       reason: reason || null,
                     })
-                    if (error) alert('Gagal report: ' + error.message)
-                    else alert('Terima kasih. Laporan sudah dikirim.')
+                    if (error) toast('Gagal report: ' + error.message, 'error')
+                    else toast('Terima kasih. Laporan sudah dikirim.', 'success')
                     setShowMore(null)
                   }}
                   className="flex flex-col items-center gap-1"

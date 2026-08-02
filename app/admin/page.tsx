@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { toast } from '@/lib/toast'
 
 type Report = {
   id: string
@@ -426,7 +427,7 @@ export default function AdminPage() {
       .eq('id', id)
     setActing(null)
     if (error) {
-      alert('Gagal: ' + error.message)
+      toast('Gagal: ' + error.message, 'error')
       return
     }
     await load()
@@ -434,14 +435,14 @@ export default function AdminPage() {
 
   const deleteVideo = async (report: Report) => {
     if (!report.video_id) {
-      alert('Report ini tidak punya video_id')
+      toast('Report ini tidak punya video_id', 'error')
       return
     }
     if (!confirm('Hapus video ini dari platform?')) return
     setActing(report.id)
     const { error } = await supabase.from('videos').delete().eq('id', report.video_id)
     if (error) {
-      alert('Gagal hapus video: ' + error.message)
+      toast('Gagal hapus video: ' + error.message, 'error')
       setActing(null)
       return
     }
@@ -459,13 +460,13 @@ export default function AdminPage() {
       .update({ is_banned: true })
       .eq('id', report.reported_user_id)
     if (error) {
-      alert('Gagal ban: ' + error.message)
+      toast('Gagal ban: ' + error.message, 'error')
       setActing(null)
       return
     }
     await supabase.from('reports').update({ status: 'resolved' }).eq('id', report.id)
     setActing(null)
-    alert(`@${uname} sudah di-ban`)
+    toast(`@${uname} sudah di-ban`, 'success')
     await load()
   }
 
@@ -478,7 +479,7 @@ export default function AdminPage() {
       .eq('id', userId)
     setActing(null)
     if (error) {
-      alert('Gagal unban: ' + error.message)
+      toast('Gagal unban: ' + error.message, 'error')
       return
     }
     await load()

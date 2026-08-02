@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { toast } from '@/lib/toast'
 
 const DISMISS_KEY = 'vezao_push_prompt_dismissed'
 
@@ -57,14 +58,14 @@ export default function PushPrompt() {
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) {
-        alert('Login dulu untuk aktifkan notifikasi')
+        toast('Login dulu untuk aktifkan notifikasi', 'error')
         setLoading(false)
         return
       }
 
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') {
-        alert('Izin notifikasi ditolak. Aktifkan lewat Settings browser.')
+        toast('Izin notifikasi ditolak. Aktifkan lewat Settings browser.', 'error')
         setLoading(false)
         return
       }
@@ -74,7 +75,7 @@ export default function PushPrompt() {
 
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       if (!vapidKey) {
-        alert('VAPID key belum diset')
+        toast('VAPID key belum diset', 'error')
         setLoading(false)
         return
       }
@@ -100,16 +101,16 @@ export default function PushPrompt() {
       })
 
       if (error) {
-        alert('Gagal simpan: ' + error.message)
+        toast('Gagal simpan: ' + error.message, 'error')
         setLoading(false)
         return
       }
 
       localStorage.removeItem(DISMISS_KEY)
       setShow(false)
-      alert('Notifikasi aktif!')
+      toast('Notifikasi aktif!', 'success')
     } catch (e: any) {
-      alert(e?.message || 'Gagal aktifkan notifikasi')
+      toast(e?.message || 'Gagal aktifkan notifikasi', 'error')
     }
     setLoading(false)
   }

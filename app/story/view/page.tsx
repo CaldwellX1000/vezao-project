@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from '@/lib/toast'
 
 type Story = {
   id: string
@@ -371,7 +372,7 @@ function StoryViewContent() {
     if (!confirm('Hapus story ini?')) return
     const { error } = await supabase.from('stories').delete().eq('id', s.id)
     if (error) {
-      alert('Gagal hapus: ' + error.message)
+      toast('Gagal hapus: ' + error.message, 'error')
       return
     }
     const next = stories.filter((_, i) => i !== index)
@@ -396,12 +397,12 @@ function StoryViewContent() {
     })
     setSendingReply(false)
     if (error) {
-      alert('Gagal kirim: ' + error.message)
+      toast('Gagal kirim: ' + error.message, 'error')
       return
     }
     setReplyText('')
     setShowReply(false)
-    alert('Balasan terkirim ke inbox')
+    toast('Balasan terkirim ke inbox', 'success')
   }
 
   if (loading) {

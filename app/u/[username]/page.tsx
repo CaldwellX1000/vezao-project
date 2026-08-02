@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { insertNotification } from '@/lib/notify'
+import { toast } from '@/lib/toast'
 
 type Video = {
   id: string
@@ -61,8 +62,8 @@ function ProfileByUsername() {
       status: 'open',
     })
     setShowReportUser(false)
-    if (error) alert('Gagal report: ' + error.message)
-    else alert('Terima kasih. Laporan sudah dikirim.')
+    if (error) toast('Gagal report: ' + error.message, 'error')
+    else toast('Terima kasih. Laporan sudah dikirim.', 'success')
   }
   const [isPrivate, setIsPrivate] = useState(false)
   const [hasStory, setHasStory] = useState(false)
@@ -144,7 +145,7 @@ function ProfileByUsername() {
       }
 
       if (!byName) {
-        alert('User tidak ditemukan: ' + usernameParam)
+        toast('User tidak ditemukan: ' + usernameParam, 'error')
         router.replace('/')
         return
       }
@@ -373,7 +374,7 @@ function ProfileByUsername() {
               <button
                 onClick={() => {
                   if (isBlocked) {
-                    alert('Tidak bisa chat. Akun ini diblokir.')
+                    toast('Tidak bisa chat. Akun ini diblokir.', 'error')
                     return
                   }
                   router.push(`/inbox/chat?userId=${targetUserId}`)
@@ -419,7 +420,7 @@ function ProfileByUsername() {
                               })
                             } else {
                               await navigator.clipboard.writeText(url)
-                              alert('Link profil disalin!')
+                              toast('Link profil disalin!', 'success')
                             }
                           } catch {}
                         }}
@@ -452,7 +453,7 @@ function ProfileByUsername() {
                             blocked_id: targetUserId,
                           })
                           if (error) {
-                            alert('Gagal block: ' + error.message)
+                            toast('Gagal block: ' + error.message, 'error')
                             return
                           }
 

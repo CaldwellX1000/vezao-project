@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
+import { toast } from '@/lib/toast'
 
 type Notification = {
   id: string
@@ -354,7 +355,12 @@ export default function NotificationsPage() {
           <span className="text-gray-400">{n.message || '...'}</span>
         </>
       )
-    return n.message || 'Notifikasi baru'
+    return (
+      <>
+        <span className="font-semibold text-white">@{name}</span>
+        {' mengirim notifikasi'}
+      </>
+    )
   }
 
   const handleAccept = async (n: Notification, e: React.MouseEvent) => {
@@ -405,7 +411,7 @@ export default function NotificationsPage() {
     })
 
     if (error && !String(error.message).toLowerCase().includes('duplicate')) {
-      alert('Gagal follow: ' + error.message)
+      toast('Gagal follow: ' + error.message, 'error')
       setActingId(null)
       return
     }
@@ -432,6 +438,18 @@ export default function NotificationsPage() {
     await supabase.from('notifications').delete().eq('id', n.id)
     setNotifications((prev) => prev.filter((x) => x.id !== n.id))
     setActingId(null)
+  }
+
+  const markAllRead = async () => {
+    if (!currentUserId) return
+    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id)
+    if (unreadIds.length === 0) return
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', currentUserId)
+      .eq('is_read', false)
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
   }
 
   const handleClick = async (n: Notification) => {
@@ -470,7 +488,15 @@ export default function NotificationsPage() {
         <button onClick={() => router.back()} className="text-lg font-bold">
           ←
         </button>
-        <h1 className="text-lg font-bold">Notifikasi</h1>
+        <h1 className="text-lg font-bold flex-1">Notifikasi</h1>
+        {notifications.some((n) => !n.is_read) && (
+          <button
+            onClick={markAllRead}
+            className="text-xs text-purple-400 font-medium"
+          >
+            Tandai dibaca
+          </button>
+        )}
       </div>
 
       {notifications.length === 0 ? (

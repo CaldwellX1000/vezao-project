@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/components/ThemeProvider'
 import PushEnable from '@/components/PushEnable'
+import { toast } from '@/lib/toast'
 
 type NotifPrefs = {
   likes: boolean
@@ -106,7 +107,7 @@ export default function SettingsPage() {
       .eq('id', user.id)
 
     if (!error) setIsPrivate(next)
-    else alert('Gagal simpan: ' + error.message)
+    else toast('Gagal simpan: ' + error.message, 'error')
     setSaving(false)
   }
 
@@ -122,7 +123,7 @@ export default function SettingsPage() {
 
   const handleResetPassword = async () => {
     if (!email) {
-      alert('Email tidak ditemukan')
+      toast('Email tidak ditemukan', 'error')
       return
     }
     setResetMsg('')

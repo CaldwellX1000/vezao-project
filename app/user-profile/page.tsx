@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
+import { toast } from '@/lib/toast'
 
 type Video = {
   id: string
@@ -60,8 +61,8 @@ function UserProfileContent() {
       status: 'open',
     })
     setShowReportUser(false)
-    if (error) alert('Gagal report: ' + error.message)
-    else alert('Terima kasih. Laporan sudah dikirim.')
+    if (error) toast('Gagal report: ' + error.message, 'error')
+    else toast('Terima kasih. Laporan sudah dikirim.', 'success')
   }
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [isPrivate, setIsPrivate] = useState(false)
@@ -477,7 +478,7 @@ function UserProfileContent() {
               <button
                 onClick={() => {
                   if (isBlocked) {
-                    alert('Tidak bisa chat. Akun ini diblokir.')
+                    toast('Tidak bisa chat. Akun ini diblokir.', 'error')
                     return
                   }
                   router.push(`/inbox/chat?userId=${targetUserId}`)
@@ -501,7 +502,7 @@ function UserProfileContent() {
                       })
                     } else {
                       await navigator.clipboard.writeText(url)
-                      alert('Link profil disalin!')
+                      toast('Link profil disalin!', 'success')
                     }
                   } catch {}
                 }}
@@ -536,7 +537,7 @@ function UserProfileContent() {
                           setShowMenu(false)
                           const link = `${window.location.origin}/@${username}`
                           navigator.clipboard.writeText(link)
-                          alert('Link profil disalin!')
+                          toast('Link profil disalin!', 'success')
                         }}
                         className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 text-white"
                       >
