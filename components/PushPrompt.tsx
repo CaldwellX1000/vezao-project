@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { toast } from '@/lib/toast'
 
-const DISMISS_KEY = 'vezao_push_prompt_dismissed'
+const DISMISS_KEY = 'serulo_push_prompt_dismissed'
 
 export default function PushPrompt() {
   const [show, setShow] = useState(false)
@@ -120,13 +120,15 @@ export default function PushPrompt() {
   return (
     <div className="fixed top-0 left-0 right-0 z-[100] px-3 pt-3 pointer-events-none">
       <div className="max-w-[480px] mx-auto pointer-events-auto bg-zinc-900 border border-white/15 rounded-2xl shadow-xl p-3 flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-vezao-gradient flex items-center justify-center shrink-0 text-lg">
-          🔔
-        </div>
+        <img
+          src="/fav.png"
+          alt="SERULO"
+          className="w-10 h-10 rounded-xl object-cover shrink-0"
+        />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white">Aktifkan notifikasi</p>
           <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-            Dapatkan pemberitahuan like, komentar, dan follower baru.
+            Dapatkan pemberitahuan dari SERULO.
           </p>
           <div className="flex gap-2 mt-2.5">
             <button
