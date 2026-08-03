@@ -205,6 +205,7 @@ export default function FeedPage() {
   const [displayCount, setDisplayCount] = useState(5)
   const [activeIndex, setActiveIndex] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [expandedCaptions, setExpandedCaptions] = useState<Set<string>>(new Set())
 
   const PAGE_SIZE = 5
 
@@ -518,21 +519,16 @@ export default function FeedPage() {
     }, 80)
 
     return () => {
-      clearTimeout(t)
-      observer.disconnect()
+  clearTimeout(t)
+  observer.disconnect()
+
+  // Pause semua video biar ga makan resource pas pindah tab
+  videoRefs.current.forEach((v) => {
+    if (v) {
+      v.pause()
     }
-  }, [videos, isMuted, feedTab])
-    useEffect(() => {
-    videoRefs.current.forEach((v, i) => {
-      if (!v) return
-      const shouldHave =
-        i === activeIndex || i === activeIndex + 1
-      if (!shouldHave && v.getAttribute('src')) {
-        v.pause()
-        v.removeAttribute('src')
-        v.load()
-      }
-    })
+  })
+}
   }, [activeIndex, videos])
   const loadMore = () => {
     if (loadingMore || !hasMore) return
@@ -1101,25 +1097,65 @@ export default function FeedPage() {
   }
 
   if (loading) {
-    return (
-      <div className="h-screen w-full bg-black">
-        <div className="h-screen w-full max-w-[480px] mx-auto bg-black relative overflow-hidden">
-          <div className="h-full w-full bg-zinc-900 animate-pulse" />
-          <div className="absolute bottom-28 left-4 right-20 space-y-2">
-            <div className="h-4 w-28 bg-zinc-700/80 rounded animate-pulse" />
-            <div className="h-3 w-48 bg-zinc-800 rounded animate-pulse" />
-            <div className="h-3 w-36 bg-zinc-800 rounded animate-pulse" />
-          </div>
-          <div className="absolute right-3 bottom-36 space-y-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="w-10 h-10 rounded-full bg-zinc-700/80 animate-pulse" />
-            ))}
-          </div>
-          <BottomNav />
+  return (
+    <div className="h-screen w-full bg-black">
+      <div className="h-screen w-full max-w-[480px] mx-auto bg-black relative overflow-hidden">
+        {/* Background skeleton */}
+        <div className="absolute inset-0 bg-zinc-900">
+          <div className="absolute inset-0 bg-gradient-to-b from-zinc-800/40 via-transparent to-zinc-900/80" />
         </div>
+
+        {/* Top tabs skeleton */}
+        <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-center gap-6 pt-4">
+          <div className="h-4 w-16 bg-zinc-700/60 rounded-full animate-pulse" />
+          <div className="h-4 w-14 bg-zinc-600/80 rounded-full animate-pulse" />
+        </div>
+
+        {/* Mute button skeleton */}
+        <div className="absolute top-3 right-3 z-40 w-9 h-9 rounded-full bg-zinc-800/80 animate-pulse" />
+
+        {/* Bottom content skeleton (avatar + text) */}
+        <div className="absolute bottom-28 left-4 right-20 z-10 space-y-3">
+          {/* Avatar + username + follow */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-zinc-700 animate-pulse shrink-0" />
+            <div className="h-3.5 w-24 bg-zinc-700/90 rounded animate-pulse" />
+            <div className="h-6 w-14 rounded-full bg-zinc-700/70 animate-pulse" />
+          </div>
+
+          {/* Caption lines */}
+          <div className="space-y-1.5">
+            <div className="h-3 w-full max-w-[240px] bg-zinc-800 rounded animate-pulse" />
+            <div className="h-3 w-[180px] bg-zinc-800/80 rounded animate-pulse" />
+          </div>
+
+          {/* Sound line */}
+          <div className="flex items-center gap-1.5 mt-1">
+            <div className="h-3 w-3 rounded-full bg-zinc-700 animate-pulse" />
+            <div className="h-2.5 w-36 bg-zinc-800 rounded animate-pulse" />
+          </div>
+        </div>
+
+        {/* Right side action buttons skeleton */}
+        <div className="absolute right-2.5 bottom-32 flex flex-col items-center gap-4 z-10">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <div className="w-10 h-10 rounded-full bg-zinc-700/80 animate-pulse" />
+              <div className="h-2 w-5 bg-zinc-800 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+
+        {/* Progress bar skeleton */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-white/10">
+          <div className="h-full w-1/3 bg-white/20 animate-pulse" />
+        </div>
+
+        <BottomNav />
       </div>
-    )
-  }
+    </div>
+  )
+}
 
   return (
     <div className="h-screen w-full bg-black">
@@ -1256,7 +1292,7 @@ export default function FeedPage() {
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
-                <div className="absolute bottom-24 left-4 right-20 text-white z-10">
+                <div className="absolute bottom-20 left-4 right-20 text-white z-10">
                   <div className="flex items-center gap-2 mb-1.5">
                     <div
                       className="flex items-center gap-2 cursor-pointer"
@@ -1295,32 +1331,78 @@ export default function FeedPage() {
                       </button>
                     )}
                   </div>
-                  <p className="text-sm opacity-90 line-clamp-3">
-                    {renderTextWithMentions(
-                      video.caption || '',
-                      (uname) => router.push(`/@${uname}`),
-                      (tag) => router.push(`/hashtag?tag=${tag}`)
-                    )}
-                  </p>
-                  <p
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      const name =
-                        video.sound_name ||
-                        `Original sound - @${video.profiles?.username || 'user'}`
-                      router.push(`/sound?name=${encodeURIComponent(name)}`)
-                    }}
-                    className="text-[11px] text-white/70 mt-1 flex items-center gap-1 cursor-pointer max-w-[90%]"
-                  >
-                    <span>♪</span>
-                    <span className="truncate">
-                      {video.sound_name ||
-                        `Original sound - @${video.profiles?.username || 'user'}`}
-                    </span>
-                  </p>
-                  <p className="text-[11px] text-white/40 mt-0.5">
-                    {formatDateTime(video.created_at)}
-                  </p>
+
+                  {video.caption && (
+                    <div className="text-sm opacity-90 relative">
+                      <p
+                        className={
+                          expandedCaptions.has(video.id)
+                            ? 'whitespace-pre-wrap'
+                            : 'line-clamp-2 overflow-hidden'
+                        }
+                        style={
+                          expandedCaptions.has(video.id)
+                            ? undefined
+                            : {
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                              }
+                        }
+                      >
+                        {renderTextWithMentions(
+                          video.caption,
+                          (uname) => router.push(`/@${uname}`),
+                          (tag) => router.push(`/hashtag?tag=${tag}`)
+                        )}
+                      </p>
+
+                      {video.caption.length > 70 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setExpandedCaptions((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(video.id)) next.delete(video.id)
+                              else next.add(video.id)
+                              return next
+                            })
+                          }}
+                          className="text-white/70 text-xs mt-1 font-medium"
+                        >
+                          {expandedCaptions.has(video.id)
+                            ? 'tampilkan sedikit'
+                            : 'tampilkan selengkapnya'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Sound + waktu hanya muncul saat expanded */}
+                  {expandedCaptions.has(video.id) && (
+                    <div className="mt-1.5 space-y-0.5">
+                      <p
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const name =
+                            video.sound_name ||
+                            `Original sound - @${video.profiles?.username || 'user'}`
+                          router.push(`/sound?name=${encodeURIComponent(name)}`)
+                        }}
+                        className="text-[11px] text-white/70 flex items-center gap-1 cursor-pointer max-w-[90%]"
+                      >
+                        <span>♪</span>
+                        <span className="truncate">
+                          {video.sound_name ||
+                            `Original sound - @${video.profiles?.username || 'user'}`}
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-white/40">
+                        {formatDateTime(video.created_at)}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="absolute right-2 bottom-28 flex flex-col items-center gap-3 z-10">
