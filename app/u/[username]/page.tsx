@@ -249,7 +249,15 @@ function ProfileByUsername() {
         .delete()
         .eq('follower_id', currentUserId)
         .eq('following_id', targetUserId)
+
+      await supabase
+        .from('follow_requests')
+        .delete()
+        .eq('requester_id', currentUserId)
+        .eq('target_id', targetUserId)
+
       setIsFollowing(false)
+      setIsRequested(false)
       setFollowersCount((p) => Math.max(0, p - 1))
       if (isPrivate) {
         setCanViewVideos(false)
@@ -264,43 +272,62 @@ function ProfileByUsername() {
         .delete()
         .eq('requester_id', currentUserId)
         .eq('target_id', targetUserId)
-        .eq('status', 'pending')
       setIsRequested(false)
       return
     }
 
     if (isPrivate) {
+      await supabase
+        .from('follow_requests')
+        .delete()
+        .eq('requester_id', currentUserId)
+        .eq('target_id', targetUserId)
+
       const { error } = await supabase.from('follow_requests').insert({
         requester_id: currentUserId,
         target_id: targetUserId,
         status: 'pending',
       })
-      if (!error) {
-        setIsRequested(true)
-        await insertNotification(supabase, {
-          user_id: targetUserId,
-          actor_id: currentUserId,
-          type: 'follow_request',
-        })
+      if (error) {
+        toast('Gagal kirim request: ' + error.message, 'error')
+        return
       }
+      setIsRequested(true)
+      await insertNotification(supabase, {
+        user_id: targetUserId,
+        actor_id: currentUserId,
+        type: 'follow_request',
+      })
       return
     }
+
+    await supabase
+      .from('follow_requests')
+      .delete()
+      .eq('requester_id', currentUserId)
+      .eq('target_id', targetUserId)
 
     const { error } = await supabase.from('follows').insert({
       follower_id: currentUserId,
       following_id: targetUserId,
     })
-    if (!error) {
-      setIsFollowing(true)
-      setFollowersCount((p) => p + 1)
-      setCanViewVideos(true)
-      await loadVideos(targetUserId, currentUserId, true)
-      await insertNotification(supabase, {
-        user_id: targetUserId,
-        actor_id: currentUserId,
-        type: 'follow',
-      })
+    if (error) {
+      if (error.code === '23505' || error.message?.includes('duplicate')) {
+        setIsFollowing(true)
+        return
+      }
+      toast('Gagal follow: ' + error.message, 'error')
+      return
     }
+    setIsFollowing(true)
+    setFollowersCount((p) => p + 1)
+    setCanViewVideos(true)
+    await loadVideos(targetUserId, currentUserId, true)
+    await insertNotification(supabase, {
+      user_id: targetUserId,
+      actor_id: currentUserId,
+      type: 'follow',
+    })
   }
 
   const followLabel = isFollowing
@@ -338,8 +365,8 @@ function ProfileByUsername() {
       <div className="relative z-10 px-4 -mt-12">
         <div className="flex justify-between items-end">
           <div
-            className={`w-[104px] h-[104px] rounded-full flex items-center justify-center ${
-              hasStory ? 'bg-vezao-gradient p-[3px] cursor-pointer' : 'p-0'
+            className={`w-24 h-24 rounded-full p-[3px] ${
+              hasStory ? 'bg-vezao-gradient cursor-pointer' : 'bg-transparent'
             }`}
             onClick={() => {
               if (hasStory && targetUserId) {
@@ -347,14 +374,12 @@ function ProfileByUsername() {
               }
             }}
           >
-            <div className="w-24 h-24 rounded-full bg-black p-[2px]">
-              <div className="w-full h-full rounded-full bg-zinc-800 overflow-hidden flex items-center justify-center text-3xl font-bold">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  fullName?.[0]?.toUpperCase() || 'U'
-                )}
-              </div>
+            <div className="w-full h-full rounded-full bg-zinc-800 border-[3px] border-black overflow-hidden flex items-center justify-center text-3xl font-bold">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                fullName?.[0]?.toUpperCase() || 'U'
+              )}
             </div>
           </div>
 
@@ -496,33 +521,35 @@ function ProfileByUsername() {
           )}
         </div>
 
-        <div className="mt-3">
+        <div className="mt-4">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold">{fullName || username}</h1>
             {isPrivate && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 border border-white/10">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-gray-300 border border-white/10">
                 Private
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-400">@{username}</p>
+          <p className="text-sm text-gray-400 mt-0.5">@{username}</p>
         </div>
 
         {bio && (
-          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>
+          <p className="mt-2.5 text-sm leading-relaxed whitespace-pre-line text-gray-100">
+            {bio}
+          </p>
         )}
         {website && (
           <a
             href={website.startsWith('http') ? website : `https://${website}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
+            className="mt-1.5 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
           >
             {website.replace(/^https?:\/\//, '')}
           </a>
         )}
 
-        <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900 border border-white/15">
+        <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900/80 border border-white/5">
           <div className="text-center flex-1">
             <p className="font-bold text-lg">
               {canViewVideos ? videos.length : '—'}

@@ -271,7 +271,14 @@ function UserProfileContent() {
         .eq('follower_id', currentUserId)
         .eq('following_id', targetUserId)
 
+      await supabase
+        .from('follow_requests')
+        .delete()
+        .eq('requester_id', currentUserId)
+        .eq('target_id', targetUserId)
+
       setIsFollowing(false)
+      setIsRequested(false)
       setFollowersCount((prev) => Math.max(0, prev - 1))
 
       if (isPrivate) {
@@ -289,51 +296,71 @@ function UserProfileContent() {
         .delete()
         .eq('requester_id', currentUserId)
         .eq('target_id', targetUserId)
-        .eq('status', 'pending')
       setIsRequested(false)
       return
     }
 
     if (isPrivate) {
+      await supabase
+        .from('follow_requests')
+        .delete()
+        .eq('requester_id', currentUserId)
+        .eq('target_id', targetUserId)
+
       const { error } = await supabase.from('follow_requests').insert({
         requester_id: currentUserId,
         target_id: targetUserId,
         status: 'pending',
       })
-      if (!error) {
-        setIsRequested(true)
-        await supabase.from('notifications').insert({
-          user_id: targetUserId,
-          actor_id: currentUserId,
-          type: 'follow_request',
-          video_id: null,
-          message: null,
-          is_read: false,
-        })
+      if (error) {
+        toast('Gagal kirim request: ' + error.message, 'error')
+        return
       }
+      setIsRequested(true)
+      await supabase.from('notifications').insert({
+        user_id: targetUserId,
+        actor_id: currentUserId,
+        type: 'follow_request',
+        video_id: null,
+        message: null,
+        is_read: false,
+      })
       return
     }
+
+    await supabase
+      .from('follow_requests')
+      .delete()
+      .eq('requester_id', currentUserId)
+      .eq('target_id', targetUserId)
 
     const { error } = await supabase.from('follows').insert({
       follower_id: currentUserId,
       following_id: targetUserId,
     })
 
-    if (!error) {
-      setIsFollowing(true)
-      setFollowersCount((prev) => prev + 1)
-      setCanViewVideos(true)
-      await loadVideos(targetUserId, currentUserId, true)
-
-      await supabase.from('notifications').insert({
-        user_id: targetUserId,
-        actor_id: currentUserId,
-        type: 'follow',
-        video_id: null,
-        message: null,
-        is_read: false,
-      })
+    if (error) {
+      if (error.code === '23505' || error.message?.includes('duplicate')) {
+        setIsFollowing(true)
+        return
+      }
+      toast('Gagal follow: ' + error.message, 'error')
+      return
     }
+
+    setIsFollowing(true)
+    setFollowersCount((prev) => prev + 1)
+    setCanViewVideos(true)
+    await loadVideos(targetUserId, currentUserId, true)
+
+    await supabase.from('notifications').insert({
+      user_id: targetUserId,
+      actor_id: currentUserId,
+      type: 'follow',
+      video_id: null,
+      message: null,
+      is_read: false,
+    })
   }
 
   const toggleBlock = async () => {
@@ -569,7 +596,7 @@ function UserProfileContent() {
           )}
         </div>
 
-        <div className="mt-3">
+        <div className="mt-4">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold">{fullName || username}</h1>
             {isPrivate && (
@@ -578,10 +605,27 @@ function UserProfileContent() {
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-400">@{username}</p>
+          <p className="text-sm text-gray-400 mt-0.5">@{username}</p>
         </div>
 
-        <div className="flex justify-around mt-4 py-3 rounded-2xl bg-zinc-900/80 border border-white/5">
+        {bio && (
+          <p className="mt-2.5 text-sm leading-relaxed whitespace-pre-line text-gray-100">
+            {bio}
+          </p>
+        )}
+
+        {website && (
+          <a
+            href={website.startsWith('http') ? website : `https://${website}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
+          >
+            {website.replace(/^https?:\/\//, '')}
+          </a>
+        )}
+
+        <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900/80 border border-white/5">
           <div className="text-center flex-1">
             <p className="font-bold text-lg">
               {canViewVideos ? videos.length : '—'}
@@ -613,19 +657,6 @@ function UserProfileContent() {
             <p className="text-[11px] text-gray-400 mt-0.5">Likes</p>
           </div>
         </div>
-
-        {bio && <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>}
-
-        {website && (
-          <a
-            href={website.startsWith('http') ? website : `https://${website}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
-          >
-            {website.replace(/^https?:\/\//, '')}
-          </a>
-        )}
       </div>
 
       <div className="flex border-b border-white/10 mt-5">

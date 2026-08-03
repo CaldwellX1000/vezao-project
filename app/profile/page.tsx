@@ -659,26 +659,6 @@ const list = published || []
         ) : (
           <div className="absolute inset-0 bg-vezao-gradient" />
         )}
-        <div className="absolute bottom-2 right-3 z-10 flex gap-2">
-          {coverUrl && (
-            <button
-              type="button"
-              onClick={handleRemoveCover}
-              disabled={uploadingCover}
-              className="px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm text-[11px] font-medium border border-white/20 text-red-300"
-            >
-              Hapus
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => coverInputRef.current?.click()}
-            disabled={uploadingCover}
-            className="px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm text-[11px] font-medium border border-white/20"
-          >
-            {uploadingCover ? '...' : coverUrl ? 'Ganti sampul' : 'Tambah sampul'}
-          </button>
-        </div>
         <input
           ref={coverInputRef}
           type="file"
@@ -729,13 +709,6 @@ const list = published || []
           </div>
 
           <div className="flex gap-2 mb-1 items-center">
-            <button
-              onClick={() => setEditing(true)}
-              className="px-4 py-1.5 bg-zinc-800 border border-white/10 text-white text-sm font-semibold rounded-full"
-            >
-              Edit
-            </button>
-
             <div className="relative">
               <button
                 onClick={() => setShowMenu(!showMenu)}
@@ -764,6 +737,15 @@ const list = published || []
       onClick={() => setShowMenu(false)}
     />
     <div className="absolute right-0 top-11 z-50 w-44 bg-zinc-900 border border-white/10 rounded-xl py-1 shadow-xl overflow-hidden">
+      <button
+        onClick={() => {
+          setShowMenu(false)
+          setEditing(true)
+        }}
+        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
+      >
+        Edit profil
+      </button>
       <button
         onClick={handleShareProfile}
         className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
@@ -810,7 +792,7 @@ const list = published || []
           </div>
         </div>
 
-        <div className="mt-3">
+        <div className="mt-4">
           <button
             type="button"
             onClick={() => setShowAccountSheet(true)}
@@ -835,11 +817,13 @@ const list = published || []
               </span>
             )}
           </button>
-          <p className="text-sm text-gray-400">@{username}</p>
+          <p className="text-sm text-gray-400 mt-0.5">@{username}</p>
         </div>
 
         {bio && (
-          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{bio}</p>
+          <p className="mt-2.5 text-sm leading-relaxed whitespace-pre-line text-gray-100">
+            {bio}
+          </p>
         )}
 
         {website && (
@@ -847,13 +831,13 @@ const list = published || []
             href={website.startsWith('http') ? website : `https://${website}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
+            className="mt-1.5 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
           >
             {website.replace(/^https?:\/\//, '')}
           </a>
         )}
 
-        <div className="flex justify-around mt-4 py-3 rounded-2xl bg-zinc-900/80 border border-white/5">
+        <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900/80 border border-white/5">
           <div className="text-center flex-1">
             <p className="font-bold text-lg">{videos.length}</p>
             <p className="text-[11px] text-gray-400 mt-0.5">Videos</p>
@@ -1121,6 +1105,41 @@ const list = published || []
             </div>
 
             <div className="space-y-4">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Foto sampul</label>
+                <div className="relative h-24 rounded-xl overflow-hidden bg-zinc-800 border border-white/10 mb-2">
+                  {coverUrl ? (
+                    <img
+                      src={coverUrl}
+                      alt="Cover"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-vezao-gradient" />
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => coverInputRef.current?.click()}
+                    disabled={uploadingCover}
+                    className="flex-1 py-2.5 rounded-xl bg-zinc-800 border border-white/10 text-sm font-medium disabled:opacity-50"
+                  >
+                    {uploadingCover ? '...' : coverUrl ? 'Ganti sampul' : 'Tambah sampul'}
+                  </button>
+                  {coverUrl && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveCover}
+                      disabled={uploadingCover}
+                      className="px-4 py-2.5 rounded-xl bg-zinc-800 border border-red-500/30 text-red-400 text-sm font-medium disabled:opacity-50"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">Nama</label>
                 <input
