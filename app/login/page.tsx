@@ -267,7 +267,7 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-black px-4">
         <div className="bg-zinc-900/95 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white/10">
           <div className="flex justify-center mb-5">
-            <img src="/icon.png" alt="VEZAO" className="w-14 h-14 rounded-2xl object-cover" />
+            <img src="/icon.png" alt="SERULO" className="w-14 h-14 rounded-2xl object-cover" />
           </div>
           <h2 className="text-2xl font-bold text-center mb-1 text-white tracking-wide">
             VERIFIKASI EMAIL
@@ -355,11 +355,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-black px-4 py-10">
       <div className="bg-zinc-900/95 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white/10">
         <div className="flex justify-center mb-5">
-          <img src="/icon.png" alt="VEZAO" className="w-14 h-14 rounded-2xl object-cover" />
+          <img src="/icon.png" alt="SERULO" className="w-14 h-14 rounded-2xl object-cover" />
         </div>
         <h2 className="text-2xl font-bold text-center text-white tracking-wide">{title}</h2>
         {!isLogin && !isForgot && !isRecovery && (
-          <p className="text-center text-sm text-gray-400 mt-1 mb-6">Platfrom Media Sosial</p>
+          <p className="text-center text-sm text-gray-400 mt-1 mb-6">Platform Media Sosial</p>
         )}
         {(isLogin || isForgot || isRecovery) && <div className="mb-6" />}
 
@@ -534,7 +534,7 @@ export default function LoginPage() {
               />
               <span className="leading-relaxed">
                 Saya berusia <strong className="text-white">18 tahun</strong> atau lebih dan setuju
-                dengan ketentuan penggunaan VEZAO.
+                dengan ketentuan penggunaan SERULO.
               </span>
             </label>
           )}

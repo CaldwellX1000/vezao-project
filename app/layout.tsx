@@ -24,14 +24,14 @@ const lexend = Lexend({
 
 
 export const metadata: Metadata = {
-  title: "VEZAO",
-  description: "Video pendek VEZAO",
+  title: "SERULO",
+  description: "Dunia Seru Versi Lo — kreativitas, humor, musik & lifestyle",
   manifest: "/manifest.json",
   themeColor: "#000000",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "VEZAO",
+    title: "SERULO",
   },
   icons: {
     icon: [

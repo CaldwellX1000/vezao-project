@@ -345,7 +345,7 @@ function UploadContent() {
 
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: mimeType })
-      const recordedFile = new File([blob], `vezao-${Date.now()}.webm`, { type: mimeType })
+      const recordedFile = new File([blob], `serulo-${Date.now()}.webm`, { type: mimeType })
       setFile(recordedFile)
       setEditingDraftId(null)
       stopCamera()

@@ -1055,7 +1055,7 @@ export default function FeedPage() {
 
     if (typeof navigator.share === 'function') {
       try {
-        await navigator.share({ title: 'VEZAO', text: 'Lihat video ini di VEZAO!', url })
+        await navigator.share({ title: 'SERULO', text: 'Lihat video ini di SERULO!', url })
         await bumpShare()
         setShareVideoId(null)
       } catch {}
@@ -1216,7 +1216,7 @@ export default function FeedPage() {
               <p className="text-xs text-gray-500 mb-5 max-w-[260px]">
                 {feedTab === 'following'
                   ? 'Follow akun lain biar video mereka muncul di sini'
-                  : 'Jadilah yang pertama upload di VEZAO'}
+                  : 'Jadilah yang pertama upload di SERULO'}
               </p>
               <button
                 onClick={() =>
@@ -1988,7 +1988,7 @@ export default function FeedPage() {
               <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-3" />
               <h3 className="text-center font-semibold mb-1">Kirim video</h3>
               <p className="text-center text-xs text-gray-400 mb-4">
-                Ke teman VEZAO atau app lain
+                Ke teman SERULO atau app lain
               </p>
               <button
                 onClick={shareToOtherApps}

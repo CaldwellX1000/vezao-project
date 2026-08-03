@@ -28,7 +28,7 @@ const DEFAULT_NOTIF: NotifPrefs = {
 
 function getNotifPrefs(): NotifPrefs {
   try {
-    const raw = localStorage.getItem('vezao_notif_prefs')
+    const raw = localStorage.getItem('serulo_notif_prefs')
     if (raw) return { ...DEFAULT_NOTIF, ...JSON.parse(raw) }
   } catch {}
   return { ...DEFAULT_NOTIF }
@@ -608,8 +608,8 @@ const list = published || []
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${fullName || username} di VEZAO`,
-          text: `Lihat profil ${fullName || username} di VEZAO`,
+          title: `${fullName || username} di SERULO`,
+          text: `Lihat profil ${fullName || username} di SERULO`,
           url,
         })
       } catch {}

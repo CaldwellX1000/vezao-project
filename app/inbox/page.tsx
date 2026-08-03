@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import StoryBar from '@/components/StoryBar'
 import { insertNotification } from '@/lib/notify'
+import { toast } from '@/lib/toast'
 
 type Conversation = {
   userId: string
@@ -209,7 +210,7 @@ export default function InboxPage() {
       messages: true,
     }
     try {
-      const raw = localStorage.getItem('vezao_notif_prefs')
+      const raw = localStorage.getItem('serulo_notif_prefs')
       if (raw) prefs = { ...prefs, ...JSON.parse(raw) }
     } catch {}
 
@@ -335,7 +336,7 @@ export default function InboxPage() {
     })
 
     if (error && !String(error.message).toLowerCase().includes('duplicate')) {
-      alert('Gagal blokir: ' + error.message)
+      toast('Gagal blokir: ' + error.message, 'error')
       return
     }
 
@@ -371,7 +372,7 @@ export default function InboxPage() {
       following_id: currentUserId,
     })
     if (followErr && !String(followErr.message).toLowerCase().includes('duplicate')) {
-      alert('Gagal accept: ' + followErr.message)
+      toast('Gagal accept: ' + followErr.message, 'error')
       setActingId(null)
       return
     }
@@ -433,7 +434,7 @@ export default function InboxPage() {
     })
 
     if (error && !String(error.message).toLowerCase().includes('duplicate')) {
-      alert('Gagal follow: ' + error.message)
+      toast('Gagal follow: ' + error.message, 'error')
       setActingId(null)
       return
     }

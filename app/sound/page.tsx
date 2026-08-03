@@ -72,95 +72,116 @@ function SoundContent() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-20">
+      {/* Header */}
       <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10">
         <div className="px-4 h-14 flex items-center gap-3">
-          <button onClick={() => router.back()} className="text-lg font-bold">
+          <button
+            onClick={() => router.back()}
+            className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-lg"
+          >
             ←
           </button>
-          <h1 className="text-lg font-bold flex-1">Sound</h1>
+          <h1 className="text-base font-semibold flex-1">Sound</h1>
         </div>
-        <div className="px-4 pb-4 flex items-center gap-3">
-          <div className="w-14 h-14 rounded-xl bg-vezao-gradient flex items-center justify-center text-2xl shrink-0">
-            🎵
+
+        {/* Sound info card */}
+        <div className="px-4 pb-4">
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-900/80 border border-white/5">
+            <div className="w-14 h-14 rounded-xl bg-vezao-gradient flex items-center justify-center text-2xl shrink-0 shadow-lg shadow-purple-500/20">
+              🎵
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-sm leading-snug line-clamp-2">
+                {name || 'Original sound'}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {loading ? 'Memuat...' : `${videos.length} video`}
+              </p>
+            </div>
+            <button
+              onClick={() =>
+                router.push(`/upload?sound=${encodeURIComponent(name.trim())}`)
+              }
+              className="shrink-0 text-xs font-semibold bg-vezao-gradient px-4 py-2.5 rounded-full active:scale-95 transition"
+            >
+              Gunakan
+            </button>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold text-sm leading-snug line-clamp-2">
-              {name || 'Original sound'}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {loading ? '...' : `${videos.length} video`}
-            </p>
-          </div>
-          <button
-            onClick={() =>
-              router.push(`/upload?sound=${encodeURIComponent(name.trim())}`)
-            }
-            className="shrink-0 text-xs font-semibold bg-vezao-gradient px-4 py-2 rounded-full"
-          >
-            Gunakan
-          </button>
         </div>
       </div>
 
+      {/* Content */}
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="grid grid-cols-3 gap-[2px] px-1 pt-2">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div
+              key={i}
+              className="aspect-[9/16] bg-zinc-900 animate-pulse rounded-sm"
+            />
+          ))}
         </div>
       ) : videos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center pt-24 text-gray-400 gap-2 px-6">
-          <div className="text-4xl">🎵</div>
-          <p className="text-sm font-medium">Belum ada video</p>
-          <p className="text-xs text-gray-600 text-center">
-            Jadilah yang pertama pakai sound ini
-          </p>
+        <div className="flex flex-col items-center justify-center pt-28 text-gray-400 gap-3 px-8">
+          <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center text-3xl">
+            🎵
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium text-white">Belum ada video</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Jadilah yang pertama pakai sound ini
+            </p>
+          </div>
           <button
             onClick={() =>
               router.push(`/upload?sound=${encodeURIComponent(name.trim())}`)
             }
-            className="mt-3 text-xs font-semibold bg-vezao-gradient px-5 py-2 rounded-full text-white"
+            className="mt-2 text-xs font-semibold bg-vezao-gradient px-6 py-2.5 rounded-full text-white"
           >
             Buat video
           </button>
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-3 gap-[2px] px-1 pt-2">
-            {videos.map((v) => (
-              <div
-                key={v.id}
-                onClick={() => router.push(`/v/${v.id}`)}
-                className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer"
-              >
-                {v.thumbnail_url ? (
-                  <img
-                    src={v.thumbnail_url}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <video
-                    src={v.video_url}
-                    className="w-full h-full object-cover"
-                    muted
-                    playsInline
-                    preload="metadata"
-                  />
-                )}
-                <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between gap-1 px-0.5">
-                  <span className="text-[10px] font-semibold text-white bg-black/50 rounded px-1 py-0.5">
-                    ♥ {v.likes_count}
-                  </span>
-                  <span className="text-[10px] font-semibold text-white bg-black/50 rounded px-1 py-0.5">
-                    ▶ {v.views_count || 0}
-                  </span>
-                </div>
+        <div className="grid grid-cols-3 gap-[2px] px-1 pt-1">
+          {videos.map((v) => (
+            <div
+              key={v.id}
+              onClick={() => router.push(`/v/${v.id}`)}
+              className="aspect-[9/16] bg-zinc-900 relative overflow-hidden cursor-pointer group"
+            >
+              {v.thumbnail_url ? (
+                <img
+                  src={v.thumbnail_url}
+                  alt=""
+                  className="w-full h-full object-cover group-active:scale-105 transition duration-200"
+                />
+              ) : (
+                <video
+                  src={v.video_url}
+                  className="w-full h-full object-cover"
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              )}
+
+              {/* gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+
+              {/* stats */}
+              <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between gap-1">
+                <span className="text-[10px] font-semibold text-white drop-shadow">
+                  ♥ {v.likes_count}
+                </span>
+                <span className="text-[10px] font-semibold text-white drop-shadow">
+                  ▶ {v.views_count || 0}
+                </span>
               </div>
-            ))}
-          </div>
-        </>
+            </div>
+          ))}
+        </div>
       )}
 
-      <BottomNav />
+       <BottomNav />
     </div>
   )
 }
