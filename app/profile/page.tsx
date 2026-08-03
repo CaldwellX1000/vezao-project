@@ -792,13 +792,13 @@ const list = published || []
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-3">
           <button
             type="button"
             onClick={() => setShowAccountSheet(true)}
             className="flex items-center gap-1 max-w-full"
           >
-            <h1 className="text-xl font-bold truncate">
+            <h1 className="text-xl font-bold truncate leading-tight">
               {fullName || username}
             </h1>
             <svg
@@ -817,11 +817,11 @@ const list = published || []
               </span>
             )}
           </button>
-          <p className="text-sm text-gray-400 mt-0.5">@{username}</p>
+          <p className="text-sm text-gray-400 leading-tight">@{username}</p>
         </div>
 
         {bio && (
-          <p className="mt-2.5 text-sm leading-relaxed whitespace-pre-line text-gray-100">
+          <p className="mt-1.5 text-sm leading-snug whitespace-pre-line text-gray-100">
             {bio}
           </p>
         )}
@@ -831,7 +831,7 @@ const list = published || []
             href={website.startsWith('http') ? website : `https://${website}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1.5 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
+            className="mt-1 inline-flex items-center gap-1 text-sm text-blue-400 hover:underline"
           >
             {website.replace(/^https?:\/\//, '')}
           </a>

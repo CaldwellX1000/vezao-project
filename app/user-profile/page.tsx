@@ -762,7 +762,7 @@ function UserProfileContent() {
             </div>
             <button
               onClick={() => setShowReportUser(false)}
-              className="w-full mt-3 py-3 text-sm text-gray-400"
+              className="w-full mt-1.5 py-3 text-sm text-gray-400"
             >
               Batal
             </button>
