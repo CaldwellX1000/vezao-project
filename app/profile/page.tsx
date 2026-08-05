@@ -712,22 +712,9 @@ const list = published || []
             <div className="relative">
               <button
                 onClick={() => setShowMenu(!showMenu)}
-                className="w-9 h-9 bg-zinc-800 text-white rounded-full border border-white/10 flex items-center justify-center"
+                className="w-10 h-10 flex items-center justify-center"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-                  />
-                </svg>
+                <img src="/setting.png" alt="" className="w-9 h-9 object-contain" />
               </button>
 
  {showMenu && (
@@ -803,7 +790,7 @@ const list = published || []
             </h1>
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="w-5 h-5 text-white shrink-0"
+              className="w-10 h-10 text-white shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -837,7 +824,7 @@ const list = published || []
           </a>
         )}
 
-        <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900/80 border border-white/5">
+        <div className="flex justify-around mt-4 py-3.5 rounded-2xl border border-purple-500/25 overflow-hidden bg-[url('/bg1.png')] bg-cover bg-center">
           <div className="text-center flex-1">
             <p className="font-bold text-lg">{videos.length}</p>
             <p className="text-[11px] text-gray-400 mt-0.5">Videos</p>
@@ -870,20 +857,13 @@ const list = published || []
             activeTab === 'videos' ? 'border-b-2 border-white' : ''
           }`}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className={`w-5 h-5 ${activeTab === 'videos' ? 'text-white' : 'text-gray-500'}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
-            />
-          </svg>
+          <img
+            src="/kotak.png"
+            alt=""
+            className={`w-10 h-10 object-contain ${
+              activeTab === 'videos' ? 'opacity-100' : 'opacity-45'
+            }`}
+          />
         </button>
 
         <button
@@ -892,20 +872,13 @@ const list = published || []
             activeTab === 'private' ? 'border-b-2 border-white' : ''
           }`}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className={`w-5 h-5 ${activeTab === 'private' ? 'text-white' : 'text-gray-500'}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-            />
-          </svg>
+          <img
+            src="/gembok.png"
+            alt=""
+            className={`w-10 h-10 object-contain ${
+              activeTab === 'private' ? 'opacity-100' : 'opacity-45'
+            }`}
+          />
         </button>
 
         <button
@@ -914,20 +887,13 @@ const list = published || []
             activeTab === 'liked' ? 'border-b-2 border-white' : ''
           }`}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className={`w-5 h-5 ${activeTab === 'liked' ? 'text-white' : 'text-gray-500'}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-            />
-          </svg>
+          <img
+            src="/love1.png"
+            alt=""
+            className={`w-10 h-10 object-contain ${
+              activeTab === 'liked' ? 'opacity-100' : 'opacity-45'
+            }`}
+          />
         </button>
 
         <button
@@ -936,20 +902,13 @@ const list = published || []
             activeTab === 'saved' ? 'border-b-2 border-white' : ''
           }`}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className={`w-5 h-5 ${activeTab === 'saved' ? 'text-white' : 'text-gray-500'}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-            />
-          </svg>
+          <img
+            src="/save.png"
+            alt=""
+            className={`w-10 h-10 object-contain ${
+              activeTab === 'saved' ? 'opacity-100' : 'opacity-45'
+            }`}
+          />
         </button>
 
         <button
@@ -958,20 +917,13 @@ const list = published || []
             activeTab === 'drafts' ? 'border-b-2 border-white' : ''
           }`}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className={`w-5 h-5 ${activeTab === 'drafts' ? 'text-white' : 'text-gray-500'}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
+          <img
+            src="/draft.png"
+            alt=""
+            className={`w-10 h-10 object-contain ${
+              activeTab === 'drafts' ? 'opacity-100' : 'opacity-45'
+            }`}
+          />
           {drafts.length > 0 && (
             <span className="absolute top-2 right-[28%] min-w-[16px] h-4 px-1 rounded-full bg-vezao-gradient text-[10px] font-bold flex items-center justify-center">
               {drafts.length}
@@ -1261,7 +1213,7 @@ const list = published || []
                   {active && (
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="w-5 h-5 text-purple-400 shrink-0"
+                      className="w-10 h-10 text-purple-400 shrink-0"
                       viewBox="0 0 24 24"
                       fill="currentColor"
                     >

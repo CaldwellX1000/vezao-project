@@ -767,12 +767,8 @@ function UploadContent() {
             onClick={() => startCamera()}
             className="w-full max-w-xs aspect-[9/16] max-h-[40vh] rounded-2xl bg-zinc-900 border border-white/10 flex flex-col items-center justify-center gap-3 active:scale-[0.98] transition"
           >
-            <div className="w-16 h-16 rounded-full bg-vezao-gradient flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <p className="font-semibold">Rekam</p>
+            <img src="/kamera.png" alt="" className="w-20 h-20 object-contain" />
+            <p className="font-semibold"></p>
             <p className="text-xs text-gray-500">Kamera HP</p>
           </button>
 

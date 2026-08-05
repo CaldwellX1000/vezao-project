@@ -12,6 +12,7 @@ type Video = {
   caption: string | null
   comments_enabled?: boolean | null
   video_url: string
+  thumbnail_url?: string | null
   likes_count: number
   comments_count: number
   views_count?: number | null
@@ -174,7 +175,7 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
-  const [isMuted, setIsMuted] = useState(true)
+  const [isMuted, setIsMuted] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
@@ -283,7 +284,7 @@ export default function FeedPage() {
     const { data: videosData } = await supabase
       .from('videos')
       .select(`
-        id, caption, video_url, likes_count, comments_count, comments_enabled,
+        id, caption, video_url, thumbnail_url, likes_count, comments_count, comments_enabled,
         saves_count, shares_count, visibility, views_count, sound_name, created_at, user_id,
         profiles ( username, full_name, avatar_url, is_private )
       `)
@@ -529,7 +530,20 @@ export default function FeedPage() {
     }
   })
 }
-  }, [activeIndex, videos])
+  }, [videos, isMuted, feedTab])
+  // Lepas src video yang jauh biar network tidak numpuk
+  useEffect(() => {
+    videoRefs.current.forEach((v, i) => {
+      if (!v) return
+      const keep = i === activeIndex || i === activeIndex + 1
+      if (!keep && v.getAttribute('src')) {
+        v.pause()
+        v.removeAttribute('src')
+        v.load()
+      }
+    })
+  }, [activeIndex, videos.length])
+
   const loadMore = () => {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
@@ -1112,13 +1126,13 @@ export default function FeedPage() {
         </div>
 
         {/* Mute button skeleton */}
-        <div className="absolute top-3 right-3 z-40 w-9 h-9 rounded-full bg-zinc-800/80 animate-pulse" />
+        <div className="absolute top-3 right-3 z-40 w-10 h-9 rounded-full bg-zinc-800/80 animate-pulse" />
 
         {/* Bottom content skeleton (avatar + text) */}
         <div className="absolute bottom-28 left-4 right-20 z-10 space-y-3">
           {/* Avatar + username + follow */}
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-zinc-700 animate-pulse shrink-0" />
+            <div className="w-10 h-9 rounded-full bg-zinc-700 animate-pulse shrink-0" />
             <div className="h-3.5 w-24 bg-zinc-700/90 rounded animate-pulse" />
             <div className="h-6 w-14 rounded-full bg-zinc-700/70 animate-pulse" />
           </div>
@@ -1155,12 +1169,12 @@ export default function FeedPage() {
       </div>
     </div>
   )
-}
+  }
 
   return (
     <div className="h-screen w-full bg-black">
       <div className="h-screen w-full max-w-[480px] mx-auto bg-black text-white overflow-hidden relative">
-        <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-center gap-6 pt-3 pb-2 pointer-events-none">
+        <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-center gap-6 pt-3 pb-4 pointer-events-none bg-gradient-to-b from-[#0b0614]/85 via-[#0b0614]/40 to-transparent backdrop-blur-[2px]">
           <button
             onClick={() => setFeedTab('following')}
             className={`text-sm font-semibold pointer-events-auto ${
@@ -1178,22 +1192,6 @@ export default function FeedPage() {
             For You
           </button>
         </div>
-
-        <button
-          onClick={() => setIsMuted(!isMuted)}
-          className="absolute top-3 right-3 z-40 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center border border-white/10"
-        >
-          {isMuted ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-            </svg>
-          )}
-        </button>
 
         <div
           ref={containerRef}
@@ -1243,6 +1241,7 @@ export default function FeedPage() {
                       ? video.video_url
                       : undefined
                   }
+                  poster={video.thumbnail_url || undefined}
                   className="absolute inset-0 w-full h-full object-cover"
                   loop
                   muted={isMuted}
@@ -1255,17 +1254,15 @@ export default function FeedPage() {
                       : 'none'
                   }
                   onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
-                                    onTimeUpdate={(e) => {
+                  onTimeUpdate={(e) => {
                     const v = e.currentTarget
                     if (!v.duration || !isFinite(v.duration)) return
-                    // watch tetap di ref (tanpa re-render)
                     watchAccRef.current[video.id] =
                       (watchAccRef.current[video.id] || 0) + 250
-                    // progress UI: update jarang (setiap ~8%)
                     const pct = Math.min(100, (v.currentTime / v.duration) * 100)
                     setProgressMap((prev) => {
                       const old = prev[video.id] || 0
-                      if (Math.abs(old - pct) < 8) return prev
+                      if (Math.abs(old - pct) < 12) return prev
                       return { ...prev, [video.id]: pct }
                     })
                   }}
@@ -1405,108 +1402,63 @@ export default function FeedPage() {
                   )}
                 </div>
 
-                <div className="absolute right-2 bottom-28 flex flex-col items-center gap-3 z-10">
-                  <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
-                    <div
-                      className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 ${
-                        likedVideos.has(video.id) ? 'bg-red-500/90' : 'bg-black/50'
+                <div className="absolute right-1.5 bottom-24 flex flex-col items-center gap-2.5 z-10">
+                  <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center leading-none">
+                    <img
+                      src="/like.png"
+                      alt=""
+                      className={`w-10 h-9 object-contain ${
+                        likedVideos.has(video.id) ? 'brightness-110 scale-105' : 'opacity-95'
                       }`}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5 text-white"
-                        viewBox="0 0 24 24"
-                        fill={likedVideos.has(video.id) ? 'currentColor' : 'none'}
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                        />
-                      </svg>
-                    </div>
-                    <span className="text-[10px] mt-0.5 text-white font-medium">
+                    />
+                    <span className="text-[10px] -mt-0.5 text-white font-medium drop-shadow leading-none">
                       {video.likes_count}
                     </span>
                   </button>
 
                   <button
                     onClick={() => openComments(video.id)}
-                    className="flex flex-col items-center"
+                    className="flex flex-col items-center leading-none"
                   >
-                    <div className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center border border-white/10">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                        />
-                      </svg>
-                    </div>
-                    <span className="text-[10px] mt-0.5 text-white font-medium">
+                    <img
+                      src="/komentar.png"
+                      alt=""
+                      className="w-10 h-9 object-contain"
+                    />
+                    <span className="text-[10px] -mt-0.5 text-white font-medium drop-shadow leading-none">
                       {video.comments_count || 0}
                     </span>
                   </button>
 
-                  <button onClick={() => toggleSave(video.id)} className="flex flex-col items-center">
-                    <div className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center border border-white/10">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className={`w-5 h-5 ${
-                          savedVideos.has(video.id) ? 'text-yellow-400' : 'text-white'
-                        }`}
-                        fill={savedVideos.has(video.id) ? 'currentColor' : 'none'}
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                        />
-                      </svg>
-                    </div>
-                    <span className="text-[10px] mt-0.5 text-white font-medium">
+                  <button onClick={() => toggleSave(video.id)} className="flex flex-col items-center leading-none">
+                    <img
+                      src="/save2.png"
+                      alt=""
+                      className={`w-10 h-9 object-contain ${
+                        savedVideos.has(video.id) ? 'brightness-110 scale-105' : 'opacity-95'
+                      }`}
+                    />
+                    <span className="text-[10px] -mt-0.5 text-white font-medium drop-shadow leading-none">
                       {video.saves_count || 0}
                     </span>
                   </button>
 
-                  <button onClick={() => openShare(video.id)} className="flex flex-col items-center">
-                    <div className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center border border-white/10">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"
-                        />
-                      </svg>
-                    </div>
-                    <span className="text-[10px] mt-0.5 text-white font-medium">
+                  <button onClick={() => openShare(video.id)} className="flex flex-col items-center leading-none">
+                    <img
+                      src="/bagikan.png"
+                      alt=""
+                      className="w-10 h-9 object-contain"
+                    />
+                    <span className="text-[10px] -mt-0.5 text-white font-medium drop-shadow leading-none">
                       {video.shares_count || 0}
                     </span>
                   </button>
 
-                  <button onClick={() => setShowMore(video.id)}>
-                    <div className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center border border-white/10">
-                      <span className="text-base leading-none">⋯</span>
-                    </div>
+                  <button
+                    onClick={() => setShowMore(video.id)}
+                    className="mt-0.5 w-9 h-9 rounded-full bg-black/40 flex items-center justify-center border border-white/10"
+                  >
+                    <img src="/titik.png" alt="" className="w-10 h-10 object-contain" />
                   </button>
                 </div>
               </div>

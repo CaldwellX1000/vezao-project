@@ -412,18 +412,9 @@ function ProfileByUsername() {
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(!showMenu)}
-                  className="w-9 h-9 bg-zinc-800 text-white rounded-full border border-white/10 flex items-center justify-center"
+                  className="w-9 h-9 bg-zinc-800/80 text-white rounded-full border border-white/10 flex items-center justify-center"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-5 h-5"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle cx="12" cy="6" r="1.5" />
-                    <circle cx="12" cy="12" r="1.5" />
-                    <circle cx="12" cy="18" r="1.5" />
-                  </svg>
+                  <img src="/setting.png" alt="" className="w-7 h-7 object-contain" />
                 </button>
 
                 {showMenu && (
@@ -440,7 +431,7 @@ function ProfileByUsername() {
                           try {
                             if (navigator.share) {
                               await navigator.share({
-                                title: `${fullName || username} di VEZAO`,
+                                title: `${fullName || username} di SERULO`,
                                 url,
                               })
                             } else {
@@ -549,7 +540,7 @@ function ProfileByUsername() {
           </a>
         )}
 
-        <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900/80 border border-white/5">
+        <div className="flex justify-around mt-4 py-3.5 rounded-2xl border border-purple-500/25 overflow-hidden bg-[url('/bg1.png')] bg-cover bg-center">
           <div className="text-center flex-1">
             <p className="font-bold text-lg">
               {canViewVideos ? videos.length : '—'}
