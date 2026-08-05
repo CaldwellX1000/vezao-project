@@ -850,80 +850,115 @@ const list = published || []
         </div>
       </div>
 
-      <div className="flex border-b border-white/10 mt-5">
+            <div className="flex border-b border-white/10 mt-5">
         <button
           onClick={() => setActiveTab('videos')}
           className={`flex-1 py-3 flex justify-center ${
-            activeTab === 'videos' ? 'border-b-2 border-white' : ''
+            activeTab === 'videos' ? 'border-b-2 border-purple-400' : ''
           }`}
         >
-          <img
-            src="/kotak.png"
-            alt=""
-            className={`w-10 h-10 object-contain ${
-              activeTab === 'videos' ? 'opacity-100' : 'opacity-45'
-            }`}
-          />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${activeTab === 'videos' ? 'text-purple-400' : 'text-purple-400/45'}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+            />
+          </svg>
         </button>
 
         <button
           onClick={() => setActiveTab('private')}
           className={`flex-1 py-3 flex justify-center ${
-            activeTab === 'private' ? 'border-b-2 border-white' : ''
+            activeTab === 'private' ? 'border-b-2 border-purple-400' : ''
           }`}
         >
-          <img
-            src="/gembok.png"
-            alt=""
-            className={`w-10 h-10 object-contain ${
-              activeTab === 'private' ? 'opacity-100' : 'opacity-45'
-            }`}
-          />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${activeTab === 'private' ? 'text-purple-400' : 'text-purple-400/45'}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+            />
+          </svg>
         </button>
 
         <button
           onClick={() => setActiveTab('liked')}
           className={`flex-1 py-3 flex justify-center ${
-            activeTab === 'liked' ? 'border-b-2 border-white' : ''
+            activeTab === 'liked' ? 'border-b-2 border-purple-400' : ''
           }`}
         >
-          <img
-            src="/love1.png"
-            alt=""
-            className={`w-10 h-10 object-contain ${
-              activeTab === 'liked' ? 'opacity-100' : 'opacity-45'
-            }`}
-          />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${activeTab === 'liked' ? 'text-purple-400' : 'text-purple-400/45'}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+            />
+          </svg>
         </button>
 
         <button
           onClick={() => setActiveTab('saved')}
           className={`flex-1 py-3 flex justify-center ${
-            activeTab === 'saved' ? 'border-b-2 border-white' : ''
+            activeTab === 'saved' ? 'border-b-2 border-purple-400' : ''
           }`}
         >
-          <img
-            src="/save.png"
-            alt=""
-            className={`w-10 h-10 object-contain ${
-              activeTab === 'saved' ? 'opacity-100' : 'opacity-45'
-            }`}
-          />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${activeTab === 'saved' ? 'text-purple-400' : 'text-purple-400/45'}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+            />
+          </svg>
         </button>
 
         <button
           onClick={() => setActiveTab('drafts')}
           className={`flex-1 py-3 flex justify-center relative ${
-            activeTab === 'drafts' ? 'border-b-2 border-white' : ''
+            activeTab === 'drafts' ? 'border-b-2 border-purple-400' : ''
           }`}
         >
-          <img
-            src="/draft.png"
-            alt=""
-            className={`w-10 h-10 object-contain ${
-              activeTab === 'drafts' ? 'opacity-100' : 'opacity-45'
-            }`}
-          />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${activeTab === 'drafts' ? 'text-purple-400' : 'text-purple-400/45'}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
           {drafts.length > 0 && (
             <span className="absolute top-2 right-[28%] min-w-[16px] h-4 px-1 rounded-full bg-vezao-gradient text-[10px] font-bold flex items-center justify-center">
               {drafts.length}
@@ -931,7 +966,6 @@ const list = published || []
           )}
         </button>
       </div>
-
             <div className="px-1 pt-1">
         {displayVideos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
