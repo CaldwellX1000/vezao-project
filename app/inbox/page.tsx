@@ -536,7 +536,7 @@ export default function InboxPage() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-20">
-      <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10">
+      <div className="sticky top-0 z-50 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20">
         <div className="px-4 h-14 flex items-center justify-between">
           <h1 className="text-lg font-bold">Inbox</h1>
           {tab === 'activity' && notifUnread > 0 && (
@@ -549,16 +549,15 @@ export default function InboxPage() {
           )}
         </div>
 
-        {/* Story selalu di atas tab */}
         <div className="pb-2">
           <StoryBar />
         </div>
 
-        <div className="flex px-4 border-t border-white/10">
+        <div className="flex px-4 border-t border-purple-500/15">
           <button
             onClick={() => setTab('messages')}
             className={`flex-1 py-2.5 text-sm font-semibold relative ${
-              tab === 'messages' ? 'text-white' : 'text-gray-500'
+              tab === 'messages' ? 'text-purple-300' : 'text-purple-400/45'
             }`}
           >
             Pesan
@@ -568,13 +567,13 @@ export default function InboxPage() {
               </span>
             )}
             {tab === 'messages' && (
-              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-white rounded-full" />
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-purple-400 rounded-full" />
             )}
           </button>
           <button
             onClick={() => setTab('activity')}
             className={`flex-1 py-2.5 text-sm font-semibold relative ${
-              tab === 'activity' ? 'text-white' : 'text-gray-500'
+              tab === 'activity' ? 'text-purple-300' : 'text-purple-400/45'
             }`}
           >
             Aktivitas
@@ -582,7 +581,7 @@ export default function InboxPage() {
               <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-vezao-gradient align-middle" />
             )}
             {tab === 'activity' && (
-              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-white rounded-full" />
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-purple-400 rounded-full" />
             )}
           </button>
         </div>
@@ -593,16 +592,23 @@ export default function InboxPage() {
           {loadingNotif ? (
             <p className="text-center text-gray-500 py-12 text-sm">Loading...</p>
           ) : notifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-              <p className="text-sm">Belum ada aktivitas</p>
-              <p className="text-xs mt-1">Like, follow, dan komentar muncul di sini</p>
+            <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+              <div className="w-14 h-14 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-purple-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-white">Belum ada aktivitas</p>
+              <p className="text-xs text-gray-500 mt-1.5">
+                Like, follow, dan komentar muncul di sini
+              </p>
             </div>
           ) : (
             notifications.map((n) => (
               <div
                 key={n.id}
                 className={`w-full flex items-center gap-3 px-4 py-3.5 ${
-                  !n.is_read ? 'bg-white/[0.03]' : ''
+                  !n.is_read ? 'bg-purple-500/[0.06]' : ''
                 }`}
               >
                 <button
@@ -626,7 +632,7 @@ export default function InboxPage() {
                   }}
                   className="flex flex-1 items-center gap-3 min-w-0 text-left active:opacity-80"
                 >
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 shrink-0">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 shrink-0 ring-1 ring-purple-500/20">
                     {n.actor?.avatar_url ? (
                       <img
                         src={n.actor.avatar_url}
@@ -702,17 +708,22 @@ export default function InboxPage() {
       ) : (
         <div className="divide-y divide-white/5" onClick={() => setMenuUserId(null)}>
           {conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-              <p className="text-sm">Belum ada pesan</p>
-              <p className="text-xs mt-1 px-6 text-center">
-                Mulai chat dengan menekan tombol Message di profil orang
+            <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+              <div className="w-14 h-14 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-purple-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-white">Belum ada pesan</p>
+              <p className="text-xs text-gray-500 mt-1.5 max-w-[240px]">
+                Mulai chat lewat tombol Message di profil orang
               </p>
             </div>
           ) : (
             conversations.map((conv) => (
               <div
                 key={conv.userId}
-                className="relative flex items-center gap-2 px-4 py-3 active:bg-white/5"
+                className="relative flex items-center gap-2 px-4 py-3.5 active:bg-purple-500/5"
               >
                 <div
                   className="flex flex-1 items-center gap-3 min-w-0 cursor-pointer"
@@ -723,7 +734,7 @@ export default function InboxPage() {
                       e.stopPropagation()
                       router.push(`/@${conv.username}`)
                     }}
-                    className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden shrink-0"
+                    className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden shrink-0 ring-1 ring-purple-500/20"
                   >
                     {conv.avatarUrl ? (
                       <img src={conv.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -774,7 +785,7 @@ export default function InboxPage() {
                     e.stopPropagation()
                     setMenuUserId(menuUserId === conv.userId ? null : conv.userId)
                   }}
-                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white shrink-0"
+                  className="w-8 h-8 flex items-center justify-center text-purple-400/50 hover:text-purple-300 shrink-0"
                 >
                   ⋯
                 </button>
