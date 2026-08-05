@@ -1078,7 +1078,7 @@ export default function SingleVideoPage() {
                   )}
                 </div>
 
-                <div className="absolute right-2 bottom-24 flex flex-col items-center gap-3 z-10">
+                <div className="absolute right-2 bottom-16 flex flex-col items-center gap-3 z-10">
                   <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 ${

@@ -1402,63 +1402,111 @@ export default function FeedPage() {
                   )}
                 </div>
 
-                <div className="absolute right-1.5 bottom-24 flex flex-col items-center gap-2.5 z-10">
-                  <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center leading-none">
-                    <img
-                      src="/like.png"
-                      alt=""
-                      className={`w-10 h-9 object-contain ${
-                        likedVideos.has(video.id) ? 'brightness-110 scale-105' : 'opacity-95'
+                                  <div className="absolute right-1.5 bottom-24 flex flex-col items-center gap-2.5 z-10">
+                  <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        likedVideos.has(video.id)
+                          ? 'bg-red-500'
+                          : 'bg-black/45 border border-white/10'
                       }`}
-                    />
-                    <span className="text-[10px] -mt-0.5 text-white font-medium drop-shadow leading-none">
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-5 h-5 text-white"
+                        fill={likedVideos.has(video.id) ? 'currentColor' : 'none'}
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-[10px] mt-0.5 text-white font-medium drop-shadow">
                       {video.likes_count}
                     </span>
                   </button>
 
                   <button
                     onClick={() => openComments(video.id)}
-                    className="flex flex-col items-center leading-none"
+                    className="flex flex-col items-center"
                   >
-                    <img
-                      src="/komentar.png"
-                      alt=""
-                      className="w-10 h-9 object-contain"
-                    />
-                    <span className="text-[10px] -mt-0.5 text-white font-medium drop-shadow leading-none">
+                    <div className="w-10 h-10 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-5 h-5 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-[10px] mt-0.5 text-white font-medium drop-shadow">
                       {video.comments_count || 0}
                     </span>
                   </button>
 
-                  <button onClick={() => toggleSave(video.id)} className="flex flex-col items-center leading-none">
-                    <img
-                      src="/save2.png"
-                      alt=""
-                      className={`w-10 h-9 object-contain ${
-                        savedVideos.has(video.id) ? 'brightness-110 scale-105' : 'opacity-95'
-                      }`}
-                    />
-                    <span className="text-[10px] -mt-0.5 text-white font-medium drop-shadow leading-none">
+                  <button onClick={() => toggleSave(video.id)} className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`w-5 h-5 ${
+                          savedVideos.has(video.id) ? 'text-yellow-400' : 'text-white'
+                        }`}
+                        fill={savedVideos.has(video.id) ? 'currentColor' : 'none'}
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-[10px] mt-0.5 text-white font-medium drop-shadow">
                       {video.saves_count || 0}
                     </span>
                   </button>
 
-                  <button onClick={() => openShare(video.id)} className="flex flex-col items-center leading-none">
-                    <img
-                      src="/bagikan.png"
-                      alt=""
-                      className="w-10 h-9 object-contain"
-                    />
-                    <span className="text-[10px] -mt-0.5 text-white font-medium drop-shadow leading-none">
+                  <button onClick={() => openShare(video.id)} className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-5 h-5 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                        />
+                      </svg>
+                    </div>
+                    <span className="text-[10px] mt-0.5 text-white font-medium drop-shadow">
                       {video.shares_count || 0}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setShowMore(video.id)}
-                    className="mt-0.5 w-9 h-9 rounded-full bg-black/40 flex items-center justify-center border border-white/10"
+                    className="w-10 h-10 rounded-full bg-black/45 border border-white/10 flex items-center justify-center"
                   >
-                    <img src="/titik.png" alt="" className="w-10 h-10 object-contain" />
+                    <span className="text-sm leading-none text-white">⋯</span>
                   </button>
                 </div>
               </div>
