@@ -284,9 +284,9 @@ export default function SearchPage() {
     <div
       key={user.id}
       onClick={() => router.push(`/@${user.username || user.id}`)}
-      className="flex items-center gap-3 py-3 active:bg-white/5 rounded-xl px-2 cursor-pointer"
+      className="flex items-center gap-3 py-3 active:bg-purple-500/5 rounded-xl px-2 cursor-pointer"
     >
-      <div className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden shrink-0">
+      <div className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden shrink-0 ring-1 ring-purple-500/20">
         {user.avatar_url ? (
           <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
         ) : (
@@ -317,9 +317,9 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-20">
-      <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10 px-4 pt-3 pb-0">
+      <div className="sticky top-0 z-50 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20 px-4 pt-3 pb-0">
         <div className="flex items-center gap-3 mb-3">
-          <button onClick={() => router.back()} className="text-white text-lg font-bold shrink-0">
+          <button onClick={() => router.back()} className="text-purple-300 text-lg font-bold shrink-0">
             ←
           </button>
           <div className="flex-1">
@@ -328,7 +328,7 @@ export default function SearchPage() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder={placeholder}
               autoFocus
-              className="w-full bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full bg-zinc-900/80 border border-purple-500/20 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
             />
           </div>
         </div>
@@ -339,12 +339,12 @@ export default function SearchPage() {
               key={t}
               onClick={() => setTab(t)}
               className={`flex-1 py-2.5 text-sm font-semibold relative ${
-                tab === t ? 'text-white' : 'text-gray-500'
+                tab === t ? 'text-purple-300' : 'text-purple-400/45'
               }`}
             >
               {t === 'users' ? 'Users' : t === 'videos' ? 'Videos' : 'Hashtags'}
               {tab === t && (
-                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-white rounded-full" />
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-purple-400 rounded-full" />
               )}
             </button>
           ))}
@@ -367,7 +367,7 @@ export default function SearchPage() {
         ) : !searched ? (
           tab === 'users' && suggested.length > 0 ? (
             <div>
-              <p className="text-sm font-semibold text-gray-400 mb-2 px-2">
+              <p className="text-sm font-semibold text-purple-400/70 mb-2 px-2">
                 Suggested accounts
               </p>
               <div className="space-y-1">
@@ -376,7 +376,7 @@ export default function SearchPage() {
             </div>
           ) : tab === 'videos' && suggestedVideos.length > 0 ? (
             <div>
-              <p className="text-sm font-semibold text-gray-400 mb-2 px-2">
+              <p className="text-sm font-semibold text-purple-400/70 mb-2 px-2">
                 Popular videos
               </p>
               <div className="grid grid-cols-3 gap-[2px]">
@@ -410,7 +410,7 @@ export default function SearchPage() {
             </div>
           ) : tab === 'hashtags' && trendingTags.length > 0 ? (
             <div>
-              <p className="text-sm font-semibold text-gray-400 mb-2 px-2">
+              <p className="text-sm font-semibold text-purple-400/70 mb-2 px-2">
                 Trending
               </p>
               <div className="space-y-1">
@@ -435,11 +435,18 @@ export default function SearchPage() {
               </div>
             </div>
           ) : (
-            <p className="text-center text-gray-500 text-sm pt-16">
-              {tab === 'users' && 'Cari username atau nama pengguna'}
-              {tab === 'videos' && 'Cari berdasarkan caption video'}
-              {tab === 'hashtags' && 'Cari hashtag, contoh: dance'}
-            </p>
+            <div className="flex flex-col items-center pt-16 px-6 text-center">
+              <div className="w-14 h-14 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-purple-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <p className="text-sm text-gray-400">
+                {tab === 'users' && 'Cari username atau nama pengguna'}
+                {tab === 'videos' && 'Cari berdasarkan caption video'}
+                {tab === 'hashtags' && 'Cari hashtag, contoh: dance'}
+              </p>
+            </div>
           )
         ) : tab === 'users' ? (
           users.length === 0 ? (
