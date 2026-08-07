@@ -620,15 +620,15 @@ function ChatContent() {
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
-      <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10 px-4 h-14 flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-white text-lg font-bold">
+      <div className="sticky top-0 z-50 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20 px-4 h-14 flex items-center gap-3">
+        <button onClick={() => router.back()} className="text-purple-300 text-lg font-bold">
           ←
         </button>
         <div
           className="flex items-center gap-3 cursor-pointer min-w-0"
           onClick={() => router.push(`/@${partnerUsername || partnerId}`)}
         >
-          <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden shrink-0">
+          <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden shrink-0 ring-1 ring-purple-500/25">
             {partnerAvatar ? (
               <img src={partnerAvatar} alt="" className="w-full h-full object-cover" />
             ) : (
@@ -643,8 +643,14 @@ function ChatContent() {
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 ? (
-          <div className="text-center text-gray-500 text-sm pt-20">
-            Belum ada pesan. Mulai percakapan!
+          <div className="flex flex-col items-center pt-20 px-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-purple-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-white">Belum ada pesan</p>
+            <p className="text-xs text-gray-500 mt-1">Mulai percakapan sekarang</p>
           </div>
         ) : (
           messages.map((msg) => {
@@ -948,7 +954,7 @@ function ChatContent() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="sticky bottom-0 bg-black border-t border-white/10 px-3 py-3">
+      <div className="sticky bottom-0 bg-[#0b0614]/95 border-t border-purple-500/20 px-3 py-3">
         {editingMsgId && (
           <div className="flex items-center justify-between mb-2 px-1">
             <span className="text-xs text-purple-400">Mengedit pesan</span>
@@ -1009,7 +1015,7 @@ function ChatContent() {
                 type="button"
                 onClick={() => mediaInputRef.current?.click()}
                 disabled={sendingMedia || sending}
-                className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 disabled:opacity-50"
+                className="w-10 h-10 rounded-full bg-zinc-900 border border-purple-500/20 flex items-center justify-center shrink-0 disabled:opacity-50"
                 title="Kirim foto/video"
               >
                 {sendingMedia ? (
@@ -1025,7 +1031,7 @@ function ChatContent() {
                 type="button"
                 onClick={() => setShowStickers((v) => !v)}
                 className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                  showStickers ? 'bg-vezao-gradient' : 'bg-zinc-800'
+                  showStickers ? 'bg-vezao-gradient' : 'bg-zinc-900 border border-purple-500/20'
                 }`}
                 title="Stiker"
               >
@@ -1039,7 +1045,7 @@ function ChatContent() {
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
             placeholder={editingMsgId ? 'Edit pesan...' : 'Tulis pesan...'}
-            className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            className="flex-1 bg-zinc-900 border border-purple-500/20 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
           />
 
           <button

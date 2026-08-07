@@ -16,32 +16,38 @@ export default function PushPrompt() {
       if (typeof window === 'undefined') return
       if (!('Notification' in window) || !('serviceWorker' in navigator)) return
 
-      // User pernah tutup banner (jangan ganggu terus)
+      // Jangan tampil di halaman auth
+      const path = window.location.pathname
+      if (
+        path.startsWith('/login') ||
+        path.startsWith('/signup') ||
+        path.startsWith('/register')
+      ) {
+        return
+      }
+
       if (localStorage.getItem(DISMISS_KEY) === '1') return
+      if (Notification.permission === 'denied') return
 
-      // Sudah allow di browser?
+      // Wajib sudah login
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
       if (Notification.permission === 'granted') {
-        // Cek sudah ada subscription di DB
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user) return
-
         const { count } = await supabase
           .from('push_subscriptions')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
 
-        if ((count || 0) > 0) return // sudah aktif
+        if ((count || 0) > 0) return
+        // granted tapi belum ada di DB → boleh tampil lagi biar user subscribe
       }
-
-      // Denied = jangan tampilkan terus
-      if (Notification.permission === 'denied') return
 
       setShow(true)
     }
 
-    // Delay biar tidak langsung muncul saat load
     const t = setTimeout(check, 1500)
     return () => clearTimeout(t)
   }, [])

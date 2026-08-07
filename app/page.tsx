@@ -491,7 +491,7 @@ export default function FeedPage() {
             bestEntry = entry
           }
         }
-        if (bestEntry && bestEntry.intersectionRatio >= 0.4) {
+        if (bestEntry && bestEntry.intersectionRatio >= 0.55) {
           const el = bestEntry.target as HTMLVideoElement
           pauseAllExcept(el)
           tryPlay(el)
@@ -505,7 +505,7 @@ export default function FeedPage() {
           }
         }
       },
-      { threshold: [0.15, 0.4, 0.6, 0.85] }
+      { threshold: [0.25, 0.55, 0.75, 0.9], rootMargin: '0px' }
     )
 
     const t = setTimeout(() => {
@@ -535,7 +535,7 @@ export default function FeedPage() {
   useEffect(() => {
     videoRefs.current.forEach((v, i) => {
       if (!v) return
-      const keep = i === activeIndex || i === activeIndex + 1
+      const keep = i >= activeIndex - 1 && i <= activeIndex + 1
       if (!keep && v.getAttribute('src')) {
         v.pause()
         v.removeAttribute('src')
@@ -1195,11 +1195,16 @@ export default function FeedPage() {
 
         <div
           ref={containerRef}
-          className="h-[100dvh] overflow-y-scroll snap-y snap-mandatory pb-16"
+          className="h-[100dvh] overflow-y-scroll snap-y snap-mandatory overscroll-y-contain pb-16"
+          style={{
+            scrollSnapType: 'y mandatory',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehaviorY: 'contain',
+            paddingTop: pullDistance > 0 ? pullDistance : 0,
+          }}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
-          style={{ paddingTop: pullDistance > 0 ? pullDistance : 0 }}
         >
           {refreshing && (
             <div className="text-center text-xs text-white/70 py-2">Refresh...</div>
@@ -1229,7 +1234,8 @@ export default function FeedPage() {
             videos.map((video, index) => (
               <div
                 key={video.id}
-                className="h-[100dvh] w-full snap-start relative flex items-center justify-center feed-item"
+                className="h-[100dvh] w-full snap-start snap-always relative flex items-center justify-center feed-item"
+                style={{ scrollSnapStop: 'always' }}
               >
                 <video
                   ref={(el) => {
@@ -1237,7 +1243,7 @@ export default function FeedPage() {
                   }}
                   data-video-id={video.id}
                   src={
-                    index === activeIndex || index === activeIndex + 1
+                    index >= activeIndex - 1 && index <= activeIndex + 1
                       ? video.video_url
                       : undefined
                   }
@@ -1249,7 +1255,7 @@ export default function FeedPage() {
                   preload={
                     index === activeIndex
                       ? 'auto'
-                      : index === activeIndex + 1
+                      : index === activeIndex - 1 || index === activeIndex + 1
                       ? 'metadata'
                       : 'none'
                   }

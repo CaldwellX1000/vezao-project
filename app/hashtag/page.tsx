@@ -50,6 +50,7 @@ function HashtagContent() {
           id,
           caption,
           video_url,
+          thumbnail_url,
           likes_count,
           comments_count,
           created_at,
@@ -60,6 +61,7 @@ function HashtagContent() {
             avatar_url
           )
         `)
+        .eq('is_draft', false)
         .ilike('caption', `%#${tag}%`)
         .order('created_at', { ascending: false })
         .limit(50)
@@ -106,12 +108,12 @@ function HashtagContent() {
 
   return (
     <div className="h-screen bg-black overflow-y-scroll snap-y snap-mandatory pb-16">
-      <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-12 bg-gradient-to-b from-black/80 to-transparent">
-        <button onClick={() => router.back()} className="text-white text-lg font-bold">
+      <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-12 bg-gradient-to-b from-[#0b0614]/90 via-[#0b0614]/50 to-transparent backdrop-blur-[2px]">
+        <button onClick={() => router.back()} className="text-purple-300 text-lg font-bold">
           ←
         </button>
         <h1 className="text-white font-semibold text-sm">#{tag}</h1>
-        <span className="text-white/50 text-xs ml-1">{videos.length} video</span>
+        <span className="text-purple-400/60 text-xs ml-1">{videos.length} video</span>
 
         <button onClick={() => setIsMuted(!isMuted)} className="ml-auto">
           <div className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center border border-white/10">
@@ -130,9 +132,13 @@ function HashtagContent() {
       </div>
 
       {videos.length === 0 ? (
-        <div className="h-screen flex flex-col items-center justify-center text-gray-500 gap-2">
-          <p>Belum ada video dengan #{tag}</p>
-          <button onClick={() => router.back()} className="text-purple-400 text-sm mt-2">
+        <div className="h-screen flex flex-col items-center justify-center px-6 text-center gap-2">
+          <div className="w-14 h-14 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-2">
+            <span className="text-2xl text-purple-400/80">#</span>
+          </div>
+          <p className="text-sm font-medium text-white">Belum ada video</p>
+          <p className="text-xs text-gray-500">Tidak ada postingan dengan #{tag}</p>
+          <button onClick={() => router.back()} className="text-purple-400 text-sm mt-3 font-medium">
             Kembali
           </button>
         </div>
@@ -147,11 +153,12 @@ function HashtagContent() {
                 videoRefs.current[index] = el
               }}
               src={video.video_url}
+              poster={(video as any).thumbnail_url || undefined}
               className="absolute inset-0 w-full h-full object-cover"
               loop
               muted={isMuted}
               playsInline
-              preload="auto"
+              preload={index < 2 ? 'auto' : 'metadata'}
               onClick={(e) => {
                 const vid = e.currentTarget
                 if (vid.paused) vid.play().catch(() => {})
@@ -163,7 +170,9 @@ function HashtagContent() {
 
             <div className="absolute bottom-20 left-4 right-4 text-white z-10">
               <p
-                onClick={() => router.push(`/user-profile?userId=${video.user_id}`)}
+                onClick={() =>
+                  router.push(`/@${video.profiles?.username || video.user_id}`)
+                }
                 className="font-semibold text-sm mb-1 cursor-pointer"
               >
                 @{video.profiles?.username || 'user'}

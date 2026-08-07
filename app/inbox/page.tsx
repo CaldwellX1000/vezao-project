@@ -537,17 +537,16 @@ export default function InboxPage() {
   return (
     <div className="min-h-screen bg-black text-white pb-20">
       <div className="sticky top-0 z-50 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20">
-        <div className="px-4 h-14 flex items-center justify-between">
-          <h1 className="text-lg font-bold">Inbox</h1>
-          {tab === 'activity' && notifUnread > 0 && (
+        {tab === 'activity' && notifUnread > 0 ? (
+          <div className="px-4 h-10 flex items-center justify-end">
             <button
               onClick={markAllNotifRead}
               className="text-xs text-purple-400 font-medium"
             >
               Tandai semua dibaca
             </button>
-          )}
-        </div>
+          </div>
+        ) : null}
 
         <div className="pb-2">
           <StoryBar />

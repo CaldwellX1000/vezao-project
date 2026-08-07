@@ -84,7 +84,7 @@ export default function SettingsPage() {
       }
 
       try {
-        const raw = localStorage.getItem('vezao_notif_prefs')
+        const raw = localStorage.getItem('serulo_notif_prefs')
         if (raw) setNotif({ ...DEFAULT_NOTIF, ...JSON.parse(raw) })
       } catch {}
 
@@ -115,7 +115,7 @@ export default function SettingsPage() {
     setNotif((prev) => {
       const next = { ...prev, [key]: !prev[key] }
       try {
-        localStorage.setItem('vezao_notif_prefs', JSON.stringify(next))
+        localStorage.setItem('serulo_notif_prefs', JSON.stringify(next))
       } catch {}
       return next
     })
@@ -151,8 +151,8 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-24">
-      <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10 px-4 h-12 flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-lg font-bold w-8">
+      <div className="sticky top-0 z-50 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20 px-4 h-12 flex items-center gap-3">
+        <button onClick={() => router.back()} className="text-lg font-bold w-8 text-purple-300">
           ←
         </button>
         <h1 className="font-semibold text-base">Settings</h1>
@@ -162,7 +162,7 @@ export default function SettingsPage() {
         {/* Profile summary */}
         <button
           onClick={() => router.push('/profile')}
-          className="w-full flex items-center gap-3 p-3 rounded-2xl bg-zinc-900 border border-white/5 active:bg-white/5"
+          className="w-full flex items-center gap-3 p-3 rounded-2xl bg-zinc-900/90 border border-purple-500/15 active:bg-purple-500/5"
         >
           <div className="w-12 h-12 rounded-full bg-vezao-gradient flex items-center justify-center text-lg font-bold shrink-0">
             {(fullName || username || 'U')[0]?.toUpperCase()}
@@ -178,10 +178,10 @@ export default function SettingsPage() {
 
         {/* Akun */}
         <section>
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 px-1">
+          <p className="text-xs text-purple-400/60 uppercase tracking-wide mb-2 px-1">
             Akun
           </p>
-          <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-white/5">
+          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
             <div className="px-4 py-3.5 flex items-center justify-between border-b border-white/5">
               <span className="text-sm text-gray-400">Username</span>
               <span className="text-sm font-medium">@{username || 'user'}</span>
@@ -207,10 +207,10 @@ export default function SettingsPage() {
 
         {/* Privasi */}
         <section>
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 px-1">
+          <p className="text-xs text-purple-400/60 uppercase tracking-wide mb-2 px-1">
             Privasi & keamanan
           </p>
-          <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-white/5">
+          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
             <button
               onClick={togglePrivate}
               disabled={saving}
@@ -250,13 +250,13 @@ export default function SettingsPage() {
 
         {/* Notifikasi (preferensi lokal) */}
         <section>
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 px-1">
+          <p className="text-xs text-purple-400/60 uppercase tracking-wide mb-2 px-1">
             Notifikasi
           </p>
           <div className="mb-3">
             <PushEnable />
           </div>
-          <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-white/5">
+          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
             {(
               [
                 { key: 'likes' as const, label: 'Suka', desc: 'Saat video kamu di-like' },
@@ -299,10 +299,10 @@ export default function SettingsPage() {
 
         {/* Tampilan */}
         <section>
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 px-1">
+          <p className="text-xs text-purple-400/60 uppercase tracking-wide mb-2 px-1">
             Tampilan
           </p>
-          <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-white/5">
+          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
             <div className="px-4 py-3.5 flex items-center justify-between gap-3">
               <div className="text-left pr-2">
                 <p className="text-sm font-medium">Mode tampilan</p>
@@ -338,10 +338,10 @@ export default function SettingsPage() {
 
         {/* Admin + tentang */}
         <section>
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 px-1">
+          <p className="text-xs text-purple-400/60 uppercase tracking-wide mb-2 px-1">
             Lainnya
           </p>
-          <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-white/5">
+          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
             {isAdmin && (
               <button
                 onClick={() => router.push('/admin')}
@@ -365,7 +365,7 @@ export default function SettingsPage() {
             </button>
             <div className="px-4 py-3.5 flex items-center justify-between border-b border-white/5">
               <span className="text-sm text-gray-400">Versi</span>
-              <span className="text-sm text-gray-500">VEZAO 1.0</span>
+              <span className="text-sm text-gray-500">SERULO 1.0</span>
             </div>
             <button
               onClick={handleLogout}
@@ -377,7 +377,7 @@ export default function SettingsPage() {
         </section>
 
         <p className="text-center text-[11px] text-gray-600 pt-2 pb-6">
-          vezao.fun
+          serulo.app
         </p>
       </div>
     </div>
