@@ -713,8 +713,11 @@ const list = published || []
               <button
                 onClick={() => setShowMenu(!showMenu)}
                 className="w-10 h-10 flex items-center justify-center"
+                aria-label="Menu"
               >
-                <img src="/setting.png" alt="" className="w-9 h-9 object-contain" />
+                <span className="text-2xl leading-none text-purple-400 font-bold tracking-widest">
+                  ⋯
+                </span>
               </button>
 
  {showMenu && (

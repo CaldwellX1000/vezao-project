@@ -893,7 +893,7 @@ export default function SingleVideoPage() {
     const url = `${window.location.origin}/v/${shareVideoId}`
     if (typeof navigator.share === 'function') {
       try {
-        await navigator.share({ title: 'VEZAO', text: 'Lihat video ini di VEZAO!', url })
+        await navigator.share({ title: 'SERULO', text: 'Lihat video ini di SERULO!', url })
         const video = videos.find((v) => v.id === shareVideoId)
         const nextCount = (video?.shares_count || 0) + 1
         setVideos((prev) =>
@@ -1590,7 +1590,7 @@ export default function SingleVideoPage() {
               <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-3" />
               <h3 className="text-center font-semibold mb-1">Kirim video</h3>
               <p className="text-center text-xs text-gray-400 mb-4">
-                Ke teman VEZAO atau app lain
+                Ke teman SERULO atau app lain
               </p>
               <button
                 onClick={shareToOtherApps}

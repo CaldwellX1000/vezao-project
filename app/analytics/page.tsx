@@ -86,8 +86,8 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-24">
-      <div className="sticky top-0 z-40 bg-black/95 border-b border-white/10 px-4 h-14 flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-lg font-bold">
+      <div className="sticky top-0 z-40 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20 px-4 h-14 flex items-center gap-3">
+        <button onClick={() => router.back()} className="text-lg font-bold text-purple-300">
           ←
         </button>
         <h1 className="font-semibold">Analytics</h1>
@@ -126,7 +126,7 @@ export default function AnalyticsPage() {
         ].map((card) => (
           <div
             key={card.label}
-            className="rounded-2xl bg-zinc-900 border border-white/5 p-4"
+            className="rounded-2xl bg-zinc-900/90 border border-purple-500/15 p-4"
           >
             <p className="text-xs text-gray-400">{card.label}</p>
             <p className="text-2xl font-bold mt-1">
@@ -137,16 +137,22 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="px-4 mt-6">
-        <p className="text-sm font-semibold text-gray-300 mb-3">Top video</p>
+        <p className="text-sm font-semibold text-purple-400/80 mb-3">Top video</p>
         {topVideos.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-8">Belum ada data</p>
+          <div className="flex flex-col items-center py-12 px-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-3 text-xl">
+              📊
+            </div>
+            <p className="text-sm font-medium text-white">Belum ada data</p>
+            <p className="text-xs text-gray-500 mt-1">Upload video untuk lihat analytics</p>
+          </div>
         ) : (
           <div className="space-y-2">
             {topVideos.map((v, i) => (
               <button
                 key={v.id}
                 onClick={() => router.push(`/v/${v.id}`)}
-                className="w-full flex items-center gap-3 p-2 rounded-xl bg-zinc-900/80 border border-white/5 active:bg-white/5 text-left"
+                className="w-full flex items-center gap-3 p-2 rounded-xl bg-zinc-900/90 border border-purple-500/15 active:bg-purple-500/5 text-left"
               >
                 <span className="text-sm text-gray-500 w-5 text-center">
                   {i + 1}
