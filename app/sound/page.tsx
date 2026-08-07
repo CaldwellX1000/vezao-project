@@ -73,11 +73,11 @@ function SoundContent() {
   return (
     <div className="min-h-screen bg-black text-white pb-20">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10">
+      <div className="sticky top-0 z-50 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20">
         <div className="px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => router.back()}
-            className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-lg"
+            className="w-9 h-9 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-lg text-purple-300"
           >
             ←
           </button>
@@ -86,7 +86,7 @@ function SoundContent() {
 
         {/* Sound info card */}
         <div className="px-4 pb-4">
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-900/80 border border-white/5">
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-900/90 border border-purple-500/15">
             <div className="w-14 h-14 rounded-xl bg-vezao-gradient flex items-center justify-center text-2xl shrink-0 shadow-lg shadow-purple-500/20">
               🎵
             </div>
@@ -121,8 +121,8 @@ function SoundContent() {
           ))}
         </div>
       ) : videos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center pt-28 text-gray-400 gap-3 px-8">
-          <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center text-3xl">
+        <div className="flex flex-col items-center justify-center pt-28 gap-3 px-8">
+          <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-3xl">
             🎵
           </div>
           <div className="text-center">
