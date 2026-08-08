@@ -5,6 +5,8 @@ import InstallPrompt from "@/components/InstallPrompt";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import PushPrompt from '@/components/PushPrompt'
 import ToastHost from '@/components/ToastHost'
+import DesktopSidebar from '@/components/DesktopSidebar'
+import DesktopRightRail from '@/components/DesktopRightRail'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -52,10 +54,13 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${lexend.variable} h-full antialiased`}
     >
-      <body className={`${lexend.className} min-h-full flex flex-col`}>
-        <ThemeProvider>
-          {children}
-<ToastHost />
+      <body className={`${lexend.className} min-h-full flex flex-col overflow-hidden`}>
+                        <ThemeProvider>
+          <DesktopSidebar />
+          <div className="md:pl-[72px] lg:pl-56 h-[100dvh] flex flex-col overflow-hidden">
+            {children}
+          </div>
+          <ToastHost />
           <InstallPrompt />
           <PushPrompt />
         </ThemeProvider>

@@ -1173,8 +1173,8 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="h-screen w-full bg-black">
-      <div className="h-screen w-full max-w-[480px] mx-auto bg-black text-white overflow-hidden relative">
+    <div className="h-[100dvh] w-full bg-black flex justify-center overflow-hidden">
+      <div className="h-[100dvh] w-full max-w-[480px] lg:max-w-[520px] bg-black text-white overflow-hidden relative border-x border-white/5">
         <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-center gap-6 pt-3 pb-4 pointer-events-none bg-gradient-to-b from-[#0b0614]/85 via-[#0b0614]/40 to-transparent backdrop-blur-[2px]">
           <button
             onClick={() => setFeedTab('following')}
@@ -1196,12 +1196,14 @@ export default function FeedPage() {
 
         <div
           ref={containerRef}
-          className="h-[100dvh] overflow-y-scroll snap-y snap-mandatory overscroll-y-contain pb-16"
+          className="h-[100dvh] overflow-y-scroll snap-y snap-mandatory overscroll-y-contain pb-16 md:pb-0 scrollbar-hide"
           style={{
             scrollSnapType: 'y mandatory',
             WebkitOverflowScrolling: 'touch',
             overscrollBehaviorY: 'contain',
             paddingTop: pullDistance > 0 ? pullDistance : 0,
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
           }}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
@@ -1282,7 +1284,6 @@ export default function FeedPage() {
                   }}
                 />
 
-                {/* Progress bar short */}
                 <div className="absolute top-0 left-0 right-0 z-20 h-[2.5px] bg-white/25 pointer-events-none">
                   <div
                     className="h-full bg-white"
@@ -1296,7 +1297,7 @@ export default function FeedPage() {
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
-                <div className="absolute bottom-20 left-4 right-20 text-white z-10">
+                <div className="absolute bottom-20 md:bottom-8 left-4 right-20 text-white z-10">
                   <div className="flex items-center gap-2 mb-1.5">
                     <div
                       className="flex items-center gap-2 cursor-pointer"
@@ -1383,7 +1384,6 @@ export default function FeedPage() {
                     </div>
                   )}
 
-                  {/* Sound + waktu hanya muncul saat expanded */}
                   {expandedCaptions.has(video.id) && (
                     <div className="mt-1.5 space-y-0.5">
                       <p
@@ -1409,10 +1409,10 @@ export default function FeedPage() {
                   )}
                 </div>
 
-                                  <div className="absolute right-1.5 bottom-24 flex flex-col items-center gap-2.5 z-10">
+                <div className="absolute right-1.5 bottom-20 md:bottom-6 flex flex-col items-center gap-2 z-10">
                   <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
                         likedVideos.has(video.id)
                           ? 'bg-red-500'
                           : 'bg-black/45 border border-white/10'
@@ -1420,7 +1420,7 @@ export default function FeedPage() {
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5 text-white"
+                        className="w-4 h-4 text-white"
                         fill={likedVideos.has(video.id) ? 'currentColor' : 'none'}
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -1442,10 +1442,10 @@ export default function FeedPage() {
                     onClick={() => openComments(video.id)}
                     className="flex flex-col items-center"
                   >
-                    <div className="w-10 h-10 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5 text-white"
+                        className="w-4 h-4 text-white"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -1464,10 +1464,10 @@ export default function FeedPage() {
                   </button>
 
                   <button onClick={() => toggleSave(video.id)} className="flex flex-col items-center">
-                    <div className="w-10 h-10 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className={`w-5 h-5 ${
+                        className={`w-4 h-4 ${
                           savedVideos.has(video.id) ? 'text-yellow-400' : 'text-white'
                         }`}
                         fill={savedVideos.has(video.id) ? 'currentColor' : 'none'}
@@ -1488,10 +1488,10 @@ export default function FeedPage() {
                   </button>
 
                   <button onClick={() => openShare(video.id)} className="flex flex-col items-center">
-                    <div className="w-10 h-10 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5 text-white"
+                        className="w-4 h-4 text-white"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -1511,7 +1511,7 @@ export default function FeedPage() {
 
                   <button
                     onClick={() => setShowMore(video.id)}
-                    className="w-10 h-10 rounded-full bg-black/45 border border-white/10 flex items-center justify-center"
+                    className="w-8 h-8 rounded-full bg-black/45 border border-white/10 flex items-center justify-center"
                   >
                     <span className="text-sm leading-none text-white">⋯</span>
                   </button>

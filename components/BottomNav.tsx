@@ -121,7 +121,7 @@ export default function BottomNav() {
     isActive(path) ? 'text-pink-400 font-semibold' : 'text-white/40'
 
    return (
-    <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t border-white/10 h-16 flex items-center justify-around z-50">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-black/95 border-t border-white/10 h-16 flex items-center justify-around z-50">
       <Link href="/" className="flex flex-col items-center gap-0.5">
         <svg
           xmlns="http://www.w3.org/2000/svg"
