@@ -16,6 +16,15 @@ const COUNTRIES = [
 ]
 
 const GENDERS = ['Laki-laki', 'Perempuan', 'Lainnya']
+function localeFromCountry(country: string): string {
+  const c = (country || '').toLowerCase()
+  if (c.includes('vietnam')) return 'vi'
+  if (c.includes('indonesia')) return 'id'
+  if (c.includes('malaysia')) return 'id'
+  if (c.includes('singapore') || c.includes('philippines') || c.includes('thailand'))
+    return 'en'
+  return 'en'
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -243,6 +252,7 @@ export default function LoginPage() {
             age: ageNum,
             gender,
             country,
+            locale: localeFromCountry(country),
           })
         }
 
