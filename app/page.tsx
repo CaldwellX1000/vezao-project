@@ -208,6 +208,13 @@ export default function FeedPage() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [expandedCaptions, setExpandedCaptions] = useState<Set<string>>(new Set())
+  const [autoScroll, setAutoScroll] = useState(true)
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('serulo_auto_scroll') === '0') setAutoScroll(false)
+    } catch {}
+  }, [])
 
   const PAGE_SIZE = 5
 
@@ -1252,7 +1259,7 @@ export default function FeedPage() {
                   }
                   poster={video.thumbnail_url || undefined}
                   className="absolute inset-0 w-full h-full object-cover"
-                  loop
+                  loop={!autoScroll}
                   muted={isMuted}
                   playsInline
                   preload={
@@ -1281,6 +1288,28 @@ export default function FeedPage() {
                   onEnded={(e) => {
                     setProgressMap((prev) => ({ ...prev, [video.id]: 0 }))
                     void flushWatch(video.id, e.currentTarget.duration)
+
+                    if (!autoScroll) return
+                    const next = index + 1
+                    if (next >= videos.length) {
+                      // video terakhir → putar ulang
+                      e.currentTarget.currentTime = 0
+                      e.currentTarget.play().catch(() => {})
+                      return
+                    }
+                    const container = containerRef.current
+                    if (!container) return
+                    const items = container.querySelectorAll('.feed-item')
+                    const el = items[next] as HTMLElement | undefined
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    } else {
+                      container.scrollTo({
+                        top: next * container.clientHeight,
+                        behavior: 'smooth',
+                      })
+                    }
+                    if (next >= videos.length - 2) loadMore()
                   }}
                 />
 
@@ -1866,9 +1895,29 @@ export default function FeedPage() {
         {showMore && (
           <div className="fixed inset-0 z-[70] flex items-end">
             <div className="absolute inset-0 bg-black/60" onClick={() => setShowMore(null)} />
-            <div className="relative w-full bg-zinc-900 rounded-t-2xl p-4 pb-10">
-              <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-6" />
-              <div className="grid grid-cols-4 gap-4 text-center">
+                        <div className="relative w-full max-w-[480px] mx-auto bg-zinc-900 rounded-t-2xl p-4 pb-8">
+              <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-4" />
+              <div className="space-y-1">
+                <button
+                  onClick={() => {
+                    const next = !autoScroll
+                    setAutoScroll(next)
+                    try {
+                      localStorage.setItem('serulo_auto_scroll', next ? '1' : '0')
+                    } catch {}
+                    setShowMore(null)
+                    queueMicrotask(() => {
+                      toast(next ? 'Gulir otomatis ON' : 'Gulir otomatis OFF', 'success')
+                    })
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl active:bg-white/5 text-left"
+                >
+                  <span className="text-lg w-7 text-center">{autoScroll ? '⏬' : '⏸️'}</span>
+                  <span className="text-sm">
+                    Gulir otomatis · {autoScroll ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+
                 <button
                   onClick={async () => {
                     const url = `${window.location.origin}/v/${showMore}`
@@ -1880,12 +1929,10 @@ export default function FeedPage() {
                     }
                     setShowMore(null)
                   }}
-                  className="flex flex-col items-center gap-1"
+                  className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl active:bg-white/5 text-left"
                 >
-                  <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
-                    🔗
-                  </div>
-                  <span className="text-xs">Salin tautan</span>
+                  <span className="text-lg w-7 text-center">🔗</span>
+                  <span className="text-sm">Salin tautan</span>
                 </button>
 
                 {allVideos.find((v) => v.id === showMore)?.user_id === userId ? (
@@ -1895,21 +1942,17 @@ export default function FeedPage() {
                         setShowMore(null)
                         router.push(`/upload?draft=${showMore}`)
                       }}
-                      className="flex flex-col items-center gap-1"
+                      className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl active:bg-white/5 text-left"
                     >
-                      <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
-                        ✏️
-                      </div>
-                      <span className="text-xs">Edit</span>
+                      <span className="text-lg w-7 text-center">✏️</span>
+                      <span className="text-sm">Edit</span>
                     </button>
                     <button
                       onClick={() => handleDeleteVideo(showMore)}
-                      className="flex flex-col items-center gap-1"
+                      className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl active:bg-white/5 text-left"
                     >
-                      <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
-                        🗑️
-                      </div>
-                      <span className="text-xs text-red-400">Hapus</span>
+                      <span className="text-lg w-7 text-center">🗑️</span>
+                      <span className="text-sm text-red-400">Hapus</span>
                     </button>
                   </>
                 ) : (
@@ -1925,40 +1968,33 @@ export default function FeedPage() {
                         setAllVideos((prev) => prev.filter((v) => v.id !== showMore))
                         setShowMore(null)
                       }}
-                      className="flex flex-col items-center gap-1"
+                      className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl active:bg-white/5 text-left"
                     >
-                      <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
-                        👎
-                      </div>
-                      <span className="text-xs">Tidak tertarik</span>
+                      <span className="text-lg w-7 text-center">👎</span>
+                      <span className="text-sm">Tidak tertarik</span>
                     </button>
                     <button
                       onClick={() => {
                         setReportVideoId(showMore)
                         setShowMore(null)
                       }}
-                      className="flex flex-col items-center gap-1"
+                      className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl active:bg-white/5 text-left"
                     >
-                      <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
-                        🚩
-                      </div>
-                      <span className="text-xs text-orange-400">Report</span>
+                      <span className="text-lg w-7 text-center">🚩</span>
+                      <span className="text-sm text-orange-400">Report</span>
                     </button>
                   </>
                 )}
 
                 <button
                   onClick={() => setShowMore(null)}
-                  className="flex flex-col items-center gap-1"
+                  className="w-full py-3 text-sm text-gray-400 mt-1"
                 >
-                  <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg">
-                    ✕
-                  </div>
-                  <span className="text-xs">Tutup</span>
+                  Tutup
                 </button>
               </div>
             </div>
-          </div>
+            </div>
         )}
 
         {reportVideoId && (
