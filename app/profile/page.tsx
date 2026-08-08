@@ -98,6 +98,12 @@ export default function ProfilePage() {
   const [editBio, setEditBio] = useState('')
   const [editWebsite, setEditWebsite] = useState('')
 
+  const [editVideoId, setEditVideoId] = useState<string | null>(null)
+  const [editCaption, setEditCaption] = useState('')
+  const [editVisibility, setEditVisibility] = useState<'public' | 'followers' | 'private'>('public')
+  const [editSaving, setEditSaving] = useState(false)
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -614,6 +620,40 @@ const list = published || []
     }
   }
 
+  const openEditVideo = (video: Video) => {
+    if (activeTab !== 'videos' && activeTab !== 'private') return
+    setEditVideoId(video.id)
+    setEditCaption(video.caption || '')
+    const vis = String(video.visibility || 'public')
+      .toLowerCase()
+      .replace(/['"]/g, '')
+      .trim()
+    setEditVisibility(
+      vis === 'private' ? 'private' : vis === 'followers' ? 'followers' : 'public'
+    )
+  }
+
+  const saveEditVideo = async () => {
+    if (!userId || !editVideoId) return
+    setEditSaving(true)
+    const { error } = await supabase
+      .from('videos')
+      .update({
+        caption: editCaption.trim() || null,
+        visibility: editVisibility,
+      })
+      .eq('id', editVideoId)
+      .eq('user_id', userId)
+    setEditSaving(false)
+    if (error) {
+      toast('Gagal simpan: ' + error.message, 'error')
+      return
+    }
+    await loadVideos(userId)
+    setEditVideoId(null)
+    toast('Video diperbarui', 'success')
+  }
+
   const totalLikes = videos.reduce((sum, v) => sum + (v.likes_count || 0), 0)
 
   const displayVideos =
@@ -1058,6 +1098,21 @@ const list = published || []
                         if (!video.id) return
                         router.push(`/v/${video.id}`)
                       }}
+                      onPointerDown={() => {
+                        if (activeTab !== 'videos' && activeTab !== 'private') return
+                        longPressRef.current = setTimeout(() => {
+                          openEditVideo(video)
+                        }, 450)
+                      }}
+                      onPointerUp={() => {
+                        if (longPressRef.current) clearTimeout(longPressRef.current)
+                      }}
+                      onPointerLeave={() => {
+                        if (longPressRef.current) clearTimeout(longPressRef.current)
+                      }}
+                      onPointerCancel={() => {
+                        if (longPressRef.current) clearTimeout(longPressRef.current)
+                      }}
                       className="absolute inset-0 cursor-pointer"
                     />
                     {activeTab === 'videos' && video.is_pinned === true && (
@@ -1341,6 +1396,69 @@ const list = published || []
               className="text-xs text-gray-400 underline"
             >
               Reset posisi
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editVideoId && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setEditVideoId(null)}
+          />
+          <div className="relative w-full max-w-[480px] bg-zinc-900 rounded-t-2xl p-4 pb-8">
+            <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-4" />
+            <h3 className="text-center font-semibold mb-1">Edit video</h3>
+            <p className="text-center text-xs text-gray-500 mb-4">
+              Tahan thumbnail di grid untuk membuka
+            </p>
+
+            <label className="text-xs text-gray-400 mb-1.5 block">Caption</label>
+            <textarea
+              value={editCaption}
+              onChange={(e) => setEditCaption(e.target.value)}
+              rows={4}
+              className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white resize-none focus:outline-none focus:ring-1 focus:ring-pink-400 mb-4"
+              placeholder="Caption... #tag @teman"
+            />
+
+            <label className="text-xs text-gray-400 mb-1.5 block">Visibilitas</label>
+            <div className="space-y-1 mb-5">
+              {(
+                [
+                  ['public', 'Semua orang'],
+                  ['followers', 'Hanya followers'],
+                  ['private', 'Hanya saya'],
+                ] as const
+              ).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setEditVisibility(val)}
+                  className={`w-full text-left px-3 py-3 rounded-xl text-sm ${
+                    editVisibility === val
+                      ? 'bg-white/10 border border-pink-400/50'
+                      : 'bg-zinc-800 border border-transparent'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={saveEditVideo}
+              disabled={editSaving}
+              className="w-full bg-vezao-gradient py-3 rounded-full text-sm font-semibold disabled:opacity-50"
+            >
+              {editSaving ? 'Menyimpan...' : 'Simpan'}
+            </button>
+            <button
+              onClick={() => setEditVideoId(null)}
+              className="w-full mt-2 py-3 text-sm text-gray-400"
+            >
+              Batal
             </button>
           </div>
         </div>
