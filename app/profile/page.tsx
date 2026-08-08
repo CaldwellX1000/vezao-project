@@ -715,7 +715,7 @@ const list = published || []
                 className="w-10 h-10 flex items-center justify-center"
                 aria-label="Menu"
               >
-                <span className="text-2xl leading-none text-purple-400 font-bold tracking-widest">
+                <span className="text-2xl leading-none text-white/70 font-bold tracking-widest">
                   ⋯
                 </span>
               </button>
@@ -793,7 +793,7 @@ const list = published || []
             </h1>
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="w-10 h-10 text-white shrink-0"
+              className="w-4 h-4 text-white/60 shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -827,7 +827,7 @@ const list = published || []
           </a>
         )}
 
-        <div className="flex justify-around mt-4 py-3.5 rounded-2xl border border-purple-500/25 overflow-hidden bg-[url('/bg1.png')] bg-cover bg-center">
+        <div className="flex justify-around mt-4 py-3.5 rounded-2xl border border-white/10 overflow-hidden bg-zinc-900/80">
           <div className="text-center flex-1">
             <p className="font-bold text-lg">{videos.length}</p>
             <p className="text-[11px] text-gray-400 mt-0.5">Videos</p>
@@ -857,12 +857,12 @@ const list = published || []
         <button
           onClick={() => setActiveTab('videos')}
           className={`flex-1 py-3 flex justify-center ${
-            activeTab === 'videos' ? 'border-b-2 border-purple-400' : ''
+            activeTab === 'videos' ? 'border-b-2 border-pink-400' : ''
           }`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className={`w-5 h-5 ${activeTab === 'videos' ? 'text-purple-400' : 'text-purple-400/45'}`}
+            className={`w-5 h-5 ${activeTab === 'videos' ? 'text-pink-400' : 'text-white/40'}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -879,12 +879,12 @@ const list = published || []
         <button
           onClick={() => setActiveTab('private')}
           className={`flex-1 py-3 flex justify-center ${
-            activeTab === 'private' ? 'border-b-2 border-purple-400' : ''
+            activeTab === 'private' ? 'border-b-2 border-pink-400' : ''
           }`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className={`w-5 h-5 ${activeTab === 'private' ? 'text-purple-400' : 'text-purple-400/45'}`}
+            className={`w-5 h-5 ${activeTab === 'private' ? 'text-pink-400' : 'text-white/40'}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -901,12 +901,12 @@ const list = published || []
         <button
           onClick={() => setActiveTab('liked')}
           className={`flex-1 py-3 flex justify-center ${
-            activeTab === 'liked' ? 'border-b-2 border-purple-400' : ''
+            activeTab === 'liked' ? 'border-b-2 border-pink-400' : ''
           }`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className={`w-5 h-5 ${activeTab === 'liked' ? 'text-purple-400' : 'text-purple-400/45'}`}
+            className={`w-5 h-5 ${activeTab === 'liked' ? 'text-pink-400' : 'text-white/40'}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -923,12 +923,12 @@ const list = published || []
         <button
           onClick={() => setActiveTab('saved')}
           className={`flex-1 py-3 flex justify-center ${
-            activeTab === 'saved' ? 'border-b-2 border-purple-400' : ''
+            activeTab === 'saved' ? 'border-b-2 border-pink-400' : ''
           }`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className={`w-5 h-5 ${activeTab === 'saved' ? 'text-purple-400' : 'text-purple-400/45'}`}
+            className={`w-5 h-5 ${activeTab === 'saved' ? 'text-pink-400' : 'text-white/40'}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -945,12 +945,12 @@ const list = published || []
         <button
           onClick={() => setActiveTab('drafts')}
           className={`flex-1 py-3 flex justify-center relative ${
-            activeTab === 'drafts' ? 'border-b-2 border-purple-400' : ''
+            activeTab === 'drafts' ? 'border-b-2 border-pink-400' : ''
           }`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className={`w-5 h-5 ${activeTab === 'drafts' ? 'text-purple-400' : 'text-purple-400/45'}`}
+            className={`w-5 h-5 ${activeTab === 'drafts' ? 'text-pink-400' : 'text-white/40'}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -1250,7 +1250,7 @@ const list = published || []
                   {active && (
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="w-10 h-10 text-purple-400 shrink-0"
+                      className="w-10 h-10 text-pink-400 shrink-0"
                       viewBox="0 0 24 24"
                       fill="currentColor"
                     >
@@ -1303,7 +1303,7 @@ const list = published || []
               type="button"
               onClick={confirmCoverUpload}
               disabled={uploadingCover}
-              className="text-sm font-semibold text-purple-400 disabled:opacity-50"
+              className="text-sm font-semibold text-pink-400 disabled:opacity-50"
             >
               {uploadingCover ? '...' : 'Simpan'}
             </button>
