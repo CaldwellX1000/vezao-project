@@ -7,6 +7,7 @@ import BottomNav from '@/components/BottomNav'
 import { insertNotification } from '@/lib/notify'
 import { toast } from '@/lib/toast'
 
+
 type Video = {
   id: string
   caption: string | null
