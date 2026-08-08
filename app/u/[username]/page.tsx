@@ -414,7 +414,7 @@ function ProfileByUsername() {
                   onClick={() => setShowMenu(!showMenu)}
                   className="w-9 h-9 bg-zinc-800/80 text-white rounded-full border border-white/10 flex items-center justify-center"
                 >
-                  <img src="/setting.png" alt="" className="w-7 h-7 object-contain" />
+                  <span className="text-lg leading-none tracking-widest">⋯</span>
                 </button>
 
                 {showMenu && (
@@ -540,7 +540,7 @@ function ProfileByUsername() {
           </a>
         )}
 
-        <div className="flex justify-around mt-4 py-3.5 rounded-2xl border border-purple-500/25 overflow-hidden bg-[url('/bg1.png')] bg-cover bg-center">
+        <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900/80 border border-white/10">
           <div className="text-center flex-1">
             <p className="font-bold text-lg">
               {canViewVideos ? videos.length : '—'}

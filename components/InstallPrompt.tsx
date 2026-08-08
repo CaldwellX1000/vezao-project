@@ -24,7 +24,7 @@ export default function InstallPrompt() {
     }
 
     // User pernah tutup banner?
-    if (localStorage.getItem('vezao_install_dismissed') === '1') return
+    if (localStorage.getItem('serulo_install_dismissed') === '1') return
 
     const ua = navigator.userAgent || ''
     const ios = /iPad|iPhone|iPod/.test(ua)
@@ -47,7 +47,7 @@ export default function InstallPrompt() {
 
   const dismiss = () => {
     setVisible(false)
-    localStorage.setItem('vezao_install_dismissed', '1')
+    localStorage.setItem('serulo_install_dismissed', '1')
   }
 
   const install = async () => {
@@ -69,12 +69,12 @@ export default function InstallPrompt() {
         <div className="w-11 h-11 rounded-xl overflow-hidden bg-zinc-800 shrink-0 border border-white/10">
           <img
             src="/icon-192.png"
-            alt="VEZAO"
+            alt="SERULO"
             className="w-full h-full object-cover"
           />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white">Pasang VEZAO</p>
+          <p className="text-sm font-semibold text-white">Pasang SERULO</p>
           {isIOS ? (
             <p className="text-xs text-gray-400 mt-1 leading-relaxed">
               Safari → tombol Share → <span className="text-white">Add to Home Screen</span>

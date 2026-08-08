@@ -524,7 +524,7 @@ function UserProfileContent() {
                   try {
                     if (navigator.share) {
                       await navigator.share({
-                        title: `${fullName || username} di VEZAO`,
+                        title: `${fullName || username} di SERULO`,
                         url,
                       })
                     } else {
@@ -625,7 +625,7 @@ function UserProfileContent() {
           </a>
         )}
 
-        <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900/80 border border-white/5">
+        <div className="flex justify-around mt-4 py-3.5 rounded-2xl bg-zinc-900/80 border border-white/10">
           <div className="text-center flex-1">
             <p className="font-bold text-lg">
               {canViewVideos ? videos.length : '—'}

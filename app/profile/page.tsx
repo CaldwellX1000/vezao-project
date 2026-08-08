@@ -214,11 +214,6 @@ const list = published || []
       setEditWebsite(userWebsite)
       setEditIsPrivate(privateAcc)
 
-      // URL di browser jadi /@username
-      if (uname && uname !== 'user') {
-        window.history.replaceState(null, '', `/@${uname}`)
-      }
-
       await loadVideos(user.id)
 
       const { data: likes } = await supabase
