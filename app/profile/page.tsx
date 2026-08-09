@@ -358,6 +358,24 @@ const list = published || []
     setShowAccountSheet(false)
     router.push('/login?add=1')
   }
+    const cancelSchedule = async (videoId: string) => {
+    if (!confirm('Batalkan jadwal? Video jadi draft biasa.')) return
+    const { error } = await supabase
+      .from('videos')
+      .update({ scheduled_at: null, is_draft: true })
+      .eq('id', videoId)
+      .eq('user_id', userId!)
+    if (error) {
+      toast('Gagal: ' + error.message, 'error')
+      return
+    }
+    toast('Jadwal dibatalkan', 'success')
+    setVideos((prev) =>
+      prev.map((v) =>
+        v.id === videoId ? { ...v, scheduled_at: null } : v
+      )
+    )
+  }
 
   const deleteDraft = async (videoId: string) => {
     if (!confirm('Hapus draft ini?')) return
@@ -1162,39 +1180,62 @@ const list = published || []
                   />
                 )}
 
-                {activeTab === 'drafts' ? (
-                  <div
-                    onClick={() => router.push(`/upload?draft=${video.id}`)}
-                    className="absolute inset-0 bg-black/40 flex flex-col items-end justify-between p-1.5 cursor-pointer"
-                  >
+                                {activeTab === 'drafts' ? (
+                                    <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-1.5 p-2">
                     {video.scheduled_at ? (
-                      <span className="text-[9px] bg-purple-500 text-white px-1.5 py-0.5 rounded font-bold self-start">
-                        TERJADWAL
-                      </span>
+                      <>
+                        <span className="text-[9px] bg-pink-500 text-white px-2 py-0.5 rounded font-bold">
+                          TERJADWAL
+                        </span>
+                        <p className="text-[10px] text-white bg-black/60 rounded-full px-2.5 py-1 text-center">
+                          {new Date(video.scheduled_at).toLocaleString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                        <div className="flex gap-1.5 mt-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              router.push(`/upload?draft=${video.id}`)
+                            }}
+                            className="text-[10px] bg-black/70 text-white px-2.5 py-1 rounded-full"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void cancelSchedule(video.id)
+                            }}
+                            className="text-[10px] bg-black/70 text-red-400 px-2.5 py-1 rounded-full"
+                          >
+                            Batal
+                          </button>
+                        </div>
+                      </>
                     ) : (
-                      <span className="text-[9px] bg-yellow-500 text-black px-1.5 py-0.5 rounded font-bold">
-                        DRAFT
-                      </span>
-                    )}
-                    {video.scheduled_at ? (
-                      <span className="text-[9px] text-white bg-black/60 rounded px-1.5 py-0.5 self-start max-w-full truncate">
-                        {new Date(video.scheduled_at).toLocaleString('id-ID', {
-                          day: 'numeric',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    ) : (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          deleteDraft(video.id)
-                        }}
-                        className="text-[10px] bg-black/70 text-red-400 px-2 py-1 rounded-full"
-                      >
-                        Hapus
-                      </button>
+                      <>
+                        <span
+                          onClick={() => router.push(`/upload?draft=${video.id}`)}
+                          className="text-[9px] bg-yellow-500 text-black px-1.5 py-0.5 rounded font-bold cursor-pointer"
+                        >
+                          DRAFT
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteDraft(video.id)
+                          }}
+                          className="text-[10px] bg-black/70 text-red-400 px-2 py-1 rounded-full"
+                        >
+                          Hapus
+                        </button>
+                      </>
                     )}
                   </div>
                 ) : (
