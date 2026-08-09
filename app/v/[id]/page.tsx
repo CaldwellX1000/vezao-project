@@ -954,8 +954,8 @@ export default function SingleVideoPage() {
   }
 
   return (
-    <div className="fixed inset-0 z-0 bg-black">
-      <div className="relative h-full w-full max-w-[480px] mx-auto bg-black text-white overflow-hidden">
+    <div className="fixed inset-0 z-0 bg-black overflow-hidden">
+      <div className="relative h-full w-full max-w-[480px] mx-auto bg-black text-white overflow-hidden scrollbar-hide">
         <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-3 pt-3 pointer-events-none">
           <button
             onClick={() => router.back()}
@@ -990,7 +990,8 @@ export default function SingleVideoPage() {
         <div
           key={startVideoId}
           ref={containerRef}
-          className="h-full overflow-y-scroll snap-y snap-mandatory"
+          className="h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {videos.map((video, index) => {
             const isLiked = likedVideos.has(video.id)
