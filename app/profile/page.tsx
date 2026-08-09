@@ -786,6 +786,15 @@ const list = published || []
       >
         QR profil
       </button>
+            <button
+        onClick={() => {
+          setShowMenu(false)
+          router.push('/history')
+        }}
+        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
+      >
+        Riwayat tonton
+      </button>
       <button
         onClick={() => {
           setShowMenu(false)

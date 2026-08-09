@@ -150,7 +150,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-24">
+    <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-black text-white pb-28">
       <div className="sticky top-0 z-50 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20 px-4 h-12 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-lg font-bold w-8 text-purple-300">
           ←
