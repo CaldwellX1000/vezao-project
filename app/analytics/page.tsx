@@ -71,7 +71,12 @@ export default function AnalyticsPage() {
     saves: sum('saves_count'),
     shares: sum('shares_count'),
   }
-
+  const engagement =
+    totals.views > 0
+      ? ((totals.likes + totals.comments + totals.saves + totals.shares) /
+          totals.views) *
+        100
+      : 0
   const topVideos = [...filtered]
     .sort((a, b) => (b.views_count || 0) - (a.views_count || 0))
     .slice(0, 5)
@@ -85,9 +90,9 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-24">
+    <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-black text-white pb-24">
       <div className="sticky top-0 z-40 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20 px-4 h-14 flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-lg font-bold text-purple-300">
+        <button onClick={() => router.back()} className="text-lg font-bold text-pink-300">
           ←
         </button>
         <h1 className="font-semibold">Analytics</h1>
@@ -136,55 +141,67 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      <div className="px-4 mt-6">
-        <p className="text-sm font-semibold text-purple-400/80 mb-3">Top video</p>
-        {topVideos.length === 0 ? (
-          <div className="flex flex-col items-center py-12 px-6 text-center">
-            <div className="w-14 h-14 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-3 text-xl">
-              📊
-            </div>
-            <p className="text-sm font-medium text-white">Belum ada data</p>
-            <p className="text-xs text-gray-500 mt-1">Upload video untuk lihat analytics</p>
-          </div>
+      <div className="px-4 mt-6 mb-4">
+        <p className="text-sm font-semibold text-pink-400/80 mb-3">
+          Semua video ({filtered.length})
+        </p>
+        {filtered.length === 0 ? (
+          <p className="text-xs text-gray-500 text-center py-6">Tidak ada video di rentang ini</p>
         ) : (
           <div className="space-y-2">
-            {topVideos.map((v, i) => (
-              <button
-                key={v.id}
-                onClick={() => router.push(`/v/${v.id}`)}
-                className="w-full flex items-center gap-3 p-2 rounded-xl bg-zinc-900/90 border border-purple-500/15 active:bg-purple-500/5 text-left"
-              >
-                <span className="text-sm text-gray-500 w-5 text-center">
-                  {i + 1}
-                </span>
-                <div className="w-12 h-16 rounded-lg overflow-hidden bg-zinc-800 shrink-0">
-                  {v.thumbnail_url ? (
-                    <img
-                      src={v.thumbnail_url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <video
-                      src={v.video_url}
-                      className="w-full h-full object-cover"
-                      muted
-                      playsInline
-                      preload="metadata"
-                    />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm line-clamp-2">
-                    {v.caption || 'Tanpa caption'}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    ▶ {(v.views_count || 0).toLocaleString('id-ID')} · ♥{' '}
-                    {(v.likes_count || 0).toLocaleString('id-ID')}
-                  </p>
-                </div>
-              </button>
-            ))}
+            {filtered.map((v) => {
+              const views = v.views_count || 0
+              const eng =
+                views > 0
+                  ? (
+                      ((v.likes_count +
+                        (v.comments_count || 0) +
+                        (v.saves_count || 0) +
+                        (v.shares_count || 0)) /
+                        views) *
+                      100
+                    ).toFixed(1)
+                  : '0.0'
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => router.push(`/v/${v.id}`)}
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/90 border border-purple-500/15 active:bg-purple-500/5 text-left"
+                >
+                  <div className="w-12 h-16 rounded-lg overflow-hidden bg-zinc-800 shrink-0">
+                    {v.thumbnail_url ? (
+                      <img
+                        src={v.thumbnail_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <video
+                        src={v.video_url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm line-clamp-1">
+                      {v.caption || 'Tanpa caption'}
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                      ▶ {views.toLocaleString('id-ID')} · ♥{' '}
+                      {(v.likes_count || 0).toLocaleString('id-ID')} · 💬{' '}
+                      {(v.comments_count || 0).toLocaleString('id-ID')}
+                      <br />
+                      🔖 {(v.saves_count || 0).toLocaleString('id-ID')} · ↗{' '}
+                      {(v.shares_count || 0).toLocaleString('id-ID')} · ER {eng}%
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>

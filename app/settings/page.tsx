@@ -152,7 +152,7 @@ export default function SettingsPage() {
   return (
     <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-black text-white pb-28">
       <div className="sticky top-0 z-50 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20 px-4 h-12 flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-lg font-bold w-8 text-purple-300">
+        <button onClick={() => router.back()} className="text-lg font-bold w-8 text-pink-300">
           ←
         </button>
         <h1 className="font-semibold text-base">Settings</h1>
@@ -173,12 +173,12 @@ export default function SettingsPage() {
             </p>
             <p className="text-xs text-gray-400 truncate">@{username || 'user'}</p>
           </div>
-          <span className="text-xs text-purple-400 shrink-0">Edit profil ›</span>
+          <span className="text-xs text-pink-400 shrink-0">Edit profil ›</span>
         </button>
 
         {/* Akun */}
         <section>
-          <p className="text-xs text-purple-400/60 uppercase tracking-wide mb-2 px-1">
+          <p className="text-xs text-pink-400/60 uppercase tracking-wide mb-2 px-1">
             Akun
           </p>
           <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
@@ -200,14 +200,14 @@ export default function SettingsPage() {
               <span className="text-gray-500 text-lg">›</span>
             </button>
             {resetMsg && (
-              <p className="px-4 pb-3 text-xs text-purple-400">{resetMsg}</p>
+              <p className="px-4 pb-3 text-xs text-pink-400">{resetMsg}</p>
             )}
           </div>
         </section>
 
         {/* Privasi */}
         <section>
-          <p className="text-xs text-purple-400/60 uppercase tracking-wide mb-2 px-1">
+          <p className="text-xs text-pink-400/60 uppercase tracking-wide mb-2 px-1">
             Privasi & keamanan
           </p>
           <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
@@ -250,7 +250,7 @@ export default function SettingsPage() {
 
         {/* Notifikasi (preferensi lokal) */}
         <section>
-          <p className="text-xs text-purple-400/60 uppercase tracking-wide mb-2 px-1">
+          <p className="text-xs text-pink-400/60 uppercase tracking-wide mb-2 px-1">
             Notifikasi
           </p>
           <div className="mb-3">
@@ -299,7 +299,7 @@ export default function SettingsPage() {
 
         {/* Tampilan */}
         <section>
-          <p className="text-xs text-purple-400/60 uppercase tracking-wide mb-2 px-1">
+          <p className="text-xs text-pink-400/60 uppercase tracking-wide mb-2 px-1">
             Tampilan
           </p>
           <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
@@ -338,7 +338,7 @@ export default function SettingsPage() {
 
         {/* Admin + tentang */}
         <section>
-          <p className="text-xs text-purple-400/60 uppercase tracking-wide mb-2 px-1">
+          <p className="text-xs text-pink-400/60 uppercase tracking-wide mb-2 px-1">
             Lainnya
           </p>
           <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
@@ -348,7 +348,7 @@ export default function SettingsPage() {
                 className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5 border-b border-white/5"
               >
                 <div className="text-left">
-                  <p className="text-sm font-medium text-purple-400">Admin Panel</p>
+                  <p className="text-sm font-medium text-pink-400">Admin Panel</p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     Moderasi & analytics
                   </p>

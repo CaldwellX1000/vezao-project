@@ -1623,7 +1623,7 @@ export default function FeedPage() {
                                   <div className="flex gap-2">
                                     <button
                                       onClick={saveEditComment}
-                                      className="text-xs text-purple-400 font-medium"
+                                      className="text-xs text-pink-400 font-medium"
                                     >
                                       Simpan
                                     </button>
@@ -1655,7 +1655,7 @@ export default function FeedPage() {
                                     setEditingCommentId(null)
                                     setNewComment('')
                                   }}
-                                  className="text-[11px] text-purple-400 font-medium"
+                                  className="text-[11px] text-pink-400 font-medium"
                                 >
                                   Balas
                                 </button>
@@ -1729,7 +1729,7 @@ export default function FeedPage() {
                                           <div className="flex gap-2">
                                             <button
                                               onClick={saveEditComment}
-                                              className="text-[10px] text-purple-400"
+                                              className="text-[10px] text-pink-400"
                                             >
                                               Simpan
                                             </button>
@@ -1801,7 +1801,7 @@ export default function FeedPage() {
                   <div className="flex items-center justify-between px-1">
                     <p className="text-xs text-gray-400">
                       Membalas{' '}
-                      <span className="text-purple-400">
+                      <span className="text-pink-400">
                         @{replyTo.profiles?.username || 'user'}
                       </span>
                     </p>
@@ -2078,7 +2078,7 @@ export default function FeedPage() {
                         </p>
                         <p className="text-xs text-gray-400 truncate">@{f.username}</p>
                       </div>
-                      <span className="text-xs text-purple-400">
+                      <span className="text-xs text-pink-400">
                         {sharingTo === f.id ? '...' : 'Kirim'}
                       </span>
                     </button>

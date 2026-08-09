@@ -77,7 +77,7 @@ function SoundContent() {
         <div className="px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => router.back()}
-            className="w-9 h-9 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-lg text-purple-300"
+            className="w-9 h-9 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-lg text-pink-300"
           >
             ←
           </button>

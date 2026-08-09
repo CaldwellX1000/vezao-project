@@ -963,7 +963,7 @@ function UserVideosContent() {
                                   autoFocus
                                 />
                                 <div className="flex gap-2">
-                                  <button onClick={saveEditComment} className="text-xs text-purple-400 font-medium">
+                                  <button onClick={saveEditComment} className="text-xs text-pink-400 font-medium">
                                     Simpan
                                   </button>
                                   <button
@@ -988,7 +988,7 @@ function UserVideosContent() {
                                   setEditingCommentId(null)
                                   setNewComment('')
                                 }}
-                                className="text-[11px] text-purple-400 font-medium"
+                                className="text-[11px] text-pink-400 font-medium"
                               >
                                 Balas
                               </button>
@@ -1048,7 +1048,7 @@ function UserVideosContent() {
                                           autoFocus
                                         />
                                         <div className="flex gap-2">
-                                          <button onClick={saveEditComment} className="text-[10px] text-purple-400">
+                                          <button onClick={saveEditComment} className="text-[10px] text-pink-400">
                                             Simpan
                                           </button>
                                           <button
@@ -1107,7 +1107,7 @@ function UserVideosContent() {
               {replyTo && (
                 <div className="flex items-center justify-between px-1">
                   <p className="text-xs text-gray-400">
-                    Membalas <span className="text-purple-400">@{replyTo.profiles?.username || 'user'}</span>
+                    Membalas <span className="text-pink-400">@{replyTo.profiles?.username || 'user'}</span>
                   </p>
                   <button onClick={() => setReplyTo(null)} className="text-xs text-gray-500">
                     Batal

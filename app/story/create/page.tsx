@@ -231,7 +231,7 @@ export default function StoryCreatePage() {
         <button
           onClick={handleUpload}
           disabled={!file || uploading}
-          className="text-sm font-semibold text-purple-400 disabled:opacity-40"
+          className="text-sm font-semibold text-pink-400 disabled:opacity-40"
         >
           {uploading ? '...' : 'Bagikan'}
         </button>

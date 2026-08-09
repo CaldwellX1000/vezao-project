@@ -586,7 +586,7 @@ export default function AdminPage() {
                 setTab('reports')
                 setFilter('open')
               }}
-              className="text-xs text-purple-400 shrink-0"
+              className="text-xs text-pink-400 shrink-0"
             >
               Lihat
             </button>
@@ -784,7 +784,7 @@ export default function AdminPage() {
                 </div>
                 <button
                   onClick={() => setTab('reports')}
-                  className="text-xs text-purple-400 hover:underline"
+                  className="text-xs text-pink-400 hover:underline"
                 >
                   Lihat semua →
                 </button>
@@ -809,7 +809,7 @@ export default function AdminPage() {
                       {r.video_id && (
                         <button
                           onClick={() => router.push(`/v/${r.video_id}`)}
-                          className="text-[11px] text-purple-400 shrink-0"
+                          className="text-[11px] text-pink-400 shrink-0"
                         >
                           Buka
                         </button>
@@ -891,7 +891,7 @@ export default function AdminPage() {
                           Video:{' '}
                           <button
                             onClick={() => router.push(`/v/${r.video_id}`)}
-                            className="text-purple-400 underline"
+                            className="text-pink-400 underline"
                           >
                             /v/{r.video_id.slice(0, 8)}…
                           </button>

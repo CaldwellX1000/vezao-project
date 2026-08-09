@@ -417,7 +417,7 @@ function StoryViewContent() {
     return (
       <div className="fixed inset-0 bg-black flex flex-col items-center justify-center gap-3 text-white">
         <p className="text-sm text-gray-400">Tidak ada story</p>
-        <button onClick={() => router.back()} className="text-sm text-purple-400">
+        <button onClick={() => router.back()} className="text-sm text-pink-400">
           Kembali
         </button>
       </div>

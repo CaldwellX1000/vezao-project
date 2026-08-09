@@ -328,7 +328,7 @@ export default function LoginPage() {
             type="button"
             onClick={handleResendCode}
             disabled={loading || resendCountdown > 0}
-            className="w-full mt-3 text-sm text-purple-400 hover:text-purple-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+            className="w-full mt-3 text-sm text-pink-400 hover:text-pink-300 disabled:text-gray-500 disabled:cursor-not-allowed"
           >
             {resendCountdown > 0
               ? `Kirim ulang kode (${resendCountdown}s)`
@@ -588,7 +588,7 @@ export default function LoginPage() {
                   setIsForgot(true)
                   setMessage('')
                 }}
-                className="text-purple-400 hover:underline"
+                className="text-pink-400 hover:underline"
               >
                 Lupa Password?
               </button>
@@ -613,7 +613,7 @@ export default function LoginPage() {
                     setMessage('')
                     resetRegisterFields()
                   }}
-                  className="text-purple-400 font-medium hover:underline"
+                  className="text-pink-400 font-medium hover:underline"
                 >
                   {isLogin ? 'Daftar' : 'Login'}
                 </button>

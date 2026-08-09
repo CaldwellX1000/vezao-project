@@ -213,6 +213,21 @@ function UploadContent() {
   const [showSoundSuggest, setShowSoundSuggest] = useState(false)
   const [soundLoading, setSoundLoading] = useState(false)
     const [canEditCaption, setCanEditCaption] = useState(true)
+      const [scheduleEnabled, setScheduleEnabled] = useState(false)
+  const [scheduleAt, setScheduleAt] = useState('')
+    const scheduleDate = scheduleAt ? scheduleAt.slice(0, 10) : ''
+  const scheduleTime = scheduleAt ? scheduleAt.slice(11, 16) : ''
+    const [showTimePicker, setShowTimePicker] = useState(false)
+
+  const setScheduleDate = (d: string) => {
+    setScheduleAt(d ? `${d}T${scheduleTime || '12:00'}` : '')
+  }
+  const setScheduleTime = (t: string) => {
+    const day =
+      scheduleDate ||
+      new Date().toISOString().slice(0, 10)
+    setScheduleAt(t ? `${day}T${t}` : '')
+  }
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
   const [recording, setRecording] = useState(false)
@@ -478,6 +493,15 @@ function UploadContent() {
   }
 
   const handleUpload = async (asDraft = false) => {
+    const isScheduled = !asDraft && scheduleEnabled && !!scheduleAt
+    if (isScheduled) {
+      const when = new Date(scheduleAt)
+      if (isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+        setMessage('Waktu jadwal harus di masa depan')
+        return
+      }
+    }
+
     if (editingDraftId && !file) {
       setUploading(true)
       setProgress(30)
@@ -521,7 +545,8 @@ function UploadContent() {
 
         const updatePayload: Record<string, any> = {
           thumbnail_url: thumbnailUrl,
-          is_draft: asDraft,
+          is_draft: asDraft || isScheduled,
+          scheduled_at: isScheduled ? new Date(scheduleAt).toISOString() : null,
           comments_enabled: commentsEnabled,
           visibility: visibility,
           sound_name:
@@ -548,7 +573,7 @@ function UploadContent() {
 
         if (error) throw error
 
-        if (!asDraft && caption.trim()) {
+        if (!asDraft && !isScheduled && caption.trim()) {
           await notifyMentions(supabase, {
             text: caption.trim(),
             actorId: user.id,
@@ -557,7 +582,13 @@ function UploadContent() {
         }
 
         setProgress(100)
-        setMessage(asDraft ? 'Draft tersimpan!' : 'Upload berhasil!')
+        setMessage(
+          isScheduled
+            ? 'Dijadwalkan!'
+            : asDraft
+            ? 'Draft tersimpan!'
+            : 'Upload berhasil!'
+        )
         setTimeout(() => {
           router.push('/profile')
           router.refresh()
@@ -643,19 +674,30 @@ function UploadContent() {
           caption: caption.trim() || null,
           video_url: publicUrl,
           thumbnail_url: thumbnailUrl,
-          is_draft: asDraft,
+          is_draft: asDraft || isScheduled,
+          scheduled_at: isScheduled
+            ? new Date(scheduleAt).toISOString()
+            : null,
           comments_enabled: commentsEnabled,
           visibility: visibility,
           sound_name:
-  soundName.trim() ||
-  `Original sound - @${(await supabase.from('profiles').select('username').eq('id', user.id).single()).data?.username || 'user'}`,
+            soundName.trim() ||
+            `Original sound - @${
+              (
+                await supabase
+                  .from('profiles')
+                  .select('username')
+                  .eq('id', user.id)
+                  .single()
+              ).data?.username || 'user'
+            }`,
         })
         .select('id')
         .single()
 
       if (dbError) throw dbError
 
-      if (!asDraft && caption.trim() && inserted?.id) {
+      if (!asDraft && !isScheduled && caption.trim() && inserted?.id) {
         await notifyMentions(supabase, {
           text: caption.trim(),
           actorId: user.id,
@@ -664,8 +706,17 @@ function UploadContent() {
       }
 
       setProgress(100)
-      setMessage(asDraft ? 'Draft tersimpan!' : 'Upload berhasil!')
-      setTimeout(() => router.push(asDraft ? '/profile' : '/'), 1000)
+      setMessage(
+        isScheduled
+          ? 'Dijadwalkan!'
+          : asDraft
+          ? 'Draft tersimpan!'
+          : 'Upload berhasil!'
+      )
+      setTimeout(
+        () => router.push(asDraft || isScheduled ? '/profile' : '/'),
+        1000
+      )
     } catch (err: any) {
       setMessage(err.message || 'Gagal upload')
       setProgress(0)
@@ -798,7 +849,7 @@ function UploadContent() {
             onClick={() => fileInputRef.current?.click()}
             className="w-full max-w-xs py-4 rounded-2xl bg-zinc-900 border border-white/10 flex items-center justify-center gap-3 active:scale-[0.98] transition"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             <span className="font-medium">Upload dari Galeri</span>
@@ -1121,7 +1172,7 @@ function UploadContent() {
                     }}
                     className="w-full text-left px-3 py-2.5 text-sm hover:bg-white/5 flex items-center gap-2"
                   >
-                    <span className="text-purple-400">♪</span>
+                    <span className="text-pink-400">♪</span>
                     <span className="truncate">{s}</span>
                   </button>
                 ))
@@ -1185,6 +1236,124 @@ function UploadContent() {
           </div>
         </div>
 
+        <div className="py-3 border-t border-white/10 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Jadwalkan post</p>
+              <p className="text-xs text-gray-400">
+                Post otomatis di waktu yang dipilih
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setScheduleEnabled(!scheduleEnabled)}
+              className={`w-12 h-7 rounded-full transition relative shrink-0 ${
+                scheduleEnabled ? 'bg-vezao-gradient' : 'bg-zinc-600'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all ${
+                  scheduleEnabled ? 'left-5' : 'left-0.5'
+                }`}
+              />
+            </button>
+          </div>
+          {scheduleEnabled && (
+            <div className="space-y-2">
+              <div>
+                <p className="text-[11px] text-gray-500 mb-1">Tanggal</p>
+                <input
+                  type="date"
+                  value={scheduleDate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white [color-scheme:dark]"
+                />
+              </div>
+              <div className="relative">
+                <p className="text-[11px] text-gray-500 mb-1">Waktu (24 jam)</p>
+                <button
+                  type="button"
+                  onClick={() => setShowTimePicker((v) => !v)}
+                  className="w-full flex items-center justify-between bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white"
+                >
+                  <span>
+                    {scheduleTime ? `🕐 ${scheduleTime}` : '🕐 Pilih jam'}
+                  </span>
+                  <span className="text-gray-500">▾</span>
+                </button>
+
+                {showTimePicker && (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-white/15 bg-zinc-900 shadow-2xl overflow-hidden">
+                    <div className="flex max-h-48">
+                      <div className="flex-1 overflow-y-auto overscroll-contain border-r border-white/10">
+                        {Array.from({ length: 24 }, (_, i) => {
+                          const h = String(i).padStart(2, '0')
+                          const active = (scheduleTime.slice(0, 2) || '') === h
+                          return (
+                            <button
+                              key={h}
+                              type="button"
+                              onClick={() => {
+                                const m = scheduleTime.slice(3, 5) || '00'
+                                setScheduleTime(`${h}:${m}`)
+                              }}
+                              className={`w-full py-2.5 text-sm text-center ${
+                                active
+                                  ? 'bg-vezao-gradient text-white font-semibold'
+                                  : 'text-gray-300 hover:bg-white/5'
+                              }`}
+                            >
+                              {h}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <div className="flex-1 overflow-y-auto overscroll-contain">
+                        {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(
+                          (m) => {
+                            const active = (scheduleTime.slice(3, 5) || '') === m
+                            return (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => {
+                                  const h = scheduleTime.slice(0, 2) || '12'
+                                  setScheduleTime(`${h}:${m}`)
+                                  setShowTimePicker(false)
+                                }}
+                                className={`w-full py-2.5 text-sm text-center ${
+                                  active
+                                    ? 'bg-vezao-gradient text-white font-semibold'
+                                    : 'text-gray-300 hover:bg-white/5'
+                                }`}
+                              >
+                                {m}
+                              </button>
+                            )
+                          }
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-500 text-center py-2 border-t border-white/10">
+                      00–11 pagi · 12–17 siang · 18–23 malam
+                    </p>
+                  </div>
+                )}
+              </div>
+              {scheduleAt && (
+                <p className="text-[11px] text-gray-400">
+                  Jadwal:{' '}
+                  {new Date(scheduleAt).toLocaleString('id-ID', {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         {uploading && (
           <div className="space-y-2">
             <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
@@ -1193,14 +1362,18 @@ function UploadContent() {
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-xs text-center text-gray-400">Mengupload... {progress}%</p>
+            <p className="text-xs text-center text-gray-400">
+              Mengupload... {progress}%
+            </p>
           </div>
         )}
 
         {message && (
           <div
             className={`text-sm p-3 rounded-xl text-center ${
-              message.includes('berhasil') || message.includes('tersimpan')
+              message.includes('berhasil') ||
+              message.includes('tersimpan') ||
+              message.includes('Dijadwalkan')
                 ? 'bg-green-500/15 text-green-400 border border-green-500/20'
                 : 'bg-red-500/15 text-red-400 border border-red-500/20'
             }`}
@@ -1224,11 +1397,19 @@ function UploadContent() {
             disabled={uploading || (!file && !editingDraftId)}
             className="flex-1 bg-vezao-gradient py-3.5 rounded-full font-semibold text-sm disabled:opacity-40"
           >
-            {uploading ? 'Mengupload...' : 'Posting'}
+            {uploading
+              ? 'Mengupload...'
+              : scheduleEnabled
+              ? 'Jadwalkan'
+              : 'Posting'}
           </button>
         </div>
 
-         <button type="button" onClick={resetAll} className="w-full text-sm text-gray-400 py-2">
+        <button
+          type="button"
+          onClick={resetAll}
+          className="w-full text-sm text-gray-400 py-2"
+        >
           {editingDraftId ? 'Batal' : 'Buat ulang'}
         </button>
       </div>

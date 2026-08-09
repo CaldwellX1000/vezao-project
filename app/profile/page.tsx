@@ -11,6 +11,7 @@ import {
   type StoredAccount,
 } from '@/lib/accounts'
 import { toast } from '@/lib/toast'
+import { publishDueScheduledVideos } from '@/lib/publishScheduled'
 
 type NotifPrefs = {
   likes: boolean
@@ -55,6 +56,7 @@ type Video = {
   is_draft?: boolean
   visibility?: string | null
   user_id?: string
+  scheduled_at?: string | null
 }
 
 export default function ProfilePage() {
@@ -146,7 +148,7 @@ const list = published || []
     const { data: draftData } = await supabase
       .from('videos')
       .select(
-        'id, caption, video_url, thumbnail_url, likes_count, views_count, created_at, is_draft'
+        'id, caption, video_url, thumbnail_url, likes_count, views_count, created_at, is_draft, scheduled_at'
       )
       .eq('user_id', uid)
       .eq('is_draft', true)
@@ -174,6 +176,10 @@ const list = published || []
       setHasStory((storyCount || 0) > 0)
 
       setUserId(user.id)
+      try {
+        const { publishDueScheduledVideos } = await import('@/lib/publishScheduled')
+        await publishDueScheduledVideos(user.id)
+      } catch {}
 
       const { count: msgCount } = await supabase
         .from('messages')
@@ -1161,18 +1167,35 @@ const list = published || []
                     onClick={() => router.push(`/upload?draft=${video.id}`)}
                     className="absolute inset-0 bg-black/40 flex flex-col items-end justify-between p-1.5 cursor-pointer"
                   >
-                    <span className="text-[9px] bg-yellow-500 text-black px-1.5 py-0.5 rounded font-bold">
-                      DRAFT
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        deleteDraft(video.id)
-                      }}
-                      className="text-[10px] bg-black/70 text-red-400 px-2 py-1 rounded-full"
-                    >
-                      Hapus
-                    </button>
+                    {video.scheduled_at ? (
+                      <span className="text-[9px] bg-purple-500 text-white px-1.5 py-0.5 rounded font-bold self-start">
+                        TERJADWAL
+                      </span>
+                    ) : (
+                      <span className="text-[9px] bg-yellow-500 text-black px-1.5 py-0.5 rounded font-bold">
+                        DRAFT
+                      </span>
+                    )}
+                    {video.scheduled_at ? (
+                      <span className="text-[9px] text-white bg-black/60 rounded px-1.5 py-0.5 self-start max-w-full truncate">
+                        {new Date(video.scheduled_at).toLocaleString('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteDraft(video.id)
+                        }}
+                        className="text-[10px] bg-black/70 text-red-400 px-2 py-1 rounded-full"
+                      >
+                        Hapus
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="absolute inset-0">

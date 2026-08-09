@@ -508,7 +508,7 @@ export default function SearchPage() {
                 onClick={() => router.push(`/hashtag?tag=${tag}`)}
                 className="flex items-center gap-3 py-3 active:bg-white/5 rounded-xl px-2 cursor-pointer"
               >
-                <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg font-bold text-purple-400 shrink-0">
+                <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg font-bold text-pink-400 shrink-0">
                   #
                 </div>
                 <div>

@@ -125,7 +125,7 @@ function TypeIcon({ type }: { type: string }) {
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"
-        className="w-3 h-3 text-purple-400"
+        className="w-3 h-3 text-pink-400"
         fill="none"
         stroke="currentColor"
         strokeWidth={2}
@@ -502,7 +502,7 @@ export default function NotificationsPage() {
           {notifications.some((n) => !n.is_read) && (
             <button
               onClick={markAllRead}
-              className="text-xs text-purple-400 font-medium"
+              className="text-xs text-pink-400 font-medium"
             >
               Tandai dibaca
             </button>
