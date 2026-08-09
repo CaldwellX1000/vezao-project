@@ -91,7 +91,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-black text-white pb-24">
-      <div className="sticky top-0 z-40 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20 px-4 h-14 flex items-center gap-3">
+      <div className="sticky top-0 z-40 bg-[#0b0614]/95 backdrop-blur-md border-b border-pink-500/20 px-4 h-14 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-lg font-bold text-pink-300">
           ←
         </button>
@@ -131,7 +131,7 @@ export default function AnalyticsPage() {
         ].map((card) => (
           <div
             key={card.label}
-            className="rounded-2xl bg-zinc-900/90 border border-purple-500/15 p-4"
+            className="rounded-2xl bg-zinc-900/90 border border-pink-500/15 p-4"
           >
             <p className="text-xs text-gray-400">{card.label}</p>
             <p className="text-2xl font-bold mt-1">
@@ -167,7 +167,7 @@ export default function AnalyticsPage() {
                   key={v.id}
                   type="button"
                   onClick={() => router.push(`/v/${v.id}`)}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/90 border border-purple-500/15 active:bg-purple-500/5 text-left"
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/90 border border-pink-500/15 active:bg-pink-500/5 text-left"
                 >
                   <div className="w-12 h-16 rounded-lg overflow-hidden bg-zinc-800 shrink-0">
                     {v.thumbnail_url ? (

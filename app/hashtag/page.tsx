@@ -133,7 +133,7 @@ function HashtagContent() {
 
       {videos.length === 0 ? (
         <div className="h-screen flex flex-col items-center justify-center px-6 text-center gap-2">
-          <div className="w-14 h-14 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-2">
+          <div className="w-14 h-14 rounded-full bg-pink-500/10 border border-pink-500/20 flex items-center justify-center mb-2">
             <span className="text-2xl text-pink-400/80">#</span>
           </div>
           <p className="text-sm font-medium text-white">Belum ada video</p>

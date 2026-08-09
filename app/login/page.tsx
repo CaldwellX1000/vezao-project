@@ -269,7 +269,7 @@ export default function LoginPage() {
   }
 
   const inputClass =
-    'w-full px-4 py-3 bg-zinc-800/80 border border-zinc-700/80 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/80 focus:border-transparent transition'
+    'w-full px-4 py-3 bg-zinc-800/80 border border-zinc-700/80 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-500/80 focus:border-transparent transition'
   const labelClass = 'block text-sm font-medium mb-1.5 text-gray-300'
 
   if (isVerify) {
@@ -540,7 +540,7 @@ export default function LoginPage() {
                 type="checkbox"
                 checked={agreeAge}
                 onChange={(e) => setAgreeAge(e.target.checked)}
-                className="mt-0.5 rounded border-zinc-600 accent-purple-500"
+                className="mt-0.5 rounded border-zinc-600 accent-pink-500"
               />
               <span className="leading-relaxed">
                 Saya berusia <strong className="text-white">18 tahun</strong> atau lebih dan setuju

@@ -293,7 +293,7 @@ export default function StoryCreatePage() {
                 }}
                 placeholder="Tambah caption... @teman"
                 rows={2}
-                className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
+                className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-pink-500 resize-none"
               />
               <p className="text-[11px] text-gray-500 text-right mt-1">
                 {caption.length}/120

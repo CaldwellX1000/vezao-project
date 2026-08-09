@@ -1331,7 +1331,7 @@ const list = published || []
                 <input
                   value={editFullName}
                   onChange={(e) => setEditFullName(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-500"
                   placeholder="Nama tampilan"
                 />
               </div>
@@ -1340,7 +1340,7 @@ const list = published || []
                 <input
                   value={editUsername}
                   onChange={(e) => setEditUsername(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-500"
                   placeholder="username"
                 />
               </div>
@@ -1350,7 +1350,7 @@ const list = published || []
                   value={editBio}
                   onChange={(e) => setEditBio(e.target.value)}
                   rows={3}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 resize-none"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-500 resize-none"
                   placeholder="Tulis bio kamu..."
                 />
               </div>
@@ -1359,7 +1359,7 @@ const list = published || []
                 <input
                   value={editWebsite}
                   onChange={(e) => setEditWebsite(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-500"
                   placeholder="https://instagram.com/username"
                 />
               </div>

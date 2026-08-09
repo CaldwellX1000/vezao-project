@@ -1248,7 +1248,7 @@ export default function SingleVideoPage() {
                                   <input
                                     value={editCommentText}
                                     onChange={(e) => setEditCommentText(e.target.value)}
-                                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-pink-500"
                                     autoFocus
                                   />
                                   <div className="flex gap-2">
@@ -1463,7 +1463,7 @@ export default function SingleVideoPage() {
                           ? `Balas @${replyTo.profiles?.username || 'user'}...`
                           : 'Tulis komentar... @teman'
                       }
-                      className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
                       onKeyDown={(e) => e.key === 'Enter' && submitComment()}
                     />
                     <button

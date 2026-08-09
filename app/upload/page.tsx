@@ -1036,7 +1036,7 @@ function UploadContent() {
                 step={0.1}
                 value={coverTime}
                 onChange={(e) => onCoverChange(Number(e.target.value))}
-                className="flex-1 accent-purple-500"
+                className="flex-1 accent-pink-500"
               />
             </div>
           </div>
@@ -1065,7 +1065,7 @@ function UploadContent() {
                 rows={3}
                 maxLength={150}
                 placeholder="Tulis caption... @teman #hashtag"
-                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-pink-500 resize-none"
               />
               <p className="text-[11px] text-gray-500 text-right mt-1">{caption.length}/150</p>
             </>
@@ -1149,7 +1149,7 @@ function UploadContent() {
               setTimeout(() => setShowSoundSuggest(false), 200)
             }}
             placeholder="Cari atau ketik nama sound..."
-            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
           />
 
           {showSoundSuggest && (
@@ -1217,17 +1217,17 @@ function UploadContent() {
                 onClick={() => setVisibility(opt.value as any)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left ${
                   visibility === opt.value
-                    ? 'bg-vezao-gradient/20 border border-purple-500/50'
+                    ? 'bg-vezao-gradient/20 border border-pink-500/50'
                     : 'bg-zinc-900 border border-white/10'
                 }`}
               >
                 <div
                   className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    visibility === opt.value ? 'border-purple-400' : 'border-gray-500'
+                    visibility === opt.value ? 'border-pink-400' : 'border-gray-500'
                   }`}
                 >
                   {visibility === opt.value && (
-                    <div className="w-2 h-2 rounded-full bg-purple-400" />
+                    <div className="w-2 h-2 rounded-full bg-pink-400" />
                   )}
                 </div>
                 {opt.label}

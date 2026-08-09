@@ -552,7 +552,7 @@ export default function NotificationsPage() {
               key={n.id}
               onClick={() => handleClick(n)}
               className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer active:bg-white/5 ${
-                !n.is_read ? 'bg-purple-500/5' : ''
+                !n.is_read ? 'bg-pink-500/5' : ''
               }`}
             >
               <div className="relative shrink-0">

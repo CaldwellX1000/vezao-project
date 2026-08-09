@@ -151,7 +151,7 @@ export default function SettingsPage() {
 
   return (
     <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-black text-white pb-28">
-      <div className="sticky top-0 z-50 bg-[#0b0614]/95 backdrop-blur-md border-b border-purple-500/20 px-4 h-12 flex items-center gap-3">
+      <div className="sticky top-0 z-50 bg-[#0b0614]/95 backdrop-blur-md border-b border-pink-500/20 px-4 h-12 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-lg font-bold w-8 text-pink-300">
           ←
         </button>
@@ -162,7 +162,7 @@ export default function SettingsPage() {
         {/* Profile summary */}
         <button
           onClick={() => router.push('/profile')}
-          className="w-full flex items-center gap-3 p-3 rounded-2xl bg-zinc-900/90 border border-purple-500/15 active:bg-purple-500/5"
+          className="w-full flex items-center gap-3 p-3 rounded-2xl bg-zinc-900/90 border border-pink-500/15 active:bg-pink-500/5"
         >
           <div className="w-12 h-12 rounded-full bg-vezao-gradient flex items-center justify-center text-lg font-bold shrink-0">
             {(fullName || username || 'U')[0]?.toUpperCase()}
@@ -181,7 +181,7 @@ export default function SettingsPage() {
           <p className="text-xs text-pink-400/60 uppercase tracking-wide mb-2 px-1">
             Akun
           </p>
-          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
+          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-pink-500/15">
             <div className="px-4 py-3.5 flex items-center justify-between border-b border-white/5">
               <span className="text-sm text-gray-400">Username</span>
               <span className="text-sm font-medium">@{username || 'user'}</span>
@@ -210,7 +210,7 @@ export default function SettingsPage() {
           <p className="text-xs text-pink-400/60 uppercase tracking-wide mb-2 px-1">
             Privasi & keamanan
           </p>
-          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
+          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-pink-500/15">
             <button
               onClick={togglePrivate}
               disabled={saving}
@@ -256,7 +256,7 @@ export default function SettingsPage() {
           <div className="mb-3">
             <PushEnable />
           </div>
-          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
+          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-pink-500/15">
             {(
               [
                 { key: 'likes' as const, label: 'Suka', desc: 'Saat video kamu di-like' },
@@ -302,7 +302,7 @@ export default function SettingsPage() {
           <p className="text-xs text-pink-400/60 uppercase tracking-wide mb-2 px-1">
             Tampilan
           </p>
-          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
+          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-pink-500/15">
             <div className="px-4 py-3.5 flex items-center justify-between gap-3">
               <div className="text-left pr-2">
                 <p className="text-sm font-medium">Mode tampilan</p>
@@ -341,7 +341,7 @@ export default function SettingsPage() {
           <p className="text-xs text-pink-400/60 uppercase tracking-wide mb-2 px-1">
             Lainnya
           </p>
-          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-purple-500/15">
+          <div className="bg-zinc-900/90 rounded-2xl overflow-hidden border border-pink-500/15">
             {isAdmin && (
               <button
                 onClick={() => router.push('/admin')}

@@ -488,7 +488,7 @@ export default function AdminPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-white/20 border-t-purple-400 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-white/20 border-t-pink-400 rounded-full animate-spin" />
       </div>
     )
   }
@@ -672,7 +672,7 @@ export default function AdminPage() {
                   >
                     <span className="text-[9px] text-gray-400 tabular-nums">{d.count}</span>
                     <div
-                      className="w-full rounded-t-md bg-gradient-to-t from-purple-600 to-fuchsia-400 min-h-[4px]"
+                      className="w-full rounded-t-md bg-gradient-to-t from-pink-600 to-fuchsia-400 min-h-[4px]"
                       style={{ height: `${(d.count / maxDay) * 100}%` }}
                     />
                     <span
