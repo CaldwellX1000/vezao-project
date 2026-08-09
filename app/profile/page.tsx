@@ -92,7 +92,7 @@ export default function ProfilePage() {
   const [hasStory, setHasStory] = useState(false)
   const [showAccountSheet, setShowAccountSheet] = useState(false)
   const [accounts, setAccounts] = useState<StoredAccount[]>([])
-
+  const [showQr, setShowQr] = useState(false)
   const [editFullName, setEditFullName] = useState('')
   const [editUsername, setEditUsername] = useState('')
   const [editBio, setEditBio] = useState('')
@@ -771,11 +771,20 @@ const list = published || []
       >
         Edit profil
       </button>
-      <button
+            <button
         onClick={handleShareProfile}
         className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
       >
         Share profil
+      </button>
+      <button
+        onClick={() => {
+          setShowMenu(false)
+          setShowQr(true)
+        }}
+        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
+      >
+        QR profil
       </button>
       <button
         onClick={() => {
@@ -1459,6 +1468,77 @@ const list = published || []
               className="w-full mt-2 py-3 text-sm text-gray-400"
             >
               Batal
+            </button>
+          </div>
+        </div>
+      )}
+            {showQr && (
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setShowQr(false)} />
+          <div className="relative w-full max-w-[360px] mx-4 mb-8 sm:mb-0 bg-zinc-900 border border-white/10 rounded-2xl p-6 text-center">
+            <h3 className="font-semibold text-base mb-1">QR profil</h3>
+            <p className="text-xs text-gray-400 mb-4">Scan untuk buka @{username}</p>
+
+            <div className="mx-auto w-48 h-48 rounded-xl bg-white p-2 mb-4">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(
+                  `${typeof window !== 'undefined' ? window.location.origin : 'https://serulo.app'}/@${username}`
+                )}`}
+                alt="QR profil"
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            <p className="text-xs text-gray-500 mb-4 break-all px-2">
+              {typeof window !== 'undefined'
+                ? `${window.location.origin}/@${username}`
+                : `https://serulo.app/@${username}`}
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  const url = `${window.location.origin}/@${username}`
+                  try {
+                    await navigator.clipboard.writeText(url)
+                    toast('Link disalin', 'success')
+                  } catch {
+                    prompt('Salin:', url)
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-full bg-zinc-800 border border-white/10 text-sm font-medium"
+              >
+                Salin link
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const url = `${window.location.origin}/@${username}`
+                  if (navigator.share) {
+                    try {
+                      await navigator.share({
+                        title: `${fullName || username} di SERULO`,
+                        url,
+                      })
+                    } catch {}
+                  } else {
+                    await navigator.clipboard.writeText(url)
+                    toast('Link disalin', 'success')
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-full bg-vezao-gradient text-sm font-semibold"
+              >
+                Share
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowQr(false)}
+              className="w-full mt-3 py-2 text-sm text-gray-400"
+            >
+              Tutup
             </button>
           </div>
         </div>
