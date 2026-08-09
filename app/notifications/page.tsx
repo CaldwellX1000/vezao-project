@@ -37,7 +37,7 @@ const DEFAULT_NOTIF: NotifPrefs = {
 
 function getNotifPrefs(): NotifPrefs {
   try {
-    const raw = localStorage.getItem('vezao_notif_prefs')
+    const raw = localStorage.getItem('serulo_notif_prefs')
     if (raw) return { ...DEFAULT_NOTIF, ...JSON.parse(raw) }
   } catch {}
   return { ...DEFAULT_NOTIF }
@@ -198,6 +198,7 @@ export default function NotificationsPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [actingId, setActingId] = useState<string | null>(null)
   const [followedBack, setFollowedBack] = useState<Set<string>>(new Set())
+  const [tab, setTab] = useState<'all' | 'likes' | 'comments' | 'follows'>('all')
 
   const router = useRouter()
   const supabase = createClient()
@@ -473,6 +474,14 @@ export default function NotificationsPage() {
     }
     router.push(`/@${n.actor?.username || n.actor_id}`)
   }
+  
+  const filtered = notifications.filter((n) => {
+    const t = (n.type || '').toLowerCase()
+    if (tab === 'likes') return t === 'like' || t === 'save'
+    if (tab === 'comments') return t === 'comment' || t === 'mention'
+    if (tab === 'follows') return t === 'follow' || t === 'follow_request'
+    return true
+  })
 
   if (loading) {
     return (
@@ -483,35 +492,62 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
-      <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10 px-4 h-14 flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-lg font-bold">
-          ←
-        </button>
-        <h1 className="text-lg font-bold flex-1">Notifikasi</h1>
-        {notifications.some((n) => !n.is_read) && (
-          <button
-            onClick={markAllRead}
-            className="text-xs text-purple-400 font-medium"
-          >
-            Tandai dibaca
+    <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-black text-white pb-20">
+      <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/10">
+        <div className="px-4 h-14 flex items-center gap-3">
+          <button onClick={() => router.back()} className="text-lg font-bold">
+            ←
           </button>
-        )}
+          <h1 className="text-lg font-bold flex-1">Notifikasi</h1>
+          {notifications.some((n) => !n.is_read) && (
+            <button
+              onClick={markAllRead}
+              className="text-xs text-purple-400 font-medium"
+            >
+              Tandai dibaca
+            </button>
+          )}
+        </div>
+        <div className="flex gap-1 px-3 pb-2 overflow-x-auto">
+          {(
+            [
+              ['all', 'Semua'],
+              ['likes', 'Suka'],
+              ['comments', 'Komentar'],
+              ['follows', 'Follow'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${
+                tab === key
+                  ? 'bg-vezao-gradient text-white'
+                  : 'bg-zinc-900 text-gray-400 border border-white/10'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {notifications.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center pt-32 text-gray-400 gap-2">
           <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center text-2xl">
             🔔
           </div>
-          <p className="text-sm">Belum ada notifikasi</p>
+          <p className="text-sm">
+            {tab === 'all' ? 'Belum ada notifikasi' : 'Tidak ada di kategori ini'}
+          </p>
           <p className="text-xs text-gray-600">
             Like, save, share, komentar & follow muncul di sini
           </p>
         </div>
       ) : (
         <div className="divide-y divide-white/5">
-          {notifications.map((n) => (
+          {filtered.map((n) => (
             <div
               key={n.id}
               onClick={() => handleClick(n)}

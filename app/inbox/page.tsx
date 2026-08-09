@@ -514,7 +514,7 @@ export default function InboxPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white pb-20">
+      <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-black text-white pb-20">
         <div className="px-4 h-14 flex items-center border-b border-white/10">
           <div className="h-4 w-16 bg-zinc-800 rounded animate-pulse" />
         </div>
@@ -535,7 +535,7 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
+    <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-black text-white pb-20">
       <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10">
         {tab === 'activity' && notifUnread > 0 ? (
           <div className="px-4 h-10 flex items-center justify-end">

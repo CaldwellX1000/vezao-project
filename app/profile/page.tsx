@@ -832,6 +832,24 @@ const list = published || []
           type="button"
           onClick={() => {
             setShowMenu(false)
+            router.push('/notifications')
+          }}
+          className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5 border-b border-white/5"
+        >
+          <span className="text-sm">Notifikasi</span>
+          <span className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-vezao-gradient text-[10px] font-bold flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+            <span className="text-gray-500">›</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setShowMenu(false)
             router.push('/analytics')
           }}
           className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5"
@@ -1074,14 +1092,14 @@ const list = published || []
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
             <div className="w-16 h-16 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-2xl mb-4">
               {activeTab === 'videos'
-                ? '🎬'
+                ? ''
                 : activeTab === 'private'
-                ? '🔒'
+                ? ''
                 : activeTab === 'liked'
                 ? '♡'
                 : activeTab === 'saved'
-                ? '🔖'
-                : '📝'}
+                ? ''
+                : ''}
             </div>
             <p className="text-white font-semibold text-sm mb-1">
               {activeTab === 'videos'
