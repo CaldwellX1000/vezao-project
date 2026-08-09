@@ -102,6 +102,7 @@ export default function ProfilePage() {
   const [editCaption, setEditCaption] = useState('')
   const [editVisibility, setEditVisibility] = useState<'public' | 'followers' | 'private'>('public')
   const [editSaving, setEditSaving] = useState(false)
+  const [editCanCaption, setEditCanCaption] = useState(true)
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -622,8 +623,17 @@ const list = published || []
 
   const openEditVideo = (video: Video) => {
     if (activeTab !== 'videos' && activeTab !== 'private') return
+    const ageMs = Date.now() - new Date(video.created_at).getTime()
+    const canCaption = ageMs < 7 * 24 * 60 * 60 * 1000
+
+    if (canCaption) {
+      router.push(`/upload?draft=${video.id}`)
+      return
+    }
+
     setEditVideoId(video.id)
     setEditCaption(video.caption || '')
+    setEditCanCaption(false)
     const vis = String(video.visibility || 'public')
       .toLowerCase()
       .replace(/['"]/g, '')
@@ -636,12 +646,15 @@ const list = published || []
   const saveEditVideo = async () => {
     if (!userId || !editVideoId) return
     setEditSaving(true)
+    const payload: { caption?: string | null; visibility: string } = {
+      visibility: editVisibility,
+    }
+    if (editCanCaption) {
+      payload.caption = editCaption.trim() || null
+    }
     const { error } = await supabase
       .from('videos')
-      .update({
-        caption: editCaption.trim() || null,
-        visibility: editVisibility,
-      })
+      .update(payload)
       .eq('id', editVideoId)
       .eq('user_id', userId)
     setEditSaving(false)
@@ -755,81 +768,115 @@ const list = published || []
                 </span>
               </button>
 
- {showMenu && (
-  <>
+{showMenu && (
+  <div className="fixed inset-0 z-[70] flex items-end justify-center">
     <div
-      className="fixed inset-0 z-40"
+      className="absolute inset-0 bg-black/60"
       onClick={() => setShowMenu(false)}
     />
-    <div className="absolute right-0 top-11 z-50 w-44 bg-zinc-900 border border-white/10 rounded-xl py-1 shadow-xl overflow-hidden">
-      <button
-        onClick={() => {
-          setShowMenu(false)
-          setEditing(true)
-        }}
-        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-      >
-        Edit profil
-      </button>
-            <button
-        onClick={handleShareProfile}
-        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-      >
-        Share profil
-      </button>
-      <button
-        onClick={() => {
-          setShowMenu(false)
-          setShowQr(true)
-        }}
-        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-      >
-        QR profil
-      </button>
-            <button
-        onClick={() => {
-          setShowMenu(false)
-          router.push('/history')
-        }}
-        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-      >
-        Riwayat tonton
-      </button>
-      <button
-        onClick={() => {
-          setShowMenu(false)
-          router.push('/settings')
-        }}
-        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-      >
-        Settings
-      </button>
-      <button
-        onClick={() => {
-          setShowMenu(false)
-          router.push('/analytics')
-        }}
-        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-      >
-        Analytics
-      </button>
-      <button
-        onClick={() => {
-          setShowMenu(false)
-          router.push('/blocked')
-        }}
-        className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-      >
-        Daftar diblokir
-      </button>
-      <button
-        onClick={handleLogout}
-        className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-white/5"
-      >
-        Log out
-      </button>
+    <div className="relative w-full max-w-[480px] bg-zinc-900 rounded-t-2xl pb-8 pt-3 max-h-[85vh] overflow-y-auto">
+      <div className="w-10 h-1 bg-white/25 rounded-full mx-auto mb-4" />
+
+      <p className="text-[11px] text-gray-500 uppercase tracking-wide px-4 mb-2">
+        Alat pribadi
+      </p>
+      <div className="mx-3 mb-4 rounded-2xl bg-zinc-800/80 overflow-hidden border border-white/5">
+        <button
+          type="button"
+          onClick={() => {
+            setShowMenu(false)
+            setEditing(true)
+          }}
+          className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5 border-b border-white/5"
+        >
+          <span className="text-sm">Edit profil</span>
+          <span className="text-gray-500">›</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleShareProfile}
+          className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5 border-b border-white/5"
+        >
+          <span className="text-sm">Share profil</span>
+          <span className="text-gray-500">›</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setShowMenu(false)
+            setShowQr(true)
+          }}
+          className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5 border-b border-white/5"
+        >
+          <span className="text-sm">Kode QR</span>
+          <span className="text-gray-500">›</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setShowMenu(false)
+            router.push('/history')
+          }}
+          className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5"
+        >
+          <span className="text-sm">Riwayat tonton</span>
+          <span className="text-gray-500">›</span>
+        </button>
+      </div>
+
+      <p className="text-[11px] text-gray-500 uppercase tracking-wide px-4 mb-2">
+        Kreator
+      </p>
+      <div className="mx-3 mb-4 rounded-2xl bg-zinc-800/80 overflow-hidden border border-white/5">
+        <button
+          type="button"
+          onClick={() => {
+            setShowMenu(false)
+            router.push('/analytics')
+          }}
+          className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5"
+        >
+          <span className="text-sm">Analytics</span>
+          <span className="text-gray-500">›</span>
+        </button>
+      </div>
+
+      <p className="text-[11px] text-gray-500 uppercase tracking-wide px-4 mb-2">
+        Pengaturan
+      </p>
+      <div className="mx-3 mb-2 rounded-2xl bg-zinc-800/80 overflow-hidden border border-white/5">
+        <button
+          type="button"
+          onClick={() => {
+            setShowMenu(false)
+            router.push('/settings')
+          }}
+          className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5 border-b border-white/5"
+        >
+          <span className="text-sm">Pengaturan dan privasi</span>
+          <span className="text-gray-500">›</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setShowMenu(false)
+            router.push('/blocked')
+          }}
+          className="w-full px-4 py-3.5 flex items-center justify-between active:bg-white/5 border-b border-white/5"
+        >
+          <span className="text-sm">Daftar diblokir</span>
+          <span className="text-gray-500">›</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-full px-4 py-3.5 text-left text-sm text-red-400 active:bg-white/5"
+        >
+          Log out
+        </button>
+      </div>
     </div>
-  </>
+  </div>
 )}
             </div>
           </div>
@@ -1429,17 +1476,30 @@ const list = published || []
             <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-4" />
             <h3 className="text-center font-semibold mb-1">Edit video</h3>
             <p className="text-center text-xs text-gray-500 mb-4">
-              Tahan thumbnail di grid untuk membuka
+              {editCanCaption
+                ? 'Tahan thumbnail di grid untuk membuka'
+                : 'Video lebih dari 7 hari — hanya ubah visibilitas'}
             </p>
 
-            <label className="text-xs text-gray-400 mb-1.5 block">Caption</label>
-            <textarea
-              value={editCaption}
-              onChange={(e) => setEditCaption(e.target.value)}
-              rows={4}
-              className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white resize-none focus:outline-none focus:ring-1 focus:ring-pink-400 mb-4"
-              placeholder="Caption... #tag @teman"
-            />
+                        <label className="text-xs text-gray-400 mb-1.5 block">Caption</label>
+            {editCanCaption ? (
+              <textarea
+                value={editCaption}
+                onChange={(e) => setEditCaption(e.target.value)}
+                rows={4}
+                className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white resize-none focus:outline-none focus:ring-1 focus:ring-pink-400 mb-4"
+                placeholder="Caption... #tag @teman"
+              />
+            ) : (
+              <div className="mb-4">
+                <p className="w-full bg-zinc-800/50 border border-white/5 rounded-xl px-3 py-2.5 text-sm text-gray-400 whitespace-pre-wrap min-h-[80px]">
+                  {editCaption || '—'}
+                </p>
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  Caption hanya bisa diubah dalam 7 hari setelah upload. Kamu masih bisa ubah visibilitas.
+                </p>
+              </div>
+            )}
 
             <label className="text-xs text-gray-400 mb-1.5 block">Visibilitas</label>
             <div className="space-y-1 mb-5">
@@ -1464,6 +1524,24 @@ const list = published || []
                 </button>
               ))}
             </div>
+
+            {activeTab === 'videos' && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!editVideoId) return
+                  const v = videos.find((x) => x.id === editVideoId)
+                  if (!v) return
+                  await togglePin(editVideoId, !!v.is_pinned)
+                  setEditVideoId(null)
+                }}
+                className="w-full mb-3 py-3 rounded-xl bg-zinc-800 border border-white/10 text-sm font-medium"
+              >
+                {videos.find((x) => x.id === editVideoId)?.is_pinned
+                  ? 'Lepas pin'
+                  : 'Pin ke profil'}
+              </button>
+            )}
 
             <button
               onClick={saveEditVideo}

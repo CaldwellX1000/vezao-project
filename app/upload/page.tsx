@@ -212,6 +212,7 @@ function UploadContent() {
   const [soundResults, setSoundResults] = useState<string[]>([])
   const [showSoundSuggest, setShowSoundSuggest] = useState(false)
   const [soundLoading, setSoundLoading] = useState(false)
+    const [canEditCaption, setCanEditCaption] = useState(true)
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
   const [recording, setRecording] = useState(false)
@@ -248,7 +249,7 @@ function UploadContent() {
       if (draftId) {
         const { data: draft } = await supabase
           .from('videos')
-          .select('id, caption, video_url, thumbnail_url, is_draft, user_id, comments_enabled, visibility, sound_name')
+          .select('id, caption, video_url, thumbnail_url, is_draft, user_id, comments_enabled, visibility, sound_name, created_at')
           .eq('id', draftId)
           .single()
 
@@ -262,6 +263,13 @@ function UploadContent() {
           setCommentsEnabled(draft.comments_enabled !== false)
           setVisibility((draft.visibility as any) || 'public')
           setSoundName((draft as any).sound_name || '')
+          const created = (draft as any).created_at as string | undefined
+          if (created) {
+            const ageMs = Date.now() - new Date(created).getTime()
+            setCanEditCaption(ageMs < 7 * 24 * 60 * 60 * 1000)
+          } else {
+            setCanEditCaption(true)
+          }
           setMode('preview')
         }
       }
@@ -348,6 +356,7 @@ function UploadContent() {
       const recordedFile = new File([blob], `serulo-${Date.now()}.webm`, { type: mimeType })
       setFile(recordedFile)
       setEditingDraftId(null)
+      setCanEditCaption(true)
       stopCamera()
       setMode('preview')
     }
@@ -382,6 +391,7 @@ function UploadContent() {
     setFile(selected)
     setEditingDraftId(null)
     setMessage('')
+    setCanEditCaption(true)
     setMode('preview')
   }
 
@@ -509,18 +519,30 @@ function UploadContent() {
 
         setProgress(70)
 
+        const updatePayload: Record<string, any> = {
+          thumbnail_url: thumbnailUrl,
+          is_draft: asDraft,
+          comments_enabled: commentsEnabled,
+          visibility: visibility,
+          sound_name:
+            soundName.trim() ||
+            `Original sound - @${
+              (
+                await supabase
+                  .from('profiles')
+                  .select('username')
+                  .eq('id', user.id)
+                  .single()
+              ).data?.username || 'user'
+            }`,
+        }
+        if (canEditCaption) {
+          updatePayload.caption = caption.trim() || null
+        }
+
         const { error } = await supabase
           .from('videos')
-          .update({
-            caption: caption.trim() || null,
-            thumbnail_url: thumbnailUrl,
-            is_draft: asDraft,
-            comments_enabled: commentsEnabled,
-            visibility: visibility,
-            sound_name:
-  soundName.trim() ||
-  `Original sound - @${(await supabase.from('profiles').select('username').eq('id', user.id).single()).data?.username || 'user'}`,
-          })
+          .update(updatePayload)
           .eq('id', editingDraftId)
           .eq('user_id', user.id)
 
@@ -881,7 +903,7 @@ function UploadContent() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-24">
+    <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-black text-white pb-28">
       <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10 px-4 h-14 flex items-center justify-between">
         <button onClick={resetAll} className="text-white text-lg font-bold">
           ←
@@ -971,30 +993,43 @@ function UploadContent() {
 
         <div className="relative">
           <label className="block text-xs text-gray-400 mb-2">Caption</label>
-          <textarea
-            value={caption}
-            onChange={(e) => {
-              const val = e.target.value
-              setCaption(val)
-              const upToCursor = val.slice(0, e.target.selectionStart || val.length)
-              const match = upToCursor.match(/@([a-zA-Z0-9._]*)$/)
-              if (match) {
-                setMentionQuery(match[1] || '')
-                setShowMentions(true)
-                void searchMentions(match[1] || '')
-              } else {
-                setShowMentions(false)
-                setMentionQuery('')
-              }
-            }}
-            rows={3}
-            maxLength={150}
-            placeholder="Tulis caption... @teman #hashtag"
-            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
-          />
-          <p className="text-[11px] text-gray-500 text-right mt-1">{caption.length}/150</p>
+          {canEditCaption ? (
+            <>
+              <textarea
+                value={caption}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setCaption(val)
+                  const upToCursor = val.slice(0, e.target.selectionStart || val.length)
+                  const match = upToCursor.match(/@([a-zA-Z0-9._]*)$/)
+                  if (match) {
+                    setMentionQuery(match[1] || '')
+                    setShowMentions(true)
+                    void searchMentions(match[1] || '')
+                  } else {
+                    setShowMentions(false)
+                    setMentionQuery('')
+                  }
+                }}
+                rows={3}
+                maxLength={150}
+                placeholder="Tulis caption... @teman #hashtag"
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
+              />
+              <p className="text-[11px] text-gray-500 text-right mt-1">{caption.length}/150</p>
+            </>
+          ) : (
+            <div className="mb-1">
+              <div className="w-full bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-400 whitespace-pre-wrap min-h-[80px]">
+                {caption || '—'}
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1.5">
+                Caption hanya bisa diubah dalam 7 hari setelah upload. Visibilitas masih bisa diubah.
+              </p>
+            </div>
+          )}
 
-          {showMentions && (
+          {showMentions && canEditCaption && (
             <div className="mt-1 rounded-xl border border-white/10 bg-zinc-900 overflow-hidden max-h-48 overflow-y-auto z-20">
               {mentionLoading ? (
                 <p className="text-xs text-gray-500 px-3 py-2">Mencari...</p>
