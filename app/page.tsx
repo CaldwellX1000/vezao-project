@@ -539,24 +539,34 @@ export default function FeedPage() {
   })
 }
   }, [videos, isMuted, feedTab])
-  // Lepas src hanya untuk video jauh — buffer ±2 biar scroll balik tidak macet
+  // Buffer ketat ±1; restore src saat kembali ke viewport (scroll atas)
   useEffect(() => {
     videoRefs.current.forEach((v, i) => {
       if (!v) return
-      const keep = i >= activeIndex - 2 && i <= activeIndex + 2
-      if (keep) {
-        // Restore src kalau sempat dilepas
-        const need = videos[i]?.video_url
-        if (need && !v.getAttribute('src')) {
-          v.src = need
-          v.load()
+      const dist = Math.abs(i - activeIndex)
+      const url = videos[i]?.video_url
+      if (!url) return
+
+      if (dist <= 1) {
+        if (!v.getAttribute('src')) {
+          v.src = url
+          // jangan v.load() berulang — biarkan browser handle
         }
         return
       }
+
+      // Jauh: lepas biar hemat, tapi cuma pause dulu di dist===2
+      if (dist === 2) {
+        v.pause()
+        return
+      }
+
       if (v.getAttribute('src')) {
         v.pause()
         v.removeAttribute('src')
-        v.load()
+        try {
+          v.load()
+        } catch {}
       }
     })
   }, [activeIndex, videos])
