@@ -158,6 +158,14 @@ const list = published || []
   }
 
   useEffect(() => {
+    if (!editing) return
+    window.history.pushState({ seruloEditProfile: true }, '')
+    const onPop = () => setEditing(false)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [editing])
+
+  useEffect(() => {
     const load = async () => {
       const {
         data: { user },
@@ -228,6 +236,8 @@ const list = published || []
       setEditIsPrivate(privateAcc)
 
       await loadVideos(user.id)
+      // Tampilkan profil dulu — sisa data load di belakang
+      setLoading(false)
 
       const { data: likes } = await supabase
         .from('likes')
@@ -293,8 +303,6 @@ const list = published || []
 
       await persistCurrentSession(supabase)
       setAccounts(getAccounts())
-
-      setLoading(false)
     }
 
     load()
@@ -713,7 +721,19 @@ const list = published || []
             <div className="w-24 h-24 rounded-full bg-zinc-700 border-[3px] border-black animate-pulse" />
             <div className="h-8 w-20 bg-zinc-700 rounded-full animate-pulse mb-1" />
           </div>
+          <div className="mt-3 space-y-2">
+            <div className="h-5 w-40 bg-zinc-800 rounded animate-pulse" />
+            <div className="h-3 w-24 bg-zinc-800 rounded animate-pulse" />
+            <div className="h-3 w-full max-w-xs bg-zinc-800 rounded animate-pulse" />
+          </div>
+          <div className="mt-4 h-16 rounded-2xl bg-zinc-900 animate-pulse" />
         </div>
+        <div className="grid grid-cols-3 gap-[2px] mt-6 px-1">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="aspect-[9/16] bg-zinc-900 animate-pulse" />
+          ))}
+        </div>
+        <BottomNav />
       </div>
     )
   }
