@@ -36,7 +36,13 @@ type Stats = {
   newUsers7d: number
 }
 
-type Tab = 'overview' | 'reports' | 'banned'
+type Tab = 'overview' | 'reports' | 'banned' | 'pending'
+
+type PendingUser = {
+  id: string
+  email: string
+  created_at: string
+}
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleString('id-ID', {
@@ -79,6 +85,7 @@ export default function AdminPage() {
   const [banned, setBanned] = useState<BannedUser[]>([])
   const [filter, setFilter] = useState<'open' | 'all' | 'resolved'>('open')
   const [acting, setActing] = useState<string | null>(null)
+  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([])
 
   const router = useRouter()
   const supabase = createClient()
@@ -377,6 +384,15 @@ export default function AdminPage() {
       filtered = enriched.filter((r) => r.status === 'resolved')
     }
     setReports(filtered)
+
+    try {
+      const res = await fetch('/api/admin/pending-users')
+      if (res.ok) {
+        const json = await res.json()
+        setPendingUsers(json.users || [])
+      }
+    } catch {}
+
     setLoading(false)
   }, [filter, router, supabase])
 
@@ -485,6 +501,35 @@ export default function AdminPage() {
     await load()
   }
 
+    const pendingAction = async (
+    userId: string,
+    action: 'confirm' | 'reject'
+  ) => {
+    if (action === 'reject' && !confirm('Hapus user ini permanen?')) return
+    setActing(userId)
+    try {
+      const res = await fetch('/api/admin/users/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast(j.error || 'Gagal', 'error')
+        return
+      }
+      toast(
+        action === 'confirm' ? 'User dikonfirmasi' : 'User dihapus',
+        'success'
+      )
+      setPendingUsers((p) => p.filter((u) => u.id !== userId))
+    } catch {
+      toast('Gagal jaringan', 'error')
+    } finally {
+      setActing(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
@@ -555,6 +600,7 @@ export default function AdminPage() {
               { id: 'overview', label: 'Overview' },
               { id: 'reports', label: `Reports (${stats.openReports})` },
               { id: 'banned', label: `Banned (${stats.bannedUsers})` },
+              { id: 'pending', label: `Pending (${pendingUsers.length})` },
             ] as const
           ).map((t) => (
             <button
@@ -981,8 +1027,46 @@ export default function AdminPage() {
           </div>
         )}
 
+        {tab === 'pending' && (
+          <div className="space-y-3">
+            {pendingUsers.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 py-16 text-center text-sm text-gray-500">
+                Tidak ada user menunggu verifikasi
+              </div>
+            ) : (
+              pendingUsers.map((u) => (
+                <div
+                  key={u.id}
+                  className="flex items-center gap-3 p-4 rounded-2xl border border-white/10 bg-white/[0.03]"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{u.email}</p>
+                    <p className="text-[11px] text-gray-500">
+                      {formatDate(u.created_at)}
+                    </p>
+                  </div>
+                  <button
+                    disabled={acting === u.id}
+                    onClick={() => pendingAction(u.id, 'confirm')}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 disabled:opacity-50"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    disabled={acting === u.id}
+                    onClick={() => pendingAction(u.id, 'reject')}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/20 disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
         <p className="text-center text-[11px] text-gray-600 pb-8">
-          VEZAO Admin · hanya is_admin
+          SERULO Admin · hanya is_admin
         </p>
       </div>
     </div>
