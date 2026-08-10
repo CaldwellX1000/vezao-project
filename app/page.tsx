@@ -539,37 +539,15 @@ export default function FeedPage() {
   })
 }
   }, [videos, isMuted, feedTab])
-  // Buffer ketat ±1; restore src saat kembali ke viewport (scroll atas)
+
+  // Pause saja — jangan lepas src (hindari request mp4 berulang di Network)
   useEffect(() => {
     videoRefs.current.forEach((v, i) => {
       if (!v) return
-      const dist = Math.abs(i - activeIndex)
-      const url = videos[i]?.video_url
-      if (!url) return
-
-      if (dist <= 1) {
-        if (!v.getAttribute('src')) {
-          v.src = url
-          // jangan v.load() berulang — biarkan browser handle
-        }
-        return
-      }
-
-      // Jauh: lepas biar hemat, tapi cuma pause dulu di dist===2
-      if (dist === 2) {
-        v.pause()
-        return
-      }
-
-      if (v.getAttribute('src')) {
-        v.pause()
-        v.removeAttribute('src')
-        try {
-          v.load()
-        } catch {}
-      }
+      if (i === activeIndex) return
+      if (!v.paused) v.pause()
     })
-  }, [activeIndex, videos])
+  }, [activeIndex])
 
   const loadMore = () => {
     if (loadingMore || !hasMore) return
