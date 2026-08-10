@@ -199,7 +199,9 @@ function UploadContent() {
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null)
   const [existingVideoUrl, setExistingVideoUrl] = useState<string | null>(null)
   const [existingThumbUrl, setExistingThumbUrl] = useState<string | null>(null)
-  const [commentsEnabled, setCommentsEnabled] = useState(true)
+  const [commentPermission, setCommentPermission] = useState<
+    'everyone' | 'followers' | 'me'
+  >('everyone')
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public')
   const [soundName, setSoundName] = useState('')
   const [mentionQuery, setMentionQuery] = useState('')
@@ -266,7 +268,7 @@ function UploadContent() {
       if (draftId) {
         const { data: draft } = await supabase
           .from('videos')
-          .select('id, caption, video_url, thumbnail_url, is_draft, user_id, comments_enabled, visibility, sound_name, created_at')
+          .select('id, caption, video_url, thumbnail_url, is_draft, user_id, comments_enabled, comment_permission, visibility, sound_name, created_at')
           .eq('id', draftId)
           .single()
 
@@ -277,7 +279,15 @@ function UploadContent() {
           setPreview(draft.video_url)
           setCaption(draft.caption || '')
           setCoverPreview(draft.thumbnail_url)
-          setCommentsEnabled(draft.comments_enabled !== false)
+          {
+            const cp = (draft as any).comment_permission as string | undefined
+            if (cp === 'everyone' || cp === 'followers' || cp === 'me') {
+              setCommentPermission(cp)
+            } else {
+              // fallback dari boolean lama
+              setCommentPermission(draft.comments_enabled === false ? 'me' : 'everyone')
+            }
+          }
           setVisibility((draft.visibility as any) || 'public')
           setSoundName((draft as any).sound_name || '')
           const created = (draft as any).created_at as string | undefined
@@ -535,7 +545,7 @@ function UploadContent() {
       existingThumbUrl,
       canEditCaption,
       caption: caption.trim(),
-      commentsEnabled,
+      commentPermission,
       visibility,
       soundName: soundName.trim(),
       isScheduled,
@@ -581,7 +591,8 @@ function UploadContent() {
           scheduled_at: snap.isScheduled
             ? new Date(snap.scheduleAt).toISOString()
             : null,
-          comments_enabled: snap.commentsEnabled,
+          comments_enabled: snap.commentPermission !== 'me',
+          comment_permission: snap.commentPermission,
           visibility: snap.visibility,
           sound_name: defaultSound,
         }
@@ -653,7 +664,8 @@ function UploadContent() {
           scheduled_at: snap.isScheduled
             ? new Date(snap.scheduleAt).toISOString()
             : null,
-          comments_enabled: snap.commentsEnabled,
+          comments_enabled: snap.commentPermission !== 'me',
+          comment_permission: snap.commentPermission,
           visibility: snap.visibility,
           sound_name: defaultSound,
         })
@@ -695,7 +707,7 @@ function UploadContent() {
     setEditingDraftId(null)
     setExistingVideoUrl(null)
     setExistingThumbUrl(null)
-    setCommentsEnabled(true)
+    setCommentPermission('everyone')
     setVisibility('public')
     setSoundName('')
     setMode('choose')
@@ -1137,25 +1149,42 @@ function UploadContent() {
           )}
         </div>
 
-        {/* Izinkan komentar */}
-        <div className="flex items-center justify-between py-3 border-t border-white/10">
-          <div>
-            <p className="text-sm font-medium">Izinkan komentar</p>
-            <p className="text-xs text-gray-400">Orang lain bisa komen di video ini</p>
+        {/* Siapa yang bisa komentar */}
+        <div className="space-y-2 py-3 border-t border-white/10">
+          <p className="text-sm font-medium">Siapa yang bisa komentar</p>
+          <div className="flex flex-col gap-2">
+            {(
+              [
+                { value: 'everyone', label: 'Semua orang' },
+                { value: 'followers', label: 'Followers saja' },
+                { value: 'me', label: 'Hanya saya' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setCommentPermission(opt.value)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left ${
+                  commentPermission === opt.value
+                    ? 'bg-vezao-gradient/20 border border-pink-500/50'
+                    : 'bg-zinc-900 border border-white/10'
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                    commentPermission === opt.value
+                      ? 'border-pink-400'
+                      : 'border-gray-500'
+                  }`}
+                >
+                  {commentPermission === opt.value && (
+                    <div className="w-2 h-2 rounded-full bg-pink-400" />
+                  )}
+                </div>
+                {opt.label}
+              </button>
+            ))}
           </div>
-          <button
-            type="button"
-            onClick={() => setCommentsEnabled(!commentsEnabled)}
-            className={`w-12 h-7 rounded-full transition relative shrink-0 ${
-              commentsEnabled ? 'bg-vezao-gradient' : 'bg-zinc-600'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all ${
-                commentsEnabled ? 'left-5' : 'left-0.5'
-              }`}
-            />
-          </button>
         </div>
 
         {/* Privasi post */}
