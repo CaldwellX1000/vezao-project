@@ -12,6 +12,7 @@ type Video = {
   id: string
   caption: string | null
   comments_enabled?: boolean | null
+  comment_permission?: 'everyone' | 'followers' | 'me' | null
   video_url: string
   thumbnail_url?: string | null
   likes_count: number
@@ -75,6 +76,47 @@ function formatDateTime(dateStr: string) {
 
 function canEditComment(createdAt: string) {
   return Date.now() - new Date(createdAt).getTime() <= 30 * 60 * 1000
+}
+
+function resolveCommentPermission(video: {
+  comment_permission?: string | null
+  comments_enabled?: boolean | null
+}) {
+  const p = (video.comment_permission || '').toLowerCase()
+  if (p === 'everyone' || p === 'followers' || p === 'me') return p
+  if (video.comments_enabled === false) return 'me'
+  return 'everyone'
+}
+
+async function canCommentOnVideo(
+  supabase: ReturnType<typeof createClient>,
+  opts: {
+    video: Video
+    viewerId: string | null
+    followingSet?: Set<string>
+  }
+): Promise<{ ok: boolean; reason?: string }> {
+  const { video, viewerId, followingSet } = opts
+  if (!viewerId) return { ok: false, reason: 'Login dulu untuk komentar' }
+  if (viewerId === video.user_id) return { ok: true }
+
+  const perm = resolveCommentPermission(video)
+  if (perm === 'me') {
+    return { ok: false, reason: 'Komentar hanya untuk pemilik video' }
+  }
+  if (perm === 'followers') {
+    if (followingSet?.has(video.user_id)) return { ok: true }
+    const { data } = await supabase
+      .from('follows')
+      .select('follower_id')
+      .eq('follower_id', viewerId)
+      .eq('following_id', video.user_id)
+      .maybeSingle()
+    if (!data) {
+      return { ok: false, reason: 'Hanya followers yang bisa komentar' }
+    }
+  }
+  return { ok: true }
 }
 
 function renderTextWithMentions(
@@ -292,7 +334,7 @@ export default function FeedPage() {
     const { data: videosData } = await supabase
       .from('videos')
       .select(`
-        id, caption, video_url, thumbnail_url, likes_count, comments_count, comments_enabled,
+        id, caption, video_url, thumbnail_url, likes_count, comments_count, comments_enabled, comment_permission,
         saves_count, shares_count, visibility, views_count, sound_name, created_at, user_id,
         profiles ( username, full_name, avatar_url, is_private )
       `)
@@ -742,6 +784,14 @@ export default function FeedPage() {
   }
 
   const openComments = async (videoId: string) => {
+    const video = allVideos.find((v) => v.id === videoId)
+    if (!video) return
+
+    if (resolveCommentPermission(video) === 'me' && userId !== video.user_id) {
+      toast('Komentar hanya untuk pemilik video', 'error')
+      return
+    }
+
     setActiveVideoId(videoId)
     setShowComments(true)
     setLoadingComments(true)
@@ -775,6 +825,19 @@ export default function FeedPage() {
 
   const submitComment = async () => {
     if (!newComment.trim() || !userId || !activeVideoId) return
+    const video = allVideos.find((v) => v.id === activeVideoId)
+    if (!video) return
+
+    const check = await canCommentOnVideo(supabase, {
+      video,
+      viewerId: userId,
+      followingSet: following,
+    })
+    if (!check.ok) {
+      toast(check.reason || 'Tidak bisa komentar', 'error')
+      return
+    }
+
     const content = newComment.trim()
     const parentId = replyTo?.id || null
 
@@ -800,7 +863,6 @@ export default function FeedPage() {
     setNewComment('')
     setReplyTo(null)
 
-    const video = allVideos.find((v) => v.id === activeVideoId)
     if (parentId && replyTo && replyTo.user_id !== userId) {
       await insertNotification(supabase, {
         user_id: replyTo.user_id,
@@ -1544,7 +1606,6 @@ export default function FeedPage() {
         </div>
 
         <BottomNav />
-
         {showComments && (
           <div className="fixed inset-0 z-[60] flex items-end">
             <div
@@ -1803,82 +1864,98 @@ export default function FeedPage() {
                     </button>
                   </div>
                 )}
-                <div className="space-y-2">
-                  {showMentions && (
-                    <div className="rounded-xl border border-white/10 bg-zinc-800 overflow-hidden max-h-40 overflow-y-auto">
-                      {mentionLoading ? (
-                        <p className="text-xs text-gray-500 px-3 py-2">Mencari...</p>
-                      ) : mentionResults.length === 0 ? (
-                        <p className="text-xs text-gray-500 px-3 py-2">
-                          Tidak ada teman yang cocok
+                                <div className="space-y-2">
+                  {(() => {
+                    const v = allVideos.find((x) => x.id === activeVideoId)
+                    const perm = v ? resolveCommentPermission(v) : 'everyone'
+                    const isOwner = !!userId && !!v && userId === v.user_id
+                    if (v && !isOwner && perm === 'me') {
+                      return (
+                        <p className="text-xs text-center text-gray-500 py-2">
+                          Komentar hanya untuk pemilik video
                         </p>
-                      ) : (
-                        mentionResults.map((u) => (
+                      )
+                    }
+                    return (
+                      <>
+                        {showMentions && (
+                          <div className="rounded-xl border border-white/10 bg-zinc-800 overflow-hidden max-h-40 overflow-y-auto">
+                            {mentionLoading ? (
+                              <p className="text-xs text-gray-500 px-3 py-2">Mencari...</p>
+                            ) : mentionResults.length === 0 ? (
+                              <p className="text-xs text-gray-500 px-3 py-2">
+                                Tidak ada teman yang cocok
+                              </p>
+                            ) : (
+                              mentionResults.map((u) => (
+                                <button
+                                  key={u.id}
+                                  type="button"
+                                  onClick={() => insertMention(u.username || '')}
+                                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/5 text-left"
+                                >
+                                  <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 shrink-0">
+                                    {u.avatar_url ? (
+                                      <img
+                                        src={u.avatar_url}
+                                        alt=""
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-vezao-gradient">
+                                        {(u.username || 'U')[0]?.toUpperCase()}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold truncate">
+                                      {u.full_name || u.username}
+                                    </p>
+                                    <p className="text-[11px] text-gray-400 truncate">
+                                      @{u.username}
+                                    </p>
+                                  </div>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <input
+                            value={newComment}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setNewComment(val)
+                              const upToCursor = val.slice(
+                                0,
+                                e.target.selectionStart || val.length
+                              )
+                              const match = upToCursor.match(/@([a-zA-Z0-9._]*)$/)
+                              if (match) {
+                                setShowMentions(true)
+                                void searchMentions(match[1] || '')
+                              } else {
+                                setShowMentions(false)
+                              }
+                            }}
+                            placeholder={
+                              replyTo
+                                ? `Balas @${replyTo.profiles?.username || 'user'}...`
+                                : 'Tulis komentar... @teman'
+                            }
+                            className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                            onKeyDown={(e) => e.key === 'Enter' && submitComment()}
+                          />
                           <button
-                            key={u.id}
-                            type="button"
-                            onClick={() => insertMention(u.username || '')}
-                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/5 text-left"
+                            onClick={submitComment}
+                            className="bg-vezao-gradient px-5 py-2.5 rounded-full text-sm font-medium"
                           >
-                            <div className="w-7 h-7 rounded-full overflow-hidden bg-zinc-700 shrink-0">
-                              {u.avatar_url ? (
-                                <img
-                                  src={u.avatar_url}
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-vezao-gradient">
-                                  {(u.username || 'U')[0]?.toUpperCase()}
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold truncate">
-                                {u.full_name || u.username}
-                              </p>
-                              <p className="text-[11px] text-gray-400 truncate">
-                                @{u.username}
-                              </p>
-                            </div>
+                            Kirim
                           </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <input
-                      value={newComment}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        setNewComment(val)
-                        const upToCursor = val.slice(
-                          0,
-                          e.target.selectionStart || val.length
-                        )
-                        const match = upToCursor.match(/@([a-zA-Z0-9._]*)$/)
-                        if (match) {
-                          setShowMentions(true)
-                          void searchMentions(match[1] || '')
-                        } else {
-                          setShowMentions(false)
-                        }
-                      }}
-                      placeholder={
-                        replyTo
-                          ? `Balas @${replyTo.profiles?.username || 'user'}...`
-                          : 'Tulis komentar... @teman'
-                      }
-                      className="flex-1 bg-zinc-800 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-                      onKeyDown={(e) => e.key === 'Enter' && submitComment()}
-                    />
-                    <button
-                      onClick={submitComment}
-                      className="bg-vezao-gradient px-5 py-2.5 rounded-full text-sm font-medium"
-                    >
-                      Kirim
-                    </button>
-                  </div>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
@@ -1979,7 +2056,7 @@ export default function FeedPage() {
                   </>
                 )}
 
-                <button
+                                <button
                   onClick={() => setShowMore(null)}
                   className="w-full py-3 text-sm text-gray-400 mt-1"
                 >
@@ -1987,7 +2064,7 @@ export default function FeedPage() {
                 </button>
               </div>
             </div>
-            </div>
+          </div>
         )}
 
         {reportVideoId && (
