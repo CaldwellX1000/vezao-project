@@ -506,7 +506,7 @@ export default function FeedPage() {
 
           const idx = videoRefs.current.findIndex((v) => v === el)
           if (idx >= 0) {
-            setActiveIndex(idx)
+            setActiveIndex((prev) => (prev === idx ? prev : idx))
             if (idx >= videos.length - 2) {
               loadMore()
             }
@@ -1249,11 +1249,7 @@ export default function FeedPage() {
                     videoRefs.current[index] = el
                   }}
                   data-video-id={video.id}
-                  src={
-                    index >= activeIndex - 1 && index <= activeIndex + 1
-                      ? video.video_url
-                      : undefined
-                  }
+                  src={video.video_url}
                   poster={video.thumbnail_url || undefined}
                   className="absolute inset-0 w-full h-full object-cover"
                   loop={!autoScroll}
@@ -1262,7 +1258,7 @@ export default function FeedPage() {
                   preload={
                     index === activeIndex
                       ? 'auto'
-                      : index === activeIndex - 1 || index === activeIndex + 1
+                      : Math.abs(index - activeIndex) === 1
                       ? 'metadata'
                       : 'none'
                   }
@@ -1275,7 +1271,7 @@ export default function FeedPage() {
                     const pct = Math.min(100, (v.currentTime / v.duration) * 100)
                     setProgressMap((prev) => {
                       const old = prev[video.id] || 0
-                      if (Math.abs(old - pct) < 12) return prev
+                      if (Math.abs(old - pct) < 20) return prev
                       return { ...prev, [video.id]: pct }
                     })
                   }}
