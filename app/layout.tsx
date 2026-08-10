@@ -7,6 +7,7 @@ import PushPrompt from '@/components/PushPrompt'
 import ToastHost from '@/components/ToastHost'
 import DesktopSidebar from '@/components/DesktopSidebar'
 import DesktopRightRail from '@/components/DesktopRightRail'
+import { UploadProvider } from '@/components/UploadProvider'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +30,6 @@ export const metadata: Metadata = {
   title: "SERULO",
   description: "Dunia Seru Versi Lo — kreativitas, humor, musik & lifestyle",
   manifest: "/manifest.json",
-  themeColor: "#000000",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -55,16 +55,19 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${lexend.variable} h-full antialiased`}
     >
       <body className={`${lexend.className} min-h-full flex flex-col overflow-hidden`}>
-                        <ThemeProvider>
-          <DesktopSidebar />
-          <div className="md:pl-[72px] lg:pl-56 h-[100dvh] flex flex-col overflow-hidden">
-            {children}
-          </div>
-          <ToastHost />
-          <InstallPrompt />
-          <PushPrompt />
+        <ThemeProvider>
+          <UploadProvider>
+            <DesktopSidebar />
+            <div className="md:pl-[72px] lg:pl-56 h-[100dvh] flex flex-col overflow-hidden">
+              {children}
+            </div>
+            <ToastHost />
+            <InstallPrompt />
+            <PushPrompt />
+          </UploadProvider>
         </ThemeProvider>
       </body>
     </html>
   );
+  
 }

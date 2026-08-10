@@ -933,7 +933,7 @@ export default function SingleVideoPage() {
 
   if (loading && videos.length === 0) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center">
+      <div className="h-[100dvh] bg-black flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
       </div>
     )
@@ -941,7 +941,7 @@ export default function SingleVideoPage() {
 
   if (!loading && videos.length === 0) {
     return (
-      <div className="h-screen bg-black flex flex-col items-center justify-center gap-4 text-white">
+      <div className="h-[100dvh] bg-black flex flex-col items-center justify-center gap-4 text-white">
         <p>Video tidak ditemukan</p>
         <button
           onClick={() => router.back()}
@@ -999,7 +999,7 @@ export default function SingleVideoPage() {
             return (
               <div
                 key={`${video.id}-${index}`}
-                className="h-screen w-full snap-start relative flex items-center justify-center"
+                className="h-[100dvh] w-full snap-start relative flex items-center justify-center"
               >
                 <video
                   ref={(el) => {
@@ -1025,7 +1025,7 @@ export default function SingleVideoPage() {
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
-                <div className="absolute bottom-8 left-4 right-20 text-white z-10">
+                <div className="absolute bottom-[calc(2rem+env(safe-area-inset-bottom))] left-4 right-20 text-white z-10">
                   <div
                     className="flex items-center gap-2 mb-1.5 cursor-pointer"
                     onClick={() =>
@@ -1079,7 +1079,7 @@ export default function SingleVideoPage() {
                   )}
                 </div>
 
-                <div className="absolute right-2 bottom-16 flex flex-col items-center gap-3 z-10">
+                <div className="absolute right-2 bottom-[calc(4rem+env(safe-area-inset-bottom))] flex flex-col items-center gap-3 z-10">
                   <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 ${

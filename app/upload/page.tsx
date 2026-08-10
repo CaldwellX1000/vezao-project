@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useUpload } from '@/components/UploadProvider'
 
 type Mode = 'choose' | 'gallery' | 'camera' | 'preview'
 
@@ -249,6 +250,7 @@ function UploadContent() {
 
   const router = useRouter()
   const supabase = createClient()
+  const { startUpload } = useUpload()
 
   useEffect(() => {
     const init = async () => {
@@ -502,227 +504,181 @@ function UploadContent() {
       }
     }
 
-    if (editingDraftId && !file) {
-      setUploading(true)
-      setProgress(30)
-      setMessage('')
+    if (!file && !editingDraftId) {
+      setMessage('Pilih / rekam video dulu')
+      return
+    }
 
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          router.push('/login')
-          return
-        }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
 
-        let thumbnailUrl = existingThumbUrl
+    let coverData = coverPreview
+    if (
+      (!coverData ||
+        coverData === existingThumbUrl ||
+        !coverData.startsWith('data:')) &&
+      previewVideoRef.current
+    ) {
+      const t = coverTime || (duration > 1 ? 1 : 0.15)
+      const generated = await captureFrameAt(t)
+      if (generated) coverData = generated
+    }
 
-        let coverData = coverPreview
-        if (!coverData || coverData === existingThumbUrl) {
-          // coba generate dari video preview kalau user geser / belum ada
-          if (previewVideoRef.current) {
-            const t = coverTime || 1
-            const generated = await captureFrameAt(t)
-            if (generated) coverData = generated
-          }
-        }
+    const snap = {
+      file,
+      editingDraftId,
+      existingThumbUrl,
+      canEditCaption,
+      caption: caption.trim(),
+      commentsEnabled,
+      visibility,
+      soundName: soundName.trim(),
+      isScheduled,
+      scheduleAt,
+      asDraft,
+      coverData,
+    }
 
-        if (coverData && coverData.startsWith('data:')) {
-          const thumbBlob = await dataUrlToBlob(coverData)
+    startUpload(async (onProgress) => {
+      onProgress(5)
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single()
+
+      const defaultSound =
+        snap.soundName ||
+        `Original sound - @${profile?.username || 'user'}`
+
+      if (snap.editingDraftId && !snap.file) {
+        onProgress(30)
+        let thumbnailUrl = snap.existingThumbUrl
+
+        if (snap.coverData?.startsWith('data:')) {
+          const thumbBlob = await dataUrlToBlob(snap.coverData)
           const thumbName = `${user.id}/${Date.now()}.jpg`
           const { error: thumbError } = await supabase.storage
             .from('thumbnails')
             .upload(thumbName, thumbBlob, { contentType: 'image/jpeg' })
-
           if (!thumbError) {
-            const { data: { publicUrl: tUrl } } = supabase.storage
+            thumbnailUrl = supabase.storage
               .from('thumbnails')
-              .getPublicUrl(thumbName)
-            thumbnailUrl = tUrl
+              .getPublicUrl(thumbName).data.publicUrl
           }
         }
 
-        setProgress(70)
-
+        onProgress(70)
         const updatePayload: Record<string, any> = {
           thumbnail_url: thumbnailUrl,
-          is_draft: asDraft || isScheduled,
-          scheduled_at: isScheduled ? new Date(scheduleAt).toISOString() : null,
-          comments_enabled: commentsEnabled,
-          visibility: visibility,
-          sound_name:
-            soundName.trim() ||
-            `Original sound - @${
-              (
-                await supabase
-                  .from('profiles')
-                  .select('username')
-                  .eq('id', user.id)
-                  .single()
-              ).data?.username || 'user'
-            }`,
+          is_draft: snap.asDraft || snap.isScheduled,
+          scheduled_at: snap.isScheduled
+            ? new Date(snap.scheduleAt).toISOString()
+            : null,
+          comments_enabled: snap.commentsEnabled,
+          visibility: snap.visibility,
+          sound_name: defaultSound,
         }
-        if (canEditCaption) {
-          updatePayload.caption = caption.trim() || null
+        if (snap.canEditCaption) {
+          updatePayload.caption = snap.caption || null
         }
 
         const { error } = await supabase
           .from('videos')
           .update(updatePayload)
-          .eq('id', editingDraftId)
+          .eq('id', snap.editingDraftId)
           .eq('user_id', user.id)
-
         if (error) throw error
 
-        if (!asDraft && !isScheduled && caption.trim()) {
+        if (!snap.asDraft && !snap.isScheduled && snap.caption) {
           await notifyMentions(supabase, {
-            text: caption.trim(),
+            text: snap.caption,
             actorId: user.id,
-            videoId: editingDraftId,
+            videoId: snap.editingDraftId,
           })
         }
-
-        setProgress(100)
-        setMessage(
-          isScheduled
-            ? 'Dijadwalkan!'
-            : asDraft
-            ? 'Draft tersimpan!'
-            : 'Upload berhasil!'
-        )
-        setTimeout(() => {
-          router.push('/profile')
-          router.refresh()
-        }, 800)
-      } catch (err: any) {
-        setMessage(err.message || 'Gagal')
-        setProgress(0)
-      } finally {
-        setUploading(false)
-      }
-      return
-    }
-
-    if (!file) {
-      setMessage('Pilih / rekam video dulu')
-      return
-    }
-
-    setUploading(true)
-    setProgress(5)
-    setMessage('Menyiapkan video...')
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
+        onProgress(100)
         return
       }
 
-      // Compress ke ~720p sebelum upload
-      const uploadFile = await compressVideo(file, (pct) => {
-        setProgress(Math.max(5, Math.min(40, Math.round(pct * 0.4))))
-        setMessage('Menyiapkan video...')
+      if (!snap.file) throw new Error('Tidak ada file video')
+
+      const uploadFile = await compressVideo(snap.file, (pct) => {
+        onProgress(Math.max(5, Math.min(40, Math.round(pct * 0.4))))
       })
 
+      onProgress(45)
       const fileExt = uploadFile.name.split('.').pop() || 'webm'
       const fileName = `${user.id}/${Date.now()}.${fileExt}`
-
-      setProgress(45)
-      setMessage('Mengupload...')
 
       const { error: uploadError } = await supabase.storage
         .from('videos')
         .upload(fileName, uploadFile)
-
       if (uploadError) throw uploadError
 
-      setProgress(50)
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('videos')
-        .getPublicUrl(fileName)
-
-      // Pastikan ada cover (otomatis kalau user tidak geser slider)
-      let coverData = coverPreview
-      if (!coverData || !coverData.startsWith('data:')) {
-        const t = coverTime || (duration > 1 ? 1 : 0.15)
-        coverData = await captureFrameAt(t)
-      }
+      onProgress(55)
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('videos').getPublicUrl(fileName)
 
       let thumbnailUrl: string | null = null
-        if (coverData && coverData.startsWith('data:')) {
-        const thumbBlob = await dataUrlToBlob(coverData)
+      if (snap.coverData?.startsWith('data:')) {
+        const thumbBlob = await dataUrlToBlob(snap.coverData)
         const thumbName = `${user.id}/${Date.now()}.jpg`
         const { error: thumbError } = await supabase.storage
           .from('thumbnails')
           .upload(thumbName, thumbBlob, { contentType: 'image/jpeg' })
-
         if (!thumbError) {
-          const {
-            data: { publicUrl: tUrl },
-          } = supabase.storage.from('thumbnails').getPublicUrl(thumbName)
-          thumbnailUrl = tUrl
+          thumbnailUrl = supabase.storage
+            .from('thumbnails')
+            .getPublicUrl(thumbName).data.publicUrl
         }
       }
 
-      setProgress(80)
-
+      onProgress(80)
       const { data: inserted, error: dbError } = await supabase
         .from('videos')
         .insert({
           user_id: user.id,
-          caption: caption.trim() || null,
+          caption: snap.caption || null,
           video_url: publicUrl,
           thumbnail_url: thumbnailUrl,
-          is_draft: asDraft || isScheduled,
-          scheduled_at: isScheduled
-            ? new Date(scheduleAt).toISOString()
+          is_draft: snap.asDraft || snap.isScheduled,
+          scheduled_at: snap.isScheduled
+            ? new Date(snap.scheduleAt).toISOString()
             : null,
-          comments_enabled: commentsEnabled,
-          visibility: visibility,
-          sound_name:
-            soundName.trim() ||
-            `Original sound - @${
-              (
-                await supabase
-                  .from('profiles')
-                  .select('username')
-                  .eq('id', user.id)
-                  .single()
-              ).data?.username || 'user'
-            }`,
+          comments_enabled: snap.commentsEnabled,
+          visibility: snap.visibility,
+          sound_name: defaultSound,
         })
         .select('id')
         .single()
 
       if (dbError) throw dbError
 
-      if (!asDraft && !isScheduled && caption.trim() && inserted?.id) {
+      if (
+        !snap.asDraft &&
+        !snap.isScheduled &&
+        snap.caption &&
+        inserted?.id
+      ) {
         await notifyMentions(supabase, {
-          text: caption.trim(),
+          text: snap.caption,
           actorId: user.id,
           videoId: inserted.id,
         })
       }
 
-      setProgress(100)
-      setMessage(
-        isScheduled
-          ? 'Dijadwalkan!'
-          : asDraft
-          ? 'Draft tersimpan!'
-          : 'Upload berhasil!'
-      )
-      setTimeout(
-        () => router.push(asDraft || isScheduled ? '/profile' : '/'),
-        1000
-      )
-    } catch (err: any) {
-      setMessage(err.message || 'Gagal upload')
-      setProgress(0)
-    } finally {
-      setUploading(false)
-    }
+      onProgress(100)
+    })
+
+    router.push('/profile')
   }
 
   const resetAll = () => {
