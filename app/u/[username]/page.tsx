@@ -348,10 +348,10 @@ function ProfileByUsername() {
     )
   }
 
-  return (
-    <div className="min-h-screen bg-black text-white pb-20 md:bg-zinc-950">
-      <div className="w-full md:max-w-[480px] md:mx-auto md:min-h-screen md:bg-black md:border-x md:border-white/10">
-      <div className="relative h-28 overflow-hidden z-0">
+    return (
+    <div className="min-h-[100dvh] w-full bg-black text-white overflow-y-auto overscroll-y-contain pb-24 md:bg-zinc-950">
+      <div className="w-full md:max-w-[480px] md:mx-auto md:bg-black md:border-x md:border-white/10">
+      <div className="relative h-28 overflow-hidden">
         {coverUrl ? (
           <img
             src={coverUrl}
