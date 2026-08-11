@@ -227,6 +227,7 @@ export default function SingleVideoPage() {
   const [showMore, setShowMore] = useState<string | null>(null)
   const [reportVideoId, setReportVideoId] = useState<string | null>(null)
   const [shareVideoId, setShareVideoId] = useState<string | null>(null)
+  const [expandedCaptions, setExpandedCaptions] = useState<Set<string>>(new Set())
 
   const REPORT_REASONS = [
     'Spam',
@@ -1103,7 +1104,7 @@ export default function SingleVideoPage() {
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
-                <div className="absolute bottom-20 left-3 right-[4.5rem] md:bottom-8 text-white z-10">
+                <div className="absolute bottom-8 left-3 right-[4.5rem] text-white z-10 pb-[env(safe-area-inset-bottom)]">
                   <div
                     className="flex items-center gap-2 mb-1.5 cursor-pointer"
                     onClick={() =>
@@ -1129,37 +1130,82 @@ export default function SingleVideoPage() {
                       @{video.profiles?.username || 'user'}
                     </p>
                   </div>
-                  <p className="text-sm opacity-90 line-clamp-3">
-                    {renderTextWithMentions(
-                      video.caption || '',
-                      (uname) => router.push(`/@${uname}`),
-                      (tag) => router.push(`/hashtag?tag=${tag}`)
-                    )}
-                  </p>
-                  <p
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      const name =
-                        video.sound_name ||
-                        `Original sound - @${video.profiles?.username || 'user'}`
-                      router.push(`/sound?name=${encodeURIComponent(name)}`)
-                    }}
-                    className="text-[11px] text-white/70 mt-1 flex items-center gap-1 cursor-pointer max-w-[90%]"
-                  >
-                    <span>♪</span>
-                    <span className="truncate">
-                      {video.sound_name ||
-                        `Original sound - @${video.profiles?.username || 'user'}`}
-                    </span>
-                  </p>
-                  {video.created_at && (
-                    <p className="text-[11px] text-white/50 mt-1">
-                      {formatDateTime(video.created_at)}
-                    </p>
+
+                  {video.caption && (
+                    <div className="text-sm opacity-90 relative">
+                      <p
+                        className={
+                          expandedCaptions.has(video.id)
+                            ? 'whitespace-pre-wrap'
+                            : 'line-clamp-2 overflow-hidden'
+                        }
+                        style={
+                          expandedCaptions.has(video.id)
+                            ? undefined
+                            : {
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                              }
+                        }
+                      >
+                        {renderTextWithMentions(
+                          video.caption,
+                          (uname) => router.push(`/@${uname}`),
+                          (tag) => router.push(`/hashtag?tag=${tag}`)
+                        )}
+                      </p>
+
+                      {video.caption.length > 70 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setExpandedCaptions((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(video.id)) next.delete(video.id)
+                              else next.add(video.id)
+                              return next
+                            })
+                          }}
+                          className="text-white/70 text-xs mt-1 font-medium"
+                        >
+                          {expandedCaptions.has(video.id)
+                            ? 'tampilkan sedikit'
+                            : 'tampilkan selengkapnya'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {expandedCaptions.has(video.id) && (
+                    <div className="mt-1.5 space-y-0.5">
+                      <p
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const name =
+                            video.sound_name ||
+                            `Original sound - @${video.profiles?.username || 'user'}`
+                          router.push(`/sound?name=${encodeURIComponent(name)}`)
+                        }}
+                        className="text-[11px] text-white/70 flex items-center gap-1 cursor-pointer max-w-[90%]"
+                      >
+                        <span>♪</span>
+                        <span className="truncate">
+                          {video.sound_name ||
+                            `Original sound - @${video.profiles?.username || 'user'}`}
+                        </span>
+                      </p>
+                      {video.created_at && (
+                        <p className="text-[11px] text-white/40">
+                          {formatDateTime(video.created_at)}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
 
-                <div className="absolute right-2 bottom-20 md:bottom-6 flex flex-col items-center gap-2.5 z-10">
+                <div className="absolute right-2 bottom-8 flex flex-col items-center gap-2.5 z-10 pb-[env(safe-area-inset-bottom)]">
                   <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 ${
