@@ -1385,7 +1385,7 @@ export default function FeedPage() {
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
-                <div className="absolute bottom-28 left-3 right-[4.5rem] md:bottom-8 text-white z-10">
+                <div className="absolute bottom-20 left-3 right-[4.5rem] md:bottom-8 text-white z-10">
                   <div className="flex items-center gap-2 mb-1.5">
                     <div
                       className="flex items-center gap-2 cursor-pointer"
@@ -1497,7 +1497,7 @@ export default function FeedPage() {
                   )}
                 </div>
 
-                <div className="absolute right-2 bottom-28 md:bottom-6 flex flex-col items-center gap-2.5 z-10">
+                <div className="absolute right-2 bottom-20 md:bottom-6 flex flex-col items-center gap-2.5 z-10">
                   <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center ${

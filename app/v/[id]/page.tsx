@@ -1103,7 +1103,7 @@ export default function SingleVideoPage() {
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
-                <div className="absolute bottom-[calc(2rem+env(safe-area-inset-bottom))] left-4 right-20 text-white z-10">
+                <div className="absolute bottom-20 left-3 right-[4.5rem] md:bottom-8 text-white z-10">
                   <div
                     className="flex items-center gap-2 mb-1.5 cursor-pointer"
                     onClick={() =>
@@ -1159,7 +1159,7 @@ export default function SingleVideoPage() {
                   )}
                 </div>
 
-                <div className="absolute right-2 bottom-[calc(4rem+env(safe-area-inset-bottom))] flex flex-col items-center gap-3 z-10">
+                <div className="absolute right-2 bottom-20 md:bottom-6 flex flex-col items-center gap-2.5 z-10">
                   <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 ${
