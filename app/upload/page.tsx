@@ -44,13 +44,13 @@ async function notifyMentions(
   if (rows.length === 0) return
   await supabase.from('notifications').insert(rows)
 }
-/** Compress ke max lebar 720px, bitrate ~2.5Mbps. Gagal → file asli. */
+/** Compress max 720p, ~1.8Mbps, 24fps. Skip <4MB. Gagal → file asli. */
 async function compressVideo(
   file: File,
   onProgress?: (pct: number) => void
 ): Promise<File> {
   // Sudah kecil → skip
-  if (file.size < 6 * 1024 * 1024) {
+  if (file.size < 4 * 1024 * 1024) {
     onProgress?.(100)
     return file
   }
@@ -65,6 +65,7 @@ async function compressVideo(
 
     const fail = () => {
       URL.revokeObjectURL(url)
+      onProgress?.(100)
       resolve(file)
     }
 
@@ -84,9 +85,12 @@ async function compressVideo(
           h = Math.round((h * maxW) / w)
           w = maxW
         }
+        // genap (beberapa encoder rewel)
+        w = w - (w % 2)
+        h = h - (h % 2)
 
-        // Sudah ≤720p dan tidak terlalu besar
-        if (video.videoWidth <= 720 && file.size < 12 * 1024 * 1024) {
+        // ≤720p dan <5MB → skip
+        if (video.videoWidth <= 720 && file.size < 5 * 1024 * 1024) {
           URL.revokeObjectURL(url)
           onProgress?.(100)
           resolve(file)
@@ -102,9 +106,9 @@ async function compressVideo(
           return
         }
 
-        const canvasStream = canvas.captureStream(30)
+        const fps = 24
+        const canvasStream = canvas.captureStream(fps)
 
-        // Coba ambil audio dari video asli
         try {
           const raw: MediaStream | undefined =
             (video as any).captureStream?.() ||
@@ -122,7 +126,7 @@ async function compressVideo(
 
         const recorder = new MediaRecorder(canvasStream, {
           mimeType: mime,
-          videoBitsPerSecond: 2_500_000,
+          videoBitsPerSecond: 1_800_000,
         })
         const chunks: Blob[] = []
 
@@ -134,14 +138,13 @@ async function compressVideo(
           canvasStream.getTracks().forEach((t) => t.stop())
           URL.revokeObjectURL(url)
           const blob = new Blob(chunks, { type: mime })
-          // Kalau hasil malah lebih besar, pakai asli
-          if (blob.size === 0 || blob.size >= file.size * 0.98) {
+          if (blob.size === 0 || blob.size >= file.size * 0.95) {
             resolve(file)
             return
           }
           onProgress?.(100)
           resolve(
-            new File([blob], `cicipy-${Date.now()}.webm`, { type: mime })
+            new File([blob], `serulo-${Date.now()}.webm`, { type: mime })
           )
         }
 
