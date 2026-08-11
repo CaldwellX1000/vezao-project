@@ -10,6 +10,7 @@ type Video = {
   id: string
   caption: string | null
   video_url: string
+  thumbnail_url?: string | null
   likes_count: number
   comments_count: number
   views_count?: number | null
@@ -260,6 +261,7 @@ export default function SingleVideoPage() {
   >([])
   const [loadingShareFriends, setLoadingShareFriends] = useState(false)
   const [sharingTo, setSharingTo] = useState<string | null>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
     const [pullDistance, setPullDistance] = useState(0)
   const [showMentions, setShowMentions] = useState(false)
   const [mentionResults, setMentionResults] = useState<
@@ -331,7 +333,7 @@ export default function SingleVideoPage() {
         .from('videos')
         .select(
           `
-          id, caption, video_url, likes_count, comments_count, saves_count, shares_count, comments_enabled,
+          id, caption, video_url, thumbnail_url, likes_count, comments_count, saves_count, shares_count, comments_enabled,
           created_at, user_id, is_pinned, visibility, is_draft, sound_name,
           profiles ( username, full_name, avatar_url )
         `
@@ -339,6 +341,7 @@ export default function SingleVideoPage() {
         .eq('user_id', ownerId)
         .eq('is_draft', false)
         .order('created_at', { ascending: false })
+        .limit(20)
 
       const isOwn = user.id === ownerId
       let rest: Video[] = ((all || []) as any[]).filter((v) => {
@@ -422,6 +425,8 @@ export default function SingleVideoPage() {
             videoRefs.current.forEach((v) => {
               if (v && v !== video) v.pause()
             })
+            const idx = videoRefs.current.findIndex((v) => v === video)
+            if (idx >= 0) setActiveIndex((prev) => (prev === idx ? prev : idx))
             video.muted = isMuted
             video.play().catch(async () => {
               if (!isMuted) {
@@ -1068,12 +1073,23 @@ export default function SingleVideoPage() {
                     videoRefs.current[index] = el
                   }}
                   data-video-id={video.id}
-                  src={video.video_url}
+                  src={
+                    Math.abs(index - activeIndex) <= 1
+                      ? video.video_url
+                      : undefined
+                  }
+                  poster={(video as any).thumbnail_url || undefined}
                   className="absolute inset-0 w-full h-full object-cover"
                   loop
                   muted={isMuted}
                   playsInline
-                  preload={index < 2 ? 'auto' : 'metadata'}
+                  preload={
+                    index === activeIndex
+                      ? 'auto'
+                      : Math.abs(index - activeIndex) === 1
+                      ? 'metadata'
+                      : 'none'
+                  }
                   onClick={(e) => handleTap(video.id, e.currentTarget)}
                 />
                 {video.is_pinned && (
