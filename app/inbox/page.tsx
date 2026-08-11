@@ -88,6 +88,7 @@ export default function InboxPage() {
   const [loadingNotif, setLoadingNotif] = useState(false)
   const [followedBack, setFollowedBack] = useState<Set<string>>(new Set())
   const [actingId, setActingId] = useState<string | null>(null)
+  const [chatQuery, setChatQuery] = useState('')
 
   const router = useRouter()
   const supabase = createClient()
@@ -589,7 +590,17 @@ export default function InboxPage() {
       {tab === 'activity' ? (
         <div className="divide-y divide-white/5">
           {loadingNotif ? (
-            <p className="text-center text-gray-500 py-12 text-sm">Loading...</p>
+            <div className="px-4 pt-4 space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-zinc-800 animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-40 bg-zinc-800 rounded animate-pulse" />
+                    <div className="h-3 w-24 bg-zinc-800 rounded animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
               <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4">
@@ -706,6 +717,17 @@ export default function InboxPage() {
         </div>
       ) : (
         <div className="divide-y divide-white/5" onClick={() => setMenuUserId(null)}>
+          {conversations.length > 0 && (
+            <div className="px-4 py-2 border-b border-white/5">
+              <input
+                value={chatQuery}
+                onChange={(e) => setChatQuery(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="Cari chat..."
+                className="w-full bg-zinc-900 border border-white/10 rounded-full px-4 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+              />
+            </div>
+          )}
           {conversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
               <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4">
@@ -719,7 +741,16 @@ export default function InboxPage() {
               </p>
             </div>
           ) : (
-            conversations.map((conv) => (
+            conversations
+              .filter((c) => {
+                const q = chatQuery.trim().toLowerCase()
+                if (!q) return true
+                return (
+                  c.fullName.toLowerCase().includes(q) ||
+                  c.username.toLowerCase().includes(q)
+                )
+              })
+              .map((conv) => (
               <div
                 key={conv.userId}
                 className="relative flex items-center gap-2 px-4 py-3.5 active:bg-white/5"
@@ -773,7 +804,7 @@ export default function InboxPage() {
                         conv.hasUnread ? 'text-white font-medium' : 'text-gray-400'
                       }`}
                     >
-                      {formatLastMessage(conv.lastMessage)}
+                      {conv.lastMessage}
                     </p>
                   </div>
                 </div>

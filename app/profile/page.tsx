@@ -490,6 +490,25 @@ const list = published || []
     if (coverInputRef.current) coverInputRef.current.value = ''
   }
 
+  const COVER_SCALE = 1.35
+
+  const getCoverLimits = () => {
+    const frame = coverFrameRef.current
+    const img = coverImgRef.current
+    if (!frame || !img || !img.naturalWidth) return { maxX: 0, maxY: 0 }
+
+    const fw = frame.clientWidth
+    const fh = frame.clientHeight
+    const scale =
+      Math.max(fw / img.naturalWidth, fh / img.naturalHeight) * COVER_SCALE
+    const dispW = img.naturalWidth * scale
+    const dispH = img.naturalHeight * scale
+    return {
+      maxX: Math.max(0, (dispW - fw) / 2),
+      maxY: Math.max(0, (dispH - fh) / 2),
+    }
+  }
+
   const handleCoverPointerDown = (e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     setCoverDrag({ x: e.clientX - coverPos.x, y: e.clientY - coverPos.y })
@@ -497,10 +516,12 @@ const list = published || []
 
   const handleCoverPointerMove = (e: React.PointerEvent) => {
     if (!coverDrag) return
-    setCoverPos({
-      x: e.clientX - coverDrag.x,
-      y: e.clientY - coverDrag.y,
-    })
+    let x = e.clientX - coverDrag.x
+    let y = e.clientY - coverDrag.y
+    const { maxX, maxY } = getCoverLimits()
+    x = Math.min(maxX, Math.max(-maxX, x))
+    y = Math.min(maxY, Math.max(-maxY, y))
+    setCoverPos({ x, y })
   }
 
   const handleCoverPointerUp = (e: React.PointerEvent) => {
@@ -524,7 +545,8 @@ const list = published || []
       const outW = 1200
       const outH = Math.round((frameH / frameW) * outW)
 
-      const scale = Math.max(frameW / img.naturalWidth, frameH / img.naturalHeight)
+      const scale =
+        Math.max(frameW / img.naturalWidth, frameH / img.naturalHeight) * 1.35
       const dispW = img.naturalWidth * scale
       const dispH = img.naturalHeight * scale
 
@@ -1501,7 +1523,7 @@ const list = published || []
         </div>
       )}
       {coverEditorOpen && coverSource && (
-        <div className="fixed inset-0 z-[80] bg-black/90 flex flex-col">
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
           <div className="px-4 h-14 flex items-center justify-between border-b border-white/10">
             <button
               type="button"
@@ -1526,14 +1548,14 @@ const list = published || []
             </button>
           </div>
 
-          <div className="flex-1 flex flex-col items-center justify-center px-4 gap-4">
+          <div className="flex-1 flex flex-col items-center justify-center px-4 gap-4 bg-black">
             <p className="text-xs text-gray-400 text-center">
               Geser foto agar posisi pas (tidak terpotong)
             </p>
 
             <div
               ref={coverFrameRef}
-              className="relative w-full max-w-md h-28 overflow-hidden rounded-xl border border-white/20 bg-zinc-900 touch-none cursor-grab active:cursor-grabbing"
+              className="relative w-full max-w-md h-36 overflow-hidden rounded-xl border border-white/25 bg-black touch-none cursor-grab active:cursor-grabbing shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
               onPointerDown={handleCoverPointerDown}
               onPointerMove={handleCoverPointerMove}
               onPointerUp={handleCoverPointerUp}
@@ -1544,14 +1566,25 @@ const list = published || []
                 src={coverSource}
                 alt="Cover preview"
                 draggable={false}
+                onLoad={() => setCoverPos((p) => ({ ...p }))}
                 className="absolute max-w-none pointer-events-none select-none"
                 style={{
-                  height: '100%',
-                  width: 'auto',
                   left: '50%',
                   top: '50%',
                   transform: `translate(calc(-50% + ${coverPos.x}px), calc(-50% + ${coverPos.y}px))`,
-                  minWidth: '100%',
+                  width: coverFrameRef.current
+                    ? Math.max(
+                        coverFrameRef.current.clientWidth /
+                          (coverImgRef.current?.naturalWidth || 1),
+                        coverFrameRef.current.clientHeight /
+                          (coverImgRef.current?.naturalHeight || 1)
+                      ) *
+                        1.35 *
+                        (coverImgRef.current?.naturalWidth || 0)
+                    : '135%',
+                  height: 'auto',
+                  minWidth: '135%',
+                  minHeight: '135%',
                   objectFit: 'cover',
                 }}
               />
