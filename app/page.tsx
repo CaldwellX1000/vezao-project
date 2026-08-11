@@ -258,7 +258,7 @@ export default function FeedPage() {
     } catch {}
   }, [])
 
-  const PAGE_SIZE = 5
+  const PAGE_SIZE = 3
 
   const router = useRouter()
   const supabase = createClient()
@@ -1311,7 +1311,11 @@ export default function FeedPage() {
                     videoRefs.current[index] = el
                   }}
                   data-video-id={video.id}
-                  src={video.video_url}
+                  src={
+                    Math.abs(index - activeIndex) <= 1
+                      ? video.video_url
+                      : undefined
+                  }
                   poster={video.thumbnail_url || undefined}
                   className="absolute inset-0 w-full h-full object-cover"
                   loop={!autoScroll}
@@ -1333,7 +1337,7 @@ export default function FeedPage() {
                     const pct = Math.min(100, (v.currentTime / v.duration) * 100)
                     setProgressMap((prev) => {
                       const old = prev[video.id] || 0
-                      if (Math.abs(old - pct) < 20) return prev
+                      if (Math.abs(old - pct) < 8) return prev
                       return { ...prev, [video.id]: pct }
                     })
                   }}

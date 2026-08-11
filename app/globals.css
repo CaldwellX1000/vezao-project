@@ -112,3 +112,7 @@ body::-webkit-scrollbar {
   width: 0;
   height: 0;
 }
+.feed-item video {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
