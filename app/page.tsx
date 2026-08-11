@@ -1240,7 +1240,7 @@ export default function FeedPage() {
 
   return (
     <div className="h-[100dvh] h-[100svh] w-full bg-black flex justify-center overflow-hidden">
-      <div className="h-[100dvh] h-[100svh] w-full max-w-[480px] lg:max-w-[520px] bg-black text-white overflow-hidden relative border-x border-white/5">
+      <div className="h-[100dvh] h-[100svh] w-full max-w-[480px] lg:max-w-[520px] bg-black text-white overflow-hidden relative md:border-x md:border-white/5">
         <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-center gap-6 pt-3 pb-4 pointer-events-none bg-gradient-to-b from-[#0b0614]/85 via-[#0b0614]/40 to-transparent backdrop-blur-[2px]">
           <button
             onClick={() => setFeedTab('following')}
@@ -1385,7 +1385,7 @@ export default function FeedPage() {
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/85 to-transparent pointer-events-none" />
-                <div className="absolute bottom-24 md:bottom-8 left-4 right-20 text-white z-10 pb-[env(safe-area-inset-bottom)]">
+                <div className="absolute bottom-28 left-3 right-[4.5rem] md:bottom-8 text-white z-10">
                   <div className="flex items-center gap-2 mb-1.5">
                     <div
                       className="flex items-center gap-2 cursor-pointer"
@@ -1497,7 +1497,7 @@ export default function FeedPage() {
                   )}
                 </div>
 
-                <div className="absolute right-1.5 bottom-24 md:bottom-6 flex flex-col items-center gap-2 z-10 pb-[env(safe-area-inset-bottom)]">
+                <div className="absolute right-2 bottom-28 md:bottom-6 flex flex-col items-center gap-2.5 z-10">
                   <button onClick={() => toggleLike(video.id)} className="flex flex-col items-center">
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center ${
