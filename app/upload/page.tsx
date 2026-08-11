@@ -934,12 +934,12 @@ function UploadContent() {
       </div>
 
       <div className="px-4 pt-5 space-y-5">
-        <div className="relative w-full aspect-[9/16] max-h-[42vh] mx-auto bg-zinc-900 rounded-2xl overflow-hidden border border-white/10">
+        <div className="relative mx-auto aspect-[9/16] w-full max-w-[min(100%,calc(48vh*9/16))] bg-zinc-900 rounded-2xl overflow-hidden border border-white/10">
           {preview && (
             <video
               ref={previewVideoRef}
               src={preview}
-              className="w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover"
               style={{ filter: activeFilterCss }}
               muted
               playsInline
