@@ -235,6 +235,7 @@ export default function FeedPage() {
   const [reportVideoId, setReportVideoId] = useState<string | null>(null)
   const [shareVideoId, setShareVideoId] = useState<string | null>(null)
   const [progressMap, setProgressMap] = useState<Record<string, number>>({})
+  const progressBarRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [shareFriends, setShareFriends] = useState<
     { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
   >([])
@@ -1306,76 +1307,84 @@ export default function FeedPage() {
                 className="h-[100dvh] h-[100svh] w-full snap-start snap-always relative flex items-center justify-center feed-item"
                 style={{ scrollSnapStop: 'always' }}
               >
-                <video
-                  ref={(el) => {
-                    videoRefs.current[index] = el
-                  }}
-                  data-video-id={video.id}
-                  src={
-                    Math.abs(index - activeIndex) <= 1
-                      ? video.video_url
-                      : undefined
-                  }
-                  poster={video.thumbnail_url || undefined}
-                  className="absolute inset-0 w-full h-full object-cover md:object-contain bg-black"
-                  loop={!autoScroll}
-                  muted={isMuted}
-                  playsInline
-                  preload={
-                    index === activeIndex
-                      ? 'auto'
-                      : Math.abs(index - activeIndex) === 1
-                      ? 'metadata'
-                      : 'none'
-                  }
-                  onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
-                  onTimeUpdate={(e) => {
-                    const v = e.currentTarget
-                    if (!v.duration || !isFinite(v.duration)) return
-                    watchAccRef.current[video.id] =
-                      (watchAccRef.current[video.id] || 0) + 250
-                    const pct = Math.min(100, (v.currentTime / v.duration) * 100)
-                    setProgressMap((prev) => {
-                      const old = prev[video.id] || 0
-                      if (Math.abs(old - pct) < 8) return prev
-                      return { ...prev, [video.id]: pct }
-                    })
-                  }}
-                  onPause={() => {
-                    void flushWatch(video.id)
-                  }}
-                  onEnded={(e) => {
-                    setProgressMap((prev) => ({ ...prev, [video.id]: 0 }))
-                    void flushWatch(video.id, e.currentTarget.duration)
+                                {Math.abs(index - activeIndex) <= 1 ? (
+                  <video
+                    ref={(el) => {
+                      videoRefs.current[index] = el
+                    }}
+                    data-video-id={video.id}
+                    src={video.video_url}
+                    poster={video.thumbnail_url || undefined}
+                    className="absolute inset-0 w-full h-full object-cover md:object-contain bg-black"
+                    loop={!autoScroll}
+                    muted={isMuted}
+                    playsInline
+                    preload={index === activeIndex ? 'auto' : 'metadata'}
+                    onClick={(e) => handleVideoTap(video.id, e.currentTarget)}
+                    onTimeUpdate={(e) => {
+                      const v = e.currentTarget
+                      if (!v.duration || !isFinite(v.duration)) return
+                      watchAccRef.current[video.id] =
+                        (watchAccRef.current[video.id] || 0) + 250
+                      const pct = Math.min(100, (v.currentTime / v.duration) * 100)
+                      const bar = progressBarRefs.current[video.id]
+                      if (bar) bar.style.width = `${pct}%`
+                    }}
+                    onPause={() => {
+                      void flushWatch(video.id)
+                    }}
+                    onEnded={(e) => {
+                      const bar = progressBarRefs.current[video.id]
+                      if (bar) bar.style.width = '0%'
+                      void flushWatch(video.id, e.currentTarget.duration)
 
-                    if (!autoScroll) return
-                    const next = index + 1
-                    if (next >= videos.length) {
-                      // video terakhir → putar ulang
-                      e.currentTarget.currentTime = 0
-                      e.currentTarget.play().catch(() => {})
-                      return
-                    }
-                    const container = containerRef.current
-                    if (!container) return
-                    const items = container.querySelectorAll('.feed-item')
-                    const el = items[next] as HTMLElement | undefined
-                    if (el) {
-                      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                    } else {
-                      container.scrollTo({
-                        top: next * container.clientHeight,
-                        behavior: 'smooth',
-                      })
-                    }
-                    if (next >= videos.length - 2) loadMore()
-                  }}
-                />
+                      if (!autoScroll) return
+                      const next = index + 1
+                      if (next >= videos.length) {
+                        e.currentTarget.currentTime = 0
+                        e.currentTarget.play().catch(() => {})
+                        return
+                      }
+                      const container = containerRef.current
+                      if (!container) return
+                      const items = container.querySelectorAll('.feed-item')
+                      const el = items[next] as HTMLElement | undefined
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      } else {
+                        container.scrollTo({
+                          top: next * container.clientHeight,
+                          behavior: 'smooth',
+                        })
+                      }
+                      if (next >= videos.length - 2) loadMore()
+                    }}
+                  />
+                ) : (
+                  <div className="absolute inset-0 w-full h-full bg-black">
+                    {(() => {
+                      videoRefs.current[index] = null
+                      return null
+                    })()}
+                    {video.thumbnail_url ? (
+                      <img
+                        src={video.thumbnail_url}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover md:object-contain"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : null}
+                  </div>
+                )}
 
                 <div className="absolute top-0 left-0 right-0 z-20 h-[2.5px] bg-white/25 pointer-events-none">
                   <div
+                    ref={(el) => {
+                      progressBarRefs.current[video.id] = el
+                    }}
                     className="h-full bg-white"
-                    style={{ width: `${progressMap[video.id] || 0}%` }}
+                    style={{ width: '0%' }}
                   />
                 </div>
 
