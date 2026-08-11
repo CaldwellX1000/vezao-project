@@ -1317,7 +1317,7 @@ export default function FeedPage() {
                       : undefined
                   }
                   poster={video.thumbnail_url || undefined}
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-cover md:object-contain bg-black"
                   loop={!autoScroll}
                   muted={isMuted}
                   playsInline

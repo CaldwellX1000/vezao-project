@@ -1080,7 +1080,7 @@ export default function SingleVideoClient() {
                       : undefined
                   }
                   poster={(video as any).thumbnail_url || undefined}
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-cover md:object-contain bg-black"
                   loop
                   muted={isMuted}
                   playsInline
