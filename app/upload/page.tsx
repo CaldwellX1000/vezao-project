@@ -192,6 +192,7 @@ function UploadContent() {
   const draftId = searchParams.get('draft')
 
   const [mode, setMode] = useState<Mode>('choose')
+  const [showCreateSheet, setShowCreateSheet] = useState(true)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [caption, setCaption] = useState('')
@@ -240,6 +241,7 @@ function UploadContent() {
   const [maxDuration, setMaxDuration] = useState<15 | 60>(15)
   const [elapsed, setElapsed] = useState(0)
   const [cameraError, setCameraError] = useState('')
+  const [previewReady, setPreviewReady] = useState(false)
 
   const [duration, setDuration] = useState(0)
   const [coverTime, setCoverTime] = useState(0)
@@ -324,6 +326,61 @@ function UploadContent() {
     return () => stopCamera()
   }, [])
 
+  // Live preview di layar "Buat" (belum rekam)
+  useEffect(() => {
+    if (mode !== 'choose') return
+
+    let cancelled = false
+
+    const startPreview = async () => {
+      setCameraError('')
+      setPreviewReady(false)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 720 },
+            height: { ideal: 1280 },
+          },
+          audio: false,
+        })
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop())
+          return
+        }
+        streamRef.current = stream
+        await new Promise<void>((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => r()))
+        )
+        const el = videoRef.current
+        if (el) {
+          el.srcObject = stream
+          el.muted = true
+          el.playsInline = true
+          await el.play().catch(() => {})
+          if (!cancelled) setPreviewReady(true)
+        }
+      } catch {
+        if (!cancelled) {
+          setPreviewReady(false)
+          setCameraError(
+            'Kamera belum diizinkan. Bisa tetap upload dari galeri.'
+          )
+        }
+      }
+    }
+
+    void startPreview()
+
+    return () => {
+      cancelled = true
+      setPreviewReady(false)
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+      streamRef.current = null
+      if (videoRef.current) videoRef.current.srcObject = null
+    }
+  }, [mode, facingMode])
+
   const stopCamera = () => {
     if (timerRef.current) clearInterval(timerRef.current)
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -340,24 +397,37 @@ function UploadContent() {
   const startCamera = async (facing: 'user' | 'environment' = facingMode) => {
     stopCamera()
     setCameraError('')
+    setFacingMode(facing)
+    setMode('camera') // mount <video> dulu
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: facing,
+          facingMode: { ideal: facing },
           width: { ideal: 720 },
           height: { ideal: 1280 },
         },
         audio: true,
       })
       streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
+
+      // tunggu 2 frame biar videoRef terpasang
+      await new Promise<void>((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => r()))
+      )
+
+      const el = videoRef.current
+      if (el) {
+        el.srcObject = stream
+        el.muted = true
+        el.playsInline = true
+        await el.play().catch(() => {})
       }
-      setFacingMode(facing)
-      setMode('camera')
-    } catch (err: any) {
-      setCameraError('Gagal akses kamera. Izinkan kamera & mikrofon di browser.')
+    } catch {
+      setCameraError(
+        'Gagal akses kamera. Izinkan kamera & mikrofon di browser.'
+      )
+      setMode('choose')
     }
   }
 
@@ -713,6 +783,8 @@ function UploadContent() {
     setCommentPermission('everyone')
     setVisibility('public')
     setSoundName('')
+    setShowCreateSheet(true)
+    setPreviewReady(false)
     setMode('choose')
     router.replace('/upload')
   }
@@ -799,45 +871,126 @@ function UploadContent() {
 
   if (mode === 'choose') {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col">
-        <div className="px-4 h-14 flex items-center border-b border-white/10">
-          <button onClick={() => router.back()} className="text-lg font-bold">←</button>
-          <h1 className="flex-1 text-center font-semibold text-sm">Buat</h1>
-          <div className="w-6" />
-        </div>
+      <div className="fixed inset-0 bg-black text-white z-40 overflow-hidden">
+        {/* Live camera preview */}
+        <video
+          ref={videoRef}
+          className={`absolute inset-0 w-full h-full object-cover ${
+            facingMode === 'user' ? 'scale-x-[-1]' : ''
+          }`}
+          muted
+          playsInline
+          autoPlay
+        />
+        {!previewReady && (
+          <div className="absolute inset-0 bg-zinc-950 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          </div>
+        )}
 
-        <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6">
+        {/* top bar */}
+        <div className="relative z-10 flex items-center justify-between px-4 pt-4">
           <button
-            onClick={() => startCamera()}
-            className="w-full max-w-xs aspect-[9/16] max-h-[40vh] rounded-2xl bg-zinc-900 border border-white/10 flex flex-col items-center justify-center gap-3 active:scale-[0.98] transition"
+            onClick={() => router.back()}
+            className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-lg font-bold"
           >
-            <img src="/kamera.png" alt="" className="w-20 h-20 object-contain" />
-            <p className="font-semibold"></p>
-            <p className="text-xs text-gray-500">Kamera HP</p>
+            ←
           </button>
-
+          <p className="text-sm font-semibold">Buat</p>
           <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full max-w-xs py-4 rounded-2xl bg-zinc-900 border border-white/10 flex items-center justify-center gap-3 active:scale-[0.98] transition"
+            type="button"
+            onClick={() =>
+              setFacingMode((f) => (f === 'user' ? 'environment' : 'user'))
+            }
+            className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
             </svg>
-            <span className="font-medium">Upload dari Galeri</span>
           </button>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="video/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-
-          {cameraError && (
-            <p className="text-sm text-red-400 text-center px-4">{cameraError}</p>
-          )}
         </div>
+
+        {cameraError && (
+          <p className="relative z-10 text-center text-xs text-red-400 px-6 mt-3">
+            {cameraError}
+          </p>
+        )}
+
+        {/* sheet pilih sumber */}
+        {showCreateSheet && (
+          <div className="absolute inset-0 z-20 flex items-end sm:items-center justify-center bg-black/50">
+            <div className="w-full max-w-sm mx-4 mb-8 sm:mb-0 rounded-2xl bg-zinc-900 border border-white/10 p-4 shadow-2xl">
+              <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
+              <p className="text-center font-semibold mb-1">Buat video</p>
+              <p className="text-center text-xs text-gray-400 mb-4">
+                Rekam sekarang atau pilih dari galeri
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateSheet(false)
+                  void startCamera(facingMode)
+                }}
+                className="w-full py-3.5 rounded-xl bg-vezao-gradient font-semibold text-sm mb-2"
+              >
+                Rekam dengan kamera
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateSheet(false)
+                  stopCamera()
+                  fileInputRef.current?.click()
+                }}
+                className="w-full py-3.5 rounded-xl bg-zinc-800 border border-white/10 font-semibold text-sm mb-2"
+              >
+                Upload dari galeri
+              </button>
+
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="w-full py-2.5 text-sm text-gray-400"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* kalau sheet ditutup tanpa pilih, tetap bisa buka lagi */}
+        {!showCreateSheet && mode === 'choose' && (
+          <div className="absolute bottom-10 left-0 right-0 z-10 flex justify-center gap-3 px-4">
+            <button
+              type="button"
+              onClick={() => setShowCreateSheet(true)}
+              className="px-5 py-2.5 rounded-full bg-black/50 border border-white/20 text-sm font-medium"
+            >
+              Pilih sumber
+            </button>
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
       </div>
     )
   }
@@ -847,7 +1000,9 @@ function UploadContent() {
       <div className="fixed inset-0 bg-black text-white z-50 flex flex-col">
         <video
           ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover"
+          className={`absolute inset-0 w-full h-full object-cover ${
+            facingMode === 'user' ? 'scale-x-[-1]' : ''
+          }`}
           muted
           playsInline
           autoPlay
