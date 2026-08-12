@@ -105,6 +105,33 @@ function formatMsgTime(dateStr: string) {
   )
 }
 
+function formatDayLabel(dateStr: string) {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startMsg = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const diffDays = Math.round(
+    (startToday.getTime() - startMsg.getTime()) / (1000 * 60 * 60 * 24)
+  )
+  if (diffDays === 0) return 'Hari ini'
+  if (diffDays === 1) return 'Kemarin'
+  return d.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  })
+}
+
+function isSameDay(a: string, b: string) {
+  const da = new Date(a)
+  const db = new Date(b)
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  )
+}
+
 function ChatContent() {
   const searchParams = useSearchParams()
   const partnerId = searchParams.get('userId')
@@ -129,6 +156,21 @@ function ChatContent() {
   const router = useRouter()
   const supabase = createClient()
   const bottomRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const stickToBottomRef = useRef(true)
+
+  const isNearBottom = () => {
+    const el = listRef.current
+    if (!el) return true
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight
+    return gap < 120
+  }
+
+  const scrollToBottom = (smooth = true) => {
+    bottomRef.current?.scrollIntoView({
+      behavior: smooth ? 'smooth' : 'auto',
+    })
+  }
 
   const canEditMessage = (msg: Message) => {
     if (parseVideoId(msg.content)) return false
@@ -359,8 +401,9 @@ function ChatContent() {
       .subscribe()
 
     const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
       loadMessages(currentUserId, partnerId)
-    }, 3000)
+    }, 20000)
 
     return () => {
       supabase.removeChannel(channel)
@@ -369,7 +412,8 @@ function ChatContent() {
   }, [currentUserId, partnerId])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!stickToBottomRef.current) return
+    scrollToBottom(true)
   }, [messages])
 
   const sendMessage = async () => {
@@ -441,6 +485,7 @@ function ChatContent() {
       created_at: new Date().toISOString(),
       is_read: false,
     }
+    stickToBottomRef.current = true
     setMessages((prev) => [...prev, tempMsg])
 
     const { data, error } = await supabase
@@ -526,11 +571,8 @@ function ChatContent() {
       if (error) throw error
 
       if (data) {
+        stickToBottomRef.current = true
         setMessages((prev) => [...prev, data])
-        setTimeout(
-          () => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }),
-          80
-        )
       }
     } catch (err: any) {
       toast(err.message || 'Gagal kirim media', 'error')
@@ -625,10 +667,10 @@ function ChatContent() {
           ←
         </button>
         <div
-          className="flex items-center gap-3 cursor-pointer min-w-0"
+          className="flex items-center gap-3 cursor-pointer min-w-0 flex-1"
           onClick={() => router.push(`/@${partnerUsername || partnerId}`)}
         >
-          <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden shrink-0 ring-1 ring-white/10">
+          <div className="w-9 h-9 rounded-full bg-zinc-800 overflow-hidden shrink-0 ring-1 ring-white/10">
             {partnerAvatar ? (
               <img src={partnerAvatar} alt="" className="w-full h-full object-cover" />
             ) : (
@@ -637,11 +679,24 @@ function ChatContent() {
               </div>
             )}
           </div>
-          <p className="font-semibold text-sm truncate">{partnerName}</p>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm truncate leading-tight">{partnerName}</p>
+            {partnerUsername ? (
+              <p className="text-[11px] text-gray-400 truncate leading-tight mt-0.5">
+                @{partnerUsername}
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div
+        ref={listRef}
+        onScroll={() => {
+          stickToBottomRef.current = isNearBottom()
+        }}
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+      >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center pt-20 px-6 text-center">
             <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4">
@@ -653,7 +708,9 @@ function ChatContent() {
             <p className="text-xs text-gray-500 mt-1">Mulai percakapan sekarang</p>
           </div>
         ) : (
-          messages.map((msg) => {
+          messages.map((msg, index) => {
+            const prev = index > 0 ? messages[index - 1] : null
+            const showDay = !prev || !isSameDay(prev.created_at, msg.created_at)
             const isMe = msg.sender_id === currentUserId
             const videoId = parseVideoId(msg.content)
             const shared = videoId ? videoCache[videoId] : undefined
@@ -663,8 +720,15 @@ function ChatContent() {
               : undefined
 
             return (
+              <div key={msg.id}>
+                {showDay && (
+                  <div className="flex justify-center my-3">
+                    <span className="text-[11px] text-gray-400 bg-zinc-900/90 border border-white/10 px-3 py-1 rounded-full">
+                      {formatDayLabel(msg.created_at)}
+                    </span>
+                  </div>
+                )}
               <div
-                key={msg.id}
                 className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
               >
                 {storyReply ? (
@@ -947,6 +1011,7 @@ function ChatContent() {
                     </div>
                   </div>
                 )}
+              </div>
               </div>
             )
           })

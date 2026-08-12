@@ -106,6 +106,7 @@ export default function ProfilePage() {
   const [editSaving, setEditSaving] = useState(false)
   const [editCanCaption, setEditCanCaption] = useState(true)
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showEditHint, setShowEditHint] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
@@ -238,6 +239,12 @@ const list = published || []
       await loadVideos(user.id)
       // Tampilkan profil dulu — sisa data load di belakang
       setLoading(false)
+
+      try {
+        if (localStorage.getItem('serulo_edit_hint') !== '1') {
+          setShowEditHint(true)
+        }
+      } catch {}
 
       const { data: likes } = await supabase
         .from('likes')
@@ -763,7 +770,7 @@ const list = published || []
   return (
     <div className="min-h-[100dvh] w-full bg-black text-white overflow-y-auto overscroll-y-contain pb-24 md:bg-zinc-950">
       <div className="w-full md:max-w-[480px] md:mx-auto md:bg-black md:border-x md:border-white/10">
-      <div className="relative h-28 overflow-hidden">
+      <div className="relative h-32 overflow-hidden">
         {coverUrl ? (
           <img
             src={coverUrl}
@@ -782,7 +789,7 @@ const list = published || []
         />
       </div>
 
-      <div className="px-4 -mt-12">
+      <div className="px-4 -mt-10">
         <div className="flex justify-between items-end">
           <div className="relative">
             <div
@@ -822,7 +829,21 @@ const list = published || []
             />
           </div>
 
-          <div className="flex gap-2 mb-1 items-center">
+          <div className="flex gap-1.5 mb-1 items-center">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="h-9 px-3.5 rounded-full bg-white/10 border border-white/15 text-xs font-semibold active:bg-white/15"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={handleShareProfile}
+              className="h-9 px-3.5 rounded-full bg-white/10 border border-white/15 text-xs font-semibold active:bg-white/15"
+            >
+              Share
+            </button>
             <div className="relative">
               <button
                 onClick={() => setShowMenu(!showMenu)}
@@ -966,7 +987,7 @@ const list = published || []
           </div>
         </div>
 
-        <div className="mt-3">
+        <div className="mt-4">
           <button
             type="button"
             onClick={() => setShowAccountSheet(true)}
@@ -1011,7 +1032,7 @@ const list = published || []
           </a>
         )}
 
-        <div className="flex justify-around mt-4 py-3.5 rounded-2xl border border-white/10 overflow-hidden bg-zinc-900/80">
+        <div className="flex justify-around mt-5 py-4 rounded-2xl border border-white/10 overflow-hidden bg-zinc-900/80">
           <div className="text-center flex-1">
             <p className="font-bold text-lg">{videos.length}</p>
             <p className="text-[11px] text-gray-400 mt-0.5">Videos</p>
@@ -1035,9 +1056,18 @@ const list = published || []
             <p className="text-[11px] text-gray-400 mt-0.5">Likes</p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => router.push('/analytics')}
+          className="mt-3 w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-zinc-900/80 border border-white/10 active:bg-white/5"
+        >
+          <span className="text-xs font-medium text-white/90">Analytics</span>
+          <span className="text-[11px] text-pink-400">Lihat insight ›</span>
+        </button>
       </div>
 
-            <div className="flex border-b border-white/10 mt-5">
+            <div className="flex border-b border-white/10 mt-6">
         <button
           onClick={() => setActiveTab('videos')}
           className={`flex-1 py-3 flex justify-center ${
@@ -1156,17 +1186,6 @@ const list = published || []
             <div className="px-1 pt-1">
         {displayVideos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-            <div className="w-16 h-16 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-2xl mb-4">
-              {activeTab === 'videos'
-                ? ''
-                : activeTab === 'private'
-                ? ''
-                : activeTab === 'liked'
-                ? '♡'
-                : activeTab === 'saved'
-                ? ''
-                : ''}
-            </div>
             <p className="text-white font-semibold text-sm mb-1">
               {activeTab === 'videos'
                 ? 'Belum ada video'
@@ -1761,6 +1780,29 @@ const list = published || []
               className="w-full mt-3 py-2 text-sm text-gray-400"
             >
               Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showEditHint && (
+        <div className="fixed bottom-24 left-0 right-0 z-[55] flex justify-center px-4 pointer-events-none md:left-auto md:right-auto md:max-w-[480px] md:mx-auto">
+          <div className="pointer-events-auto max-w-sm w-full rounded-2xl bg-zinc-900 border border-white/15 px-4 py-3 shadow-xl flex items-start gap-3">
+            <p className="flex-1 text-xs text-white/90 leading-relaxed">
+              <span className="font-semibold text-pink-400">Tips:</span> tahan thumbnail
+              video untuk edit caption atau privasi.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setShowEditHint(false)
+                try {
+                  localStorage.setItem('serulo_edit_hint', '1')
+                } catch {}
+              }}
+              className="text-xs text-gray-400 shrink-0 pt-0.5"
+            >
+              OK
             </button>
           </div>
         </div>

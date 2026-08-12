@@ -21,6 +21,7 @@ type Conversation = {
 
 function formatLastMessage(content: string) {
   if (content.startsWith('__VIDEO__:')) return 'Membagikan video'
+  if (content.startsWith('__VIDEO_FILE__:')) return 'mengirim video'
   if (content.startsWith('__IMAGE__:')) return 'mengirim foto'
   if (content.startsWith('__STORY__:')) {
     const text = content.split('\n').slice(1).join(' ').trim()
@@ -89,6 +90,12 @@ export default function InboxPage() {
   const [followedBack, setFollowedBack] = useState<Set<string>>(new Set())
   const [actingId, setActingId] = useState<string | null>(null)
   const [chatQuery, setChatQuery] = useState('')
+  const [showNewChat, setShowNewChat] = useState(false)
+  const [newChatQuery, setNewChatQuery] = useState('')
+  const [newChatList, setNewChatList] = useState<
+    { id: string; username: string | null; full_name: string | null; avatar_url: string | null }[]
+  >([])
+  const [loadingNewChat, setLoadingNewChat] = useState(false)
 
   const router = useRouter()
   const supabase = createClient()
@@ -294,6 +301,11 @@ export default function InboxPage() {
     if (n.type === 'follow') return `@${name} mulai mengikuti kamu`
     if (n.type === 'follow_request') return `@${name} meminta follow`
     if (n.type === 'comment') return `@${name} mengomentari: ${n.message || ''}`
+    if (n.type === 'mention') {
+      return n.message
+        ? `@${name} menyebut kamu: ${n.message}`
+        : `@${name} menyebut kamu`
+    }
     if (n.type === 'save') return `@${name} menyimpan videomu`
     if (n.type === 'share') return `@${name} membagikan videomu`
     return n.message || 'Notifikasi baru'
@@ -449,7 +461,34 @@ export default function InboxPage() {
     setFollowedBack((prev) => new Set(prev).add(n.actor_id))
     setActingId(null)
   }
+  const openNewChat = async () => {
+    if (!currentUserId) return
+    setShowNewChat(true)
+    setNewChatQuery('')
+    setLoadingNewChat(true)
 
+    const { data: follows } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', currentUserId)
+
+    const ids = (follows || []).map((f) => f.following_id)
+    if (ids.length === 0) {
+      setNewChatList([])
+      setLoadingNewChat(false)
+      return
+    }
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, username, full_name, avatar_url')
+      .in('id', ids)
+      .order('username', { ascending: true })
+      .limit(80)
+
+    setNewChatList(profiles || [])
+    setLoadingNewChat(false)
+  }
   useEffect(() => {
     const init = async () => {
       const {
@@ -538,16 +577,28 @@ export default function InboxPage() {
   return (
     <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-black text-white pb-20">
       <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-white/10">
-        {tab === 'activity' && notifUnread > 0 ? (
-          <div className="px-4 h-10 flex items-center justify-end">
-            <button
-              onClick={markAllNotifRead}
-              className="text-xs text-pink-400 font-medium"
-            >
-              Tandai semua dibaca
-            </button>
+        <div className="px-4 h-12 flex items-center justify-between">
+          <h1 className="text-base font-semibold">Inbox</h1>
+          <div className="flex items-center gap-3">
+            {tab === 'activity' && notifUnread > 0 && (
+              <button
+                onClick={markAllNotifRead}
+                className="text-xs text-pink-400 font-medium"
+              >
+                Tandai dibaca
+              </button>
+            )}
+            {tab === 'messages' && (
+              <button
+                type="button"
+                onClick={() => void openNewChat()}
+                className="text-xs font-semibold text-pink-400"
+              >
+                + Pesan baru
+              </button>
+            )}
           </div>
-        ) : null}
+        </div>
 
         <div className="pb-2">
           <StoryBar />
@@ -851,6 +902,86 @@ export default function InboxPage() {
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {showNewChat && (
+        <div className="fixed inset-0 z-[80] flex items-end">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowNewChat(false)}
+          />
+          <div className="relative w-full max-w-[480px] mx-auto bg-zinc-900 rounded-t-2xl max-h-[75vh] flex flex-col pb-6">
+            <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mt-3 mb-3" />
+            <h3 className="text-center font-semibold mb-3">Pesan baru</h3>
+            <div className="px-4 mb-2">
+              <input
+                value={newChatQuery}
+                onChange={(e) => setNewChatQuery(e.target.value)}
+                placeholder="Cari yang kamu follow..."
+                className="w-full bg-zinc-800 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 min-h-[200px]">
+              {loadingNewChat ? (
+                <p className="text-center text-gray-500 py-10 text-sm">Loading...</p>
+              ) : newChatList.length === 0 ? (
+                <p className="text-center text-gray-500 py-10 text-sm px-6">
+                  Follow seseorang dulu untuk mulai chat
+                </p>
+              ) : (
+                newChatList
+                  .filter((u) => {
+                    const q = newChatQuery.trim().toLowerCase()
+                    if (!q) return true
+                    return (
+                      (u.username || '').toLowerCase().includes(q) ||
+                      (u.full_name || '').toLowerCase().includes(q)
+                    )
+                  })
+                  .map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => {
+                        setShowNewChat(false)
+                        router.push(`/inbox/chat?userId=${u.id}`)
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl active:bg-white/5 text-left"
+                    >
+                      <div className="w-11 h-11 rounded-full overflow-hidden bg-zinc-800 shrink-0 ring-1 ring-white/10">
+                        {u.avatar_url ? (
+                          <img
+                            src={u.avatar_url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-sm font-bold bg-vezao-gradient">
+                            {(u.username || 'U')[0]?.toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">
+                          {u.full_name || u.username}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">
+                          @{u.username}
+                        </p>
+                      </div>
+                    </button>
+                  ))
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowNewChat(false)}
+              className="mt-2 py-2 text-sm text-gray-400"
+            >
+              Batal
+            </button>
+          </div>
         </div>
       )}
 
