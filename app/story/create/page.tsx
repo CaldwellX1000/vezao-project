@@ -1,9 +1,19 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { insertNotification } from '@/lib/notify'
+
+const STORY_FILTERS = [
+  { id: 'none', label: 'Normal', css: 'none' },
+  { id: 'bw', label: 'B&W', css: 'grayscale(1)' },
+  { id: 'sepia', label: 'Sepia', css: 'sepia(0.85)' },
+  { id: 'warm', label: 'Warm', css: 'sepia(0.35) saturate(1.35)' },
+  { id: 'cool', label: 'Cool', css: 'hue-rotate(195deg) saturate(1.15)' },
+  { id: 'vivid', label: 'Vivid', css: 'contrast(1.2) saturate(1.45)' },
+  { id: 'soft', label: 'Soft', css: 'brightness(1.08) contrast(0.92)' },
+] as const
 
 function extractMentions(text: string): string[] {
   const matches = text.match(/@([a-zA-Z0-9._]+)/g) || []
@@ -65,9 +75,114 @@ export default function StoryCreatePage() {
   >([])
   const [showMentions, setShowMentions] = useState(false)
   const [mentionLoading, setMentionLoading] = useState(false)
+  const [camMode, setCamMode] = useState(false)
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
+  const [storyFilter, setStoryFilter] = useState<string>('none')
+  const [camError, setCamError] = useState('')
+  const [camReady, setCamReady] = useState(false)
+
   const inputRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  const activeFilterCss =
+    STORY_FILTERS.find((f) => f.id === storyFilter)?.css || 'none'
+
+  const stopCam = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    if (videoRef.current) videoRef.current.srcObject = null
+    setCamReady(false)
+  }
+
+  useEffect(() => {
+    if (!camMode) return
+    let cancelled = false
+
+    const start = async () => {
+      setCamError('')
+      setCamReady(false)
+      stopCam()
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1080 },
+            height: { ideal: 1920 },
+          },
+          audio: false,
+        })
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop())
+          return
+        }
+        streamRef.current = stream
+        await new Promise<void>((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => r()))
+        )
+        const el = videoRef.current
+        if (el) {
+          el.srcObject = stream
+          el.muted = true
+          el.playsInline = true
+          await el.play().catch(() => {})
+          if (!cancelled) setCamReady(true)
+        }
+      } catch {
+        if (!cancelled) {
+          setCamError('Izinkan kamera di browser')
+          setCamReady(false)
+        }
+      }
+    }
+
+    void start()
+    return () => {
+      cancelled = true
+      stopCam()
+    }
+  }, [camMode, facingMode])
+
+  const capturePhoto = async () => {
+    const el = videoRef.current
+    if (!el || !camReady) return
+
+    const w = el.videoWidth
+    const h = el.videoHeight
+    if (!w || !h) return
+
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // mirror depan biar sama preview
+    if (facingMode === 'user') {
+      ctx.translate(w, 0)
+      ctx.scale(-1, 1)
+    }
+    ctx.filter = activeFilterCss
+    ctx.drawImage(el, 0, 0, w, h)
+    ctx.filter = 'none'
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92)
+    )
+    if (!blob) return
+
+    const f = new File([blob], `story-${Date.now()}.jpg`, {
+      type: 'image/jpeg',
+    })
+    stopCam()
+    setCamMode(false)
+    setMediaType('image')
+    setFile(f)
+    setPreview(URL.createObjectURL(f))
+    setMessage('')
+  }
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
@@ -221,6 +336,88 @@ export default function StoryCreatePage() {
     }
   }
 
+  if (camMode) {
+    return (
+      <div className="fixed inset-0 bg-black text-white z-50">
+        <video
+          ref={videoRef}
+          className={`absolute inset-0 w-full h-full object-cover ${
+            facingMode === 'user' ? 'scale-x-[-1]' : ''
+          }`}
+          style={{ filter: activeFilterCss }}
+          muted
+          playsInline
+          autoPlay
+        />
+        {!camReady && (
+          <div className="absolute inset-0 bg-zinc-950 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          </div>
+        )}
+
+        <div className="relative z-10 flex items-center justify-between px-4 pt-4">
+          <button
+            type="button"
+            onClick={() => {
+              stopCam()
+              setCamMode(false)
+            }}
+            className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"
+          >
+            ✕
+          </button>
+          <p className="text-sm font-semibold">Foto Story</p>
+          <button
+            type="button"
+            onClick={() =>
+              setFacingMode((f) => (f === 'user' ? 'environment' : 'user'))
+            }
+            className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"
+          >
+            🔄
+          </button>
+        </div>
+
+        {camError && (
+          <p className="relative z-10 text-center text-xs text-red-400 mt-2 px-4">
+            {camError}
+          </p>
+        )}
+
+        {/* efek */}
+        <div className="absolute bottom-36 left-0 right-0 z-10 px-3">
+          <div className="flex gap-2 overflow-x-auto pb-1 justify-center">
+            {STORY_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setStoryFilter(f.id)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${
+                  storyFilter === f.id
+                    ? 'bg-vezao-gradient text-white'
+                    : 'bg-black/50 border border-white/20 text-gray-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="absolute bottom-10 left-0 right-0 z-10 flex justify-center">
+          <button
+            type="button"
+            onClick={() => void capturePhoto()}
+            disabled={!camReady}
+            className="w-18 h-18 w-16 h-16 rounded-full border-4 border-white flex items-center justify-center disabled:opacity-40"
+          >
+            <div className="w-12 h-12 rounded-full bg-white" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       <div className="h-14 flex items-center justify-between px-4 border-b border-white/10">
@@ -254,14 +451,28 @@ export default function StoryCreatePage() {
             />
           )
         ) : (
-          <button
-            onClick={() => inputRef.current?.click()}
-            className="w-full max-w-sm aspect-[9/16] rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center gap-2 text-gray-400"
-          >
-            <span className="text-3xl">＋</span>
-            <span className="text-sm">Pilih foto atau video</span>
-            <span className="text-xs text-gray-600">Maks 40MB · hilang 24 jam</span>
-          </button>
+          <div className="w-full max-w-sm space-y-3">
+            <button
+              type="button"
+              onClick={() => setCamMode(true)}
+              className="w-full aspect-[9/16] max-h-[45vh] rounded-2xl bg-zinc-900 border border-white/10 flex flex-col items-center justify-center gap-2"
+            >
+              <span className="text-3xl">📷</span>
+              <span className="text-sm font-medium">Ambil foto</span>
+              <span className="text-xs text-gray-500">Kamera + efek</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="w-full py-3.5 rounded-2xl bg-zinc-900 border border-white/10 text-sm font-medium"
+            >
+              Pilih dari galeri (foto / video)
+            </button>
+            <p className="text-center text-xs text-gray-600">
+              Maks 40MB · hilang 24 jam
+            </p>
+          </div>
         )}
 
         <input
@@ -280,7 +491,10 @@ export default function StoryCreatePage() {
                 onChange={(e) => {
                   const val = e.target.value.slice(0, 120)
                   setCaption(val)
-                  const upToCursor = val.slice(0, e.target.selectionStart || val.length)
+                  const upToCursor = val.slice(
+                    0,
+                    e.target.selectionStart || val.length
+                  )
                   const match = upToCursor.match(/@([a-zA-Z0-9._]*)$/)
                   if (match) {
                     setMentionQuery(match[1] || '')
@@ -368,21 +582,6 @@ export default function StoryCreatePage() {
             </p>
           </div>
         )}
-
-                {uploading && (
-          <div className="w-full max-w-sm space-y-2 px-1">
-            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-vezao-gradient transition-all duration-200"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="text-xs text-center text-gray-400">
-              Mengupload... {progress}%
-            </p>
-          </div>
-        )}
-
 
         {message && (
           <p
