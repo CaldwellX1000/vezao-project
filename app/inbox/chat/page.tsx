@@ -47,6 +47,13 @@ function parseVideoFileUrl(content: string): string | null {
   return null
 }
 
+function parseStickerUrl(content: string): string | null {
+  if (content.startsWith('__STICKER__:')) {
+    return content.replace('__STICKER__:', '').trim() || null
+  }
+  return null
+}
+
 function parseStoryReply(content: string): { storyId: string; text: string } | null {
   if (!content.startsWith('__STORY__:')) return null
   const lines = content.split('\n')
@@ -140,7 +147,16 @@ function ChatContent() {
   const [newMessage, setNewMessage] = useState('')
   const [sendingMedia, setSendingMedia] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
+  const [stickerTab, setStickerTab] = useState<'emoji' | 'mine' | 'fav'>('emoji')
+  const [myStickers, setMyStickers] = useState<
+    { id: string; image_url: string }[]
+  >([])
+  const [favStickers, setFavStickers] = useState<
+    { id: string; image_url: string }[]
+  >([])
+  const [uploadingSticker, setUploadingSticker] = useState(false)
   const mediaInputRef = useRef<HTMLInputElement>(null)
+  const stickerInputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -176,6 +192,7 @@ function ChatContent() {
     if (parseVideoId(msg.content)) return false
     if (parseImageUrl(msg.content)) return false
     if (parseVideoFileUrl(msg.content)) return false
+    if (parseStickerUrl(msg.content)) return false
     if (parseStoryReply(msg.content)) return false
     const ageMs = Date.now() - new Date(msg.created_at).getTime()
     return ageMs <= 30 * 60 * 1000
@@ -204,6 +221,168 @@ function ChatContent() {
 
     return !!(a || b)
   }
+
+  const loadMyStickers = async (uid: string) => {
+    const { data } = await supabase
+      .from('user_stickers')
+      .select('id, image_url')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(40)
+    setMyStickers(data || [])
+  }
+
+  const loadFavStickers = async (uid: string) => {
+    const { data } = await supabase
+      .from('user_favorite_stickers')
+      .select('id, image_url')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(60)
+    setFavStickers(data || [])
+  }
+
+  const addToFavorites = async (imageUrl: string) => {
+    if (!currentUserId || !imageUrl) return
+    if (favStickers.some((s) => s.image_url === imageUrl)) {
+      toast('Sudah di favorit', 'success')
+      setMenuMsgId(null)
+      return
+    }
+    const { data, error } = await supabase
+      .from('user_favorite_stickers')
+      .insert({ user_id: currentUserId, image_url: imageUrl })
+      .select('id, image_url')
+      .single()
+    if (error) {
+      toast(error.message || 'Gagal tambah favorit', 'error')
+      return
+    }
+    if (data) setFavStickers((prev) => [data, ...prev])
+    setMenuMsgId(null)
+    toast('Ditambah ke favorit', 'success')
+  }
+
+  const removeFavSticker = async (id: string) => {
+    if (!currentUserId) return
+    const { error } = await supabase
+      .from('user_favorite_stickers')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', currentUserId)
+    if (error) {
+      toast('Gagal hapus favorit', 'error')
+      return
+    }
+    setFavStickers((prev) => prev.filter((s) => s.id !== id))
+  }
+
+  const uploadSticker = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !currentUserId) return
+    if (!file.type.startsWith('image/')) {
+      toast('Stiker harus gambar (PNG/JPG/WebP)', 'error')
+      return
+    }
+    if (file.size > 1.5 * 1024 * 1024) {
+      toast('Stiker maksimal 1.5MB', 'error')
+      return
+    }
+    if (myStickers.length >= 40) {
+      toast('Maksimal 40 stiker', 'error')
+      return
+    }
+
+    setUploadingSticker(true)
+    try {
+      const ext = file.name.split('.').pop() || 'png'
+      const path = `stickers/${currentUserId}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('chat-media')
+        .upload(path, file, { contentType: file.type })
+      if (upErr) throw upErr
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('chat-media').getPublicUrl(path)
+
+      const { data, error } = await supabase
+        .from('user_stickers')
+        .insert({ user_id: currentUserId, image_url: publicUrl })
+        .select('id, image_url')
+        .single()
+
+      if (error) throw error
+      if (data) setMyStickers((prev) => [data, ...prev])
+      toast('Stiker ditambah', 'success')
+    } catch (err: any) {
+      toast(err?.message || 'Gagal upload stiker', 'error')
+    } finally {
+      setUploadingSticker(false)
+    }
+  }
+
+  const deleteSticker = async (id: string) => {
+    if (!currentUserId) return
+    const ok = confirm('Hapus stiker ini?')
+    if (!ok) return
+    const { error } = await supabase
+      .from('user_stickers')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', currentUserId)
+    if (error) {
+      toast('Gagal hapus', 'error')
+      return
+    }
+    setMyStickers((prev) => prev.filter((s) => s.id !== id))
+  }
+
+  const sendSticker = async (url: string) => {
+    if (!currentUserId || !partnerId || sending) return
+    const blocked = await checkBlocked(currentUserId, partnerId)
+    if (blocked) {
+      toast('Tidak bisa kirim. Akun ini diblokir.', 'error')
+      return
+    }
+    setSending(true)
+    setShowStickers(false)
+    const content = `__STICKER__:${url}`
+    const tempId = `temp-${Date.now()}`
+    stickToBottomRef.current = true
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        sender_id: currentUserId,
+        receiver_id: partnerId,
+        content,
+        created_at: new Date().toISOString(),
+        is_read: false,
+      },
+    ])
+
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        sender_id: currentUserId,
+        receiver_id: partnerId,
+        content,
+        is_read: false,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId))
+      toast('Gagal kirim stiker', 'error')
+    } else if (data) {
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? data : m)))
+    }
+    setSending(false)
+  }
+
   const loadSharedStories = async (msgs: Message[]) => {
     const ids = [
       ...new Set(
@@ -329,6 +508,8 @@ function ChatContent() {
       }
 
       await loadMessages(user.id, partnerId)
+      await loadMyStickers(user.id)
+      await loadFavStickers(user.id)
 
       await supabase
         .from('messages')
@@ -748,17 +929,17 @@ function ChatContent() {
                       )}
                     </p>
                     <div className="relative">
-                      {isMe && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setMenuMsgId(menuMsgId === msg.id ? null : msg.id)
-                          }
-                          className="absolute -top-1 -right-1 z-10 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center text-white/80 text-[10px]"
-                        >
-                          ⋯
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMenuMsgId(menuMsgId === msg.id ? null : msg.id)
+                        }
+                        className={`absolute -top-1 z-10 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center text-white/80 text-[10px] ${
+                          isMe ? '-right-1' : '-left-1'
+                        }`}
+                      >
+                        ⋯
+                      </button>
                       <div
                         className={`rounded-2xl overflow-hidden border border-white/10 ${
                           isMe ? 'bg-vezao-gradient/20' : 'bg-zinc-800'
@@ -807,17 +988,33 @@ function ChatContent() {
                           </div>
                         </button>
                       </div>
-                      {menuMsgId === msg.id && isMe && (
-                        <div className="absolute right-0 top-full mt-1 z-20 bg-zinc-800 border border-white/10 rounded-xl py-1 shadow-xl min-w-[140px]">
-                          <button
-                            onClick={() => {
-                              setDeleteConfirmId(msg.id)
-                              setMenuMsgId(null)
-                            }}
-                            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
-                          >
-                            Hapus
-                          </button>
+                      {menuMsgId === msg.id && (
+                        <div
+                          className={`absolute top-full mt-1 z-20 bg-zinc-800 border border-white/10 rounded-xl py-1 shadow-xl min-w-[160px] ${
+                            isMe ? 'right-0' : 'left-0'
+                          }`}
+                        >
+                          {!isMe ? (
+                            <button
+                              onClick={() => {
+                                setMenuMsgId(null)
+                                void deleteForMe(msg.id)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                            >
+                              Hapus untuk saya
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setDeleteConfirmId(msg.id)
+                                setMenuMsgId(null)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                            >
+                              Hapus
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -839,18 +1036,18 @@ function ChatContent() {
                       )}
                     </p>
                     <div className="relative">
-                      {isMe && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setMenuMsgId(menuMsgId === msg.id ? null : msg.id)
-                          }}
-                          className="absolute -top-1 -right-1 z-10 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-white/80 text-xs"
-                        >
-                          ⋯
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setMenuMsgId(menuMsgId === msg.id ? null : msg.id)
+                        }}
+                        className={`absolute -top-1 z-10 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-white/80 text-xs ${
+                          isMe ? '-right-1' : '-left-1'
+                        }`}
+                      >
+                        ⋯
+                      </button>
                       <button
                         type="button"
                         onClick={() => router.push(`/v/${videoId}`)}
@@ -901,17 +1098,33 @@ function ChatContent() {
                           </div>
                         </div>
                       </button>
-                      {menuMsgId === msg.id && isMe && (
-                        <div className="absolute right-0 top-8 z-20 bg-zinc-800 border border-white/10 rounded-xl py-1 shadow-xl min-w-[140px]">
-                          <button
-                            onClick={() => {
-                              setDeleteConfirmId(msg.id)
-                              setMenuMsgId(null)
-                            }}
-                            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
-                          >
-                            Hapus
-                          </button>
+                      {menuMsgId === msg.id && (
+                        <div
+                          className={`absolute top-8 z-20 bg-zinc-800 border border-white/10 rounded-xl py-1 shadow-xl min-w-[160px] ${
+                            isMe ? 'right-0' : 'left-0'
+                          }`}
+                        >
+                          {!isMe ? (
+                            <button
+                              onClick={() => {
+                                setMenuMsgId(null)
+                                void deleteForMe(msg.id)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                            >
+                              Hapus untuk saya
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setDeleteConfirmId(msg.id)
+                                setMenuMsgId(null)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                            >
+                              Hapus
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -933,17 +1146,17 @@ function ChatContent() {
                       )}
                     </p>
                     <div className="relative">
-                      {isMe && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setMenuMsgId(menuMsgId === msg.id ? null : msg.id)
-                          }
-                          className="absolute -top-1 -right-1 z-10 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center text-white/80 text-[10px]"
-                        >
-                          ⋯
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMenuMsgId(menuMsgId === msg.id ? null : msg.id)
+                        }
+                        className={`absolute -top-1 z-10 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center text-white/80 text-[10px] ${
+                          isMe ? '-right-1' : '-left-1'
+                        }`}
+                      >
+                        ⋯
+                      </button>
                       <div
                         className={`px-4 py-2.5 rounded-2xl text-sm ${
                           isMe
@@ -954,6 +1167,17 @@ function ChatContent() {
                         {(() => {
   const imageUrl = parseImageUrl(msg.content)
   const videoFileUrl = parseVideoFileUrl(msg.content)
+
+  const stickerUrl = parseStickerUrl(msg.content)
+  if (stickerUrl) {
+    return (
+      <img
+        src={stickerUrl}
+        alt="stiker"
+        className="w-28 h-28 object-contain"
+      />
+    )
+  }
 
   if (imageUrl) {
     return (
@@ -987,9 +1211,25 @@ function ChatContent() {
   return <span>{msg.content}</span>
 })()}
                       </div>
-                      {menuMsgId === msg.id && isMe && (
-                        <div className="absolute right-0 top-full mt-1 z-20 bg-zinc-800 border border-white/10 rounded-xl py-1 shadow-xl min-w-[140px]">
-                          {canEditMessage(msg) && (
+                      {menuMsgId === msg.id && (
+                        <div
+                          className={`absolute top-full mt-1 z-20 bg-zinc-800 border border-white/10 rounded-xl py-1 shadow-xl min-w-[160px] ${
+                            isMe ? 'right-0' : 'left-0'
+                          }`}
+                        >
+                          {parseStickerUrl(msg.content) && (
+                            <button
+                              onClick={() =>
+                                void addToFavorites(
+                                  parseStickerUrl(msg.content)!
+                                )
+                              }
+                              className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/5"
+                            >
+                              Tambah ke favorit
+                            </button>
+                          )}
+                          {isMe && canEditMessage(msg) && (
                             <button
                               onClick={() => startEdit(msg)}
                               className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/5"
@@ -997,15 +1237,28 @@ function ChatContent() {
                               Edit
                             </button>
                           )}
-                          <button
-                            onClick={() => {
-                              setDeleteConfirmId(msg.id)
-                              setMenuMsgId(null)
-                            }}
-                            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
-                          >
-                            Hapus
-                          </button>
+                          {!isMe && (
+                            <button
+                              onClick={() => {
+                                setMenuMsgId(null)
+                                void deleteForMe(msg.id)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                            >
+                              Hapus untuk saya
+                            </button>
+                          )}
+                          {isMe && (
+                            <button
+                              onClick={() => {
+                                setDeleteConfirmId(msg.id)
+                                setMenuMsgId(null)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                            >
+                              Hapus
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1036,34 +1289,150 @@ function ChatContent() {
           </div>
         )}
         {showStickers && (
-          <div className="mb-2 p-2 bg-zinc-900 rounded-2xl border border-white/10 max-h-48 overflow-y-auto">
-            <div className="grid grid-cols-8 gap-1">
-              {[
-                '😂','🤣','😭','😍','🥰','😎','🔥','💀',
-                '👍','👎','❤️','💔','✨','🎉','👏','🙏',
-                '😡','🤬','🥺','😴','🤮','🤯','😈','👻',
-                '🍕','🍔','☕','🍺','🏀','⚽','🎮','📱',
-                '💯','🚀','👀','💪','🤝','🫡','🫣','🫠',
-              ].map((sticker) => (
-                <button
-                  key={sticker}
-                  type="button"
-                  onClick={() => {
-                    setNewMessage(sticker)
-                    setShowStickers(false)
-                    setTimeout(() => {
-                      const btn = document.querySelector('[data-send-btn]') as HTMLButtonElement
-                      btn?.click()
-                    }, 30)
-                  }}
-                  className="text-2xl p-1.5 rounded-lg hover:bg-white/10 active:scale-90 transition"
-                >
-                  {sticker}
-                </button>
-              ))}
+          <div className="mb-2 bg-zinc-900 rounded-2xl border border-white/10 overflow-hidden">
+            <div className="flex border-b border-white/10">
+              <button
+                type="button"
+                onClick={() => setStickerTab('emoji')}
+                className={`flex-1 py-2 text-xs font-semibold ${
+                  stickerTab === 'emoji' ? 'text-pink-400' : 'text-gray-500'
+                }`}
+              >
+                Emoji
+              </button>
+              <button
+                type="button"
+                onClick={() => setStickerTab('mine')}
+                className={`flex-1 py-2 text-xs font-semibold ${
+                  stickerTab === 'mine' ? 'text-pink-400' : 'text-gray-500'
+                }`}
+              >
+                Buat stiker
+              </button>
+              <button
+                type="button"
+                onClick={() => setStickerTab('fav')}
+                className={`flex-1 py-2 text-xs font-semibold ${
+                  stickerTab === 'fav' ? 'text-pink-400' : 'text-gray-500'
+                }`}
+              >
+                Stiker Favorit
+              </button>
+            </div>
+
+            <div className="p-2 max-h-48 overflow-y-auto">
+              {stickerTab === 'emoji' ? (
+                <div className="grid grid-cols-8 gap-1">
+                  {[
+                    '😂','🤣','😭','😍','🥰','😎','🔥','💀',
+                    '👍','👎','❤️','💔','✨','🎉','👏','🙏',
+                    '😡','🤬','🥺','😴','🤮','🤯','😈','👻',
+                    '🍕','🍔','☕','🍺','🏀','⚽','🎮','📱',
+                    '💯','🚀','👀','💪','🤝','🫡','🫣','🫠',
+                  ].map((sticker) => (
+                    <button
+                      key={sticker}
+                      type="button"
+                      onClick={() => {
+                        setNewMessage(sticker)
+                        setShowStickers(false)
+                        setTimeout(() => {
+                          const btn = document.querySelector(
+                            '[data-send-btn]'
+                          ) as HTMLButtonElement
+                          btn?.click()
+                        }, 30)
+                      }}
+                      className="text-2xl p-1.5 rounded-lg hover:bg-white/10 active:scale-90 transition"
+                    >
+                      {sticker}
+                    </button>
+                  ))}
+                </div>
+              ) : stickerTab === 'mine' ? (
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => stickerInputRef.current?.click()}
+                    disabled={uploadingSticker}
+                    className="aspect-square rounded-xl border border-dashed border-white/20 flex flex-col items-center justify-center gap-1 text-gray-400 active:bg-white/5"
+                  >
+                    <span className="text-xl">+</span>
+                    <span className="text-[10px]">
+                      {uploadingSticker ? '...' : 'Tambah'}
+                    </span>
+                  </button>
+                  {myStickers.map((s) => (
+                    <div key={s.id} className="relative aspect-square">
+                      <button
+                        type="button"
+                        onClick={() => void sendSticker(s.image_url)}
+                        className="w-full h-full rounded-xl overflow-hidden bg-zinc-800 active:scale-95 transition"
+                      >
+                        <img
+                          src={s.image_url}
+                          alt=""
+                          className="w-full h-full object-contain p-1"
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteSticker(s.id)}
+                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-black/80 text-[10px] text-white flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {myStickers.length === 0 && (
+                    <p className="col-span-3 text-[11px] text-gray-500 self-center pl-1">
+                      Upload PNG/JPG buat stiker pribadi
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {favStickers.length === 0 ? (
+                    <p className="col-span-4 text-[11px] text-gray-500 py-4 text-center">
+                      Belum ada favorit. Tambah dari menu ⋯ di stiker chat.
+                    </p>
+                  ) : (
+                    favStickers.map((s) => (
+                      <div key={s.id} className="relative aspect-square">
+                        <button
+                          type="button"
+                          onClick={() => void sendSticker(s.image_url)}
+                          className="w-full h-full rounded-xl overflow-hidden bg-zinc-800 active:scale-95 transition"
+                        >
+                          <img
+                            src={s.image_url}
+                            alt=""
+                            className="w-full h-full object-contain p-1"
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void removeFavSticker(s.id)}
+                          className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-black/80 text-[10px] text-white flex items-center justify-center"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
+
+        <input
+          ref={stickerInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          className="hidden"
+          onChange={uploadSticker}
+        />
 
         <div className="flex items-center gap-2">
           <input
